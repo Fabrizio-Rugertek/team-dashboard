@@ -30,6 +30,14 @@ That endpoint fans out server-side and reuses short-lived cache entries:
 
 This reduces repeated XML-RPC roundtrips to Odoo when the browser loads `/equipo`.
 
+The app also prewarms the bootstrap endpoint:
+- initial warmup: ~1.5 seconds after process start
+- recurring warmup: every 30 seconds by default
+
+Environment flags:
+- `ENABLE_PREWARM=true`
+- `PREWARM_INTERVAL_MS=30000`
+
 ## Useful commands
 ```bash
 sudo systemctl status team-dashboard --no-pager

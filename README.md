@@ -67,7 +67,14 @@ That endpoint reuses cached Odoo reads to reduce duplicate XML-RPC traffic:
 - timesheets cache by range: 45 seconds
 - bootstrap payload: 45 seconds
 
-This keeps the dashboard responsive while preserving near-real-time data.
+The app also prewarms `/api/equipo/bootstrap` on startup and every 30 seconds by default so the first user-facing load usually hits hot cache.
+
+Environment flags:
+
+```env
+ENABLE_PREWARM=true
+PREWARM_INTERVAL_MS=30000
+```
 
 ## Deployment
 
