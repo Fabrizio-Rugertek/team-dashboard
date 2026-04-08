@@ -153,20 +153,19 @@ const API = '/api';
 // ── Load All Data ─────────────────────────────────────────────────────────────
 async function loadAll() {
   try {
-    const [summary, consultants, anomalies, projects, weekly] = await Promise.all([
-      fetch(`${API}/equipo/summary`).then(r => r.json()),
-      fetch(`${API}/equipo/consultants`).then(r => r.json()),
-      fetch(`${API}/equipo/anomalies`).then(r => r.json()),
-      fetch(`${API}/equipo/projects`).then(r => r.json()),
-      fetch(`${API}/equipo/weekly`).then(r => r.json())
-    ]);
+    const response = await fetch(`${API}/equipo/bootstrap`);
+    if (!response.ok) {
+      throw new Error(`Bootstrap request failed with ${response.status}`);
+    }
 
-    renderKpis(summary);
-    renderConsultants(consultants);
-    renderAnomalies(anomalies);
-    renderProjects(projects);
-    renderWeeklyChart(weekly);
-    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('es');
+    const payload = await response.json();
+
+    renderKpis(payload.summary);
+    renderConsultants(payload.consultants);
+    renderAnomalies(payload.anomalies);
+    renderProjects(payload.projects);
+    renderWeeklyChart(payload.weekly);
+    document.getElementById('lastUpdate').textContent = new Date(payload.generatedAt).toLocaleTimeString('es');
   } catch (e) {
     console.error('Error loading data:', e);
   }
@@ -330,3 +329,4 @@ setInterval(loadAll, 5 * 60 * 1000);
 
 </body>
 </html>
+

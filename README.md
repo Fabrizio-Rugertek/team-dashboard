@@ -43,6 +43,7 @@ ODOO_PASSWORD=<password>
 src/
   index.js      # Express server
   odoo.js       # Odoo XML-RPC connector
+  cache.js      # In-memory short-lived cache for Odoo-backed endpoints
 routes/
   equipo.js     # /equipo page
   api.js        # /api/equipo/* JSON endpoints
@@ -50,6 +51,23 @@ views/
   platform/     # Shell and hub
   dashboards/    # Per-dashboard pages
 ```
+
+## Performance
+
+The `/equipo` page now hydrates from a single bootstrap endpoint:
+
+```text
+GET /api/equipo/bootstrap
+```
+
+That endpoint reuses cached Odoo reads to reduce duplicate XML-RPC traffic:
+
+- users cache: 5 minutes
+- projects cache: 45 seconds
+- timesheets cache by range: 45 seconds
+- bootstrap payload: 45 seconds
+
+This keeps the dashboard responsive while preserving near-real-time data.
 
 ## Deployment
 
@@ -71,4 +89,12 @@ Expected public URL:
 
 ```text
 https://dashboard.torus.dev/equipo
+```
+
+## Operations
+
+Operational notes, service commands, cache behavior, and troubleshooting live in:
+
+```text
+docs/OPERATIONS.md
 ```

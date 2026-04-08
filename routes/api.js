@@ -1,279 +1,372 @@
 const express = require('express');
 const router = express.Router();
 const odoo = require('../src/odoo');
+const { getCached } = require('../src/cache');
 
-// PY holidays 2024-2026
 const HOLIDAYS = [
-  '2026-01-01','2026-01-08','2026-02-09','2026-02-10',
-  '2026-03-01','2026-04-01','2026-04-02','2026-04-03',
-  '2026-05-01','2026-05-14','2026-06-15','2026-07-28',
-  '2026-08-15','2026-09-29','2026-12-08','2026-12-25'
+  '2026-01-01', '2026-01-08', '2026-02-09', '2026-02-10',
+  '2026-03-01', '2026-04-01', '2026-04-02', '2026-04-03',
+  '2026-05-01', '2026-05-14', '2026-06-15', '2026-07-28',
+  '2026-08-15', '2026-09-29', '2026-12-08', '2026-12-25'
 ];
-const isHoliday = d => HOLIDAYS.includes(d.toISOString().slice(0,10));
-const isWeekend = d => d.getDay() === 0 || d.getDay() === 6;
+
+const API_TTL_MS = 45 * 1000;
+const USERS_TTL_MS = 5 * 60 * 1000;
+
+const isHoliday = (date) => HOLIDAYS.includes(date.toISOString().slice(0, 10));
+const isWeekend = (date) => date.getDay() === 0 || date.getDay() === 6;
+
+function dayFromString(value) {
+  return new Date(`${value}T00:00:00`);
+}
+
+function round1(value) {
+  return Math.round(value * 10) / 10;
+}
 
 function isTaskDone(task) {
   if (!task) return false;
   const stageName = (task.stageName || '').toLowerCase();
-  return stageName.includes('complet') || stageName.includes('done') || stageName.includes('cerrad') || stageName.includes('terminad') || stageName.includes('finalizad');
+  return (
+    stageName.includes('complet') ||
+    stageName.includes('done') ||
+    stageName.includes('cerrad') ||
+    stageName.includes('terminad') ||
+    stageName.includes('finalizad')
+  );
 }
 
 function shortName(name) {
   if (!name) return '?';
   const words = name.split(' ');
   if (words.length === 1) return name.slice(0, 25);
-  return words[0] + ' ' + words[1];
+  return `${words[0]} ${words[1]}`;
 }
 
-// GET /api/equipo/summary — top-level KPIs
-router.get('/equipo/summary', async (req, res) => {
-  try {
-    const ts = await odoo.fetchTimesheets(30);
-    const projects = await odoo.fetchProjectsWithTasks();
-    const users = await odoo.fetchUsers();
-    
+async function getUsersCached() {
+  return getCached('users', USERS_TTL_MS, () => odoo.fetchUsers());
+}
+
+async function getProjectsCached() {
+  return getCached('projects:with-tasks', API_TTL_MS, () => odoo.fetchProjectsWithTasks());
+}
+
+async function getTimesheetsCached(daysBack) {
+  return getCached(`timesheets:${daysBack}`, API_TTL_MS, () => odoo.fetchTimesheets(daysBack));
+}
+
+async function getDashboardData() {
+  return getCached('dashboard:equipo:bootstrap', API_TTL_MS, async () => {
+    const [users, projects, timesheets30, timesheets60, timesheets90] = await Promise.all([
+      getUsersCached(),
+      getProjectsCached(),
+      getTimesheetsCached(30),
+      getTimesheetsCached(60),
+      getTimesheetsCached(90)
+    ]);
+
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const prevWeekStart = new Date(weekStart); prevWeekStart.setDate(weekStart.getDate() - 7);
+    const prevWeekStart = new Date(weekStart);
+    prevWeekStart.setDate(weekStart.getDate() - 7);
+    const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
 
-    const weekTotal = ts.filter(e => new Date(e.date + 'T00:00:00') >= weekStart)
-      .reduce((s, e) => s + parseFloat(e.unit_amount || 0), 0);
-    const monthTotal = ts.filter(e => new Date(e.date + 'T00:00:00') >= monthStart)
-      .reduce((s, e) => s + parseFloat(e.unit_amount || 0), 0);
-    const activeUsers = new Set(ts.filter(e => new Date(e.date + 'T00:00:00') >= weekStart).map(e => e.user_id?.[0])).size;
-    
-    const totalTasks = projects.flatMap(p => p.tasks).length;
-    const doneTasks = projects.flatMap(p => p.tasks).filter(t => isTaskDone(t)).length;
-    const totalAllocated = projects.flatMap(p => p.tasks).reduce((s, t) => s + parseFloat(t.allocated_hours || 0), 0);
-    const totalLogged = projects.flatMap(p => p.tasks).reduce((s, t) => s + parseFloat(t.effective_hours || 0), 0);
+    const allTasks = projects.flatMap((project) => project.tasks || []);
+    const totalTasks = allTasks.length;
+    const doneTasks = allTasks.filter((task) => isTaskDone(task)).length;
+    const totalAllocated = allTasks.reduce((sum, task) => sum + parseFloat(task.allocated_hours || 0), 0);
+    const totalLogged = allTasks.reduce((sum, task) => sum + parseFloat(task.effective_hours || 0), 0);
 
-    res.json({
-      weekHours: Math.round(weekTotal * 10) / 10,
-      monthHours: Math.round(monthTotal * 10) / 10,
-      activeUsers,
+    const summary = {
+      weekHours: round1(
+        timesheets30
+          .filter((entry) => dayFromString(entry.date) >= weekStart)
+          .reduce((sum, entry) => sum + parseFloat(entry.unit_amount || 0), 0)
+      ),
+      monthHours: round1(
+        timesheets30
+          .filter((entry) => dayFromString(entry.date) >= monthStart)
+          .reduce((sum, entry) => sum + parseFloat(entry.unit_amount || 0), 0)
+      ),
+      activeUsers: new Set(
+        timesheets30
+          .filter((entry) => dayFromString(entry.date) >= weekStart)
+          .map((entry) => entry.user_id?.[0])
+          .filter(Boolean)
+      ).size,
       totalUsers: users.length,
       totalTasks,
       doneTasks,
-      completionRate: totalTasks > 0 ? Math.round(doneTasks / totalTasks * 100) : 0,
-      totalAllocated: Math.round(totalAllocated * 10) / 10,
-      totalLogged: Math.round(totalLogged * 10) / 10
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// GET /api/equipo/consultants — per-consultant hours
-router.get('/equipo/consultants', async (req, res) => {
-  try {
-    const ts = await odoo.fetchTimesheets(60);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
-    const prevWeekStart = new Date(weekStart); prevWeekStart.setDate(weekStart.getDate() - 7);
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const prevMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      completionRate: totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0,
+      totalAllocated: round1(totalAllocated),
+      totalLogged: round1(totalLogged)
+    };
 
     const userMap = {};
-    ts.forEach(e => {
-      const uid = e.user_id?.[0];
-      if (!uid) return;
-      if (!userMap[uid]) {
-        userMap[uid] = { name: e.user_id?.[1] || '?', entries: [], hoursThisWeek: 0, hoursPrevWeek: 0, hoursThisMonth: 0, hoursPrevMonth: 0, projects: {} };
+    for (const entry of timesheets60) {
+      const userId = entry.user_id?.[0];
+      if (!userId) continue;
+
+      if (!userMap[userId]) {
+        userMap[userId] = {
+          name: entry.user_id?.[1] || '?',
+          entries: [],
+          hoursThisWeek: 0,
+          hoursPrevWeek: 0,
+          hoursThisMonth: 0,
+          hoursPrevMonth: 0,
+          projects: {}
+        };
       }
-      const ue = userMap[uid];
-      ue.entries.push(e);
-      const d = new Date(e.date + 'T00:00:00');
-      const h = parseFloat(e.unit_amount || 0);
-      if (d >= weekStart) ue.hoursThisWeek += h;
-      if (d >= prevWeekStart && d < weekStart) ue.hoursPrevWeek += h;
-      if (d >= monthStart) ue.hoursThisMonth += h;
-      if (d >= prevMonthStart && d < monthStart) ue.hoursPrevMonth += h;
-      const pid = e.project_id?.[0];
-      if (pid) ue.projects[pid] = (ue.projects[pid] || 0) + h;
-    });
 
-    const consultants = Object.values(userMap).sort((a, b) => b.hoursThisWeek - a.hoursThisWeek);
-    res.json(consultants.map(c => ({
-      name: c.name,
-      hoursThisWeek: Math.round(c.hoursThisWeek * 10) / 10,
-      hoursPrevWeek: Math.round(c.hoursPrevWeek * 10) / 10,
-      hoursThisMonth: Math.round(c.hoursThisMonth * 10) / 10,
-      hoursPrevMonth: Math.round(c.hoursPrevMonth * 10) / 10,
-      entries: c.entries.length,
-      projectCount: Object.keys(c.projects).length
-    })));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+      const data = userMap[userId];
+      const day = dayFromString(entry.date);
+      const hours = parseFloat(entry.unit_amount || 0);
+      data.entries.push(entry);
 
-// GET /api/equipo/anomalies — anomaly detection
-router.get('/equipo/anomalies', async (req, res) => {
-  try {
-    const ts = await odoo.fetchTimesheets(30);
-    const projects = await odoo.fetchProjectsWithTasks();
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay());
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      if (day >= weekStart) data.hoursThisWeek += hours;
+      if (day >= prevWeekStart && day < weekStart) data.hoursPrevWeek += hours;
+      if (day >= monthStart) data.hoursThisMonth += hours;
+      if (day >= prevMonthStart && day < monthStart) data.hoursPrevMonth += hours;
+
+      const projectId = entry.project_id?.[0];
+      if (projectId) {
+        data.projects[projectId] = (data.projects[projectId] || 0) + hours;
+      }
+    }
+
+    const consultants = Object.values(userMap)
+      .sort((a, b) => b.hoursThisWeek - a.hoursThisWeek)
+      .map((consultant) => ({
+        name: consultant.name,
+        hoursThisWeek: round1(consultant.hoursThisWeek),
+        hoursPrevWeek: round1(consultant.hoursPrevWeek),
+        hoursThisMonth: round1(consultant.hoursThisMonth),
+        hoursPrevMonth: round1(consultant.hoursPrevMonth),
+        entries: consultant.entries.length,
+        projectCount: Object.keys(consultant.projects).length
+      }));
+
+    const taskMap = {};
+    for (const project of projects) {
+      for (const task of project.tasks || []) {
+        taskMap[task.id] = task;
+      }
+    }
 
     const anomalies = [];
-    const taskMap = {};
-    projects.forEach(p => (p.tasks || []).forEach(t => { taskMap[t.id] = t; }));
+    for (const entry of timesheets30) {
+      const hours = parseFloat(entry.unit_amount || 0);
+      const day = dayFromString(entry.date);
+      const task = taskMap[entry.task_id?.[0]];
+      const description = (entry.name || '').trim();
+      const user = entry.user_id?.[1] || '?';
 
-    ts.forEach(e => {
-      const hours = parseFloat(e.unit_amount || 0);
-      const d = new Date(e.date + 'T00:00:00');
-      const uid = e.user_id?.[0];
-      const task = taskMap[e.task_id?.[0]];
-      const desc = (e.name || '').trim();
-
-      // Excessive hours in single day
       if (hours > 12) {
-        anomalies.push({ type: 'critical', icon: '⚠️', user: e.user_id?.[1] || '?',
-          message: `${hours.toFixed(1)}h en un día`, detail: `${e.date}${desc ? ' — ' + desc.slice(0,60) : ''}`,
-          category: 'exceso_dia' });
+        anomalies.push({
+          type: 'critical',
+          icon: '⚠️',
+          user,
+          message: `${hours.toFixed(1)}h en un día`,
+          detail: `${entry.date}${description ? ` - ${description.slice(0, 60)}` : ''}`,
+          category: 'exceso_dia'
+        });
       }
 
-      // Weekend/holiday work
-      if ((isWeekend(d) || isHoliday(d)) && hours > 0) {
-        anomalies.push({ type: 'warning', icon: '📅', user: e.user_id?.[1] || '?',
-          message: `${isWeekend(d) ? 'Fin de semana' : 'Feriado'}: ${e.date}`,
-          detail: `${hours.toFixed(1)}h — ${desc || '(sin descripción)'}`.slice(0, 80),
-          category: 'horas_inhabituales' });
+      if ((isWeekend(day) || isHoliday(day)) && hours > 0) {
+        anomalies.push({
+          type: 'warning',
+          icon: '📅',
+          user,
+          message: `${isWeekend(day) ? 'Fin de semana' : 'Feriado'}: ${entry.date}`,
+          detail: `${hours.toFixed(1)}h - ${description || '(sin descripcion)'}`.slice(0, 80),
+          category: 'horas_inhabituales'
+        });
       }
 
-      // Task with 0 estimate
-      if (hours > 0 && task && !task.allocated_hours && e.task_id) {
-        anomalies.push({ type: 'warning', icon: '📊', user: e.user_id?.[1] || '?',
-          message: `Tarea sin estimación: ${(e.task_id?.[1] || '').slice(0, 40)}`,
+      if (hours > 0 && task && !task.allocated_hours && entry.task_id) {
+        anomalies.push({
+          type: 'warning',
+          icon: '📊',
+          user,
+          message: `Tarea sin estimacion: ${(entry.task_id?.[1] || '').slice(0, 40)}`,
           detail: `${hours.toFixed(1)}h logueadas sin horas estimadas`,
-          category: 'sin_estimacion' });
+          category: 'sin_estimacion'
+        });
       }
 
-      // Mechanical/short description
-      const mechanical = ['-', 'x', '.', 'ok', 'si', 'no', 'nada', 'listo', 'done'].some(m => desc.toLowerCase() === m)
-        || (desc.length > 0 && desc.length < 5);
+      const lowerDescription = description.toLowerCase();
+      const mechanical =
+        ['-', 'x', '.', 'ok', 'si', 'no', 'nada', 'listo', 'done'].includes(lowerDescription) ||
+        (description.length > 0 && description.length < 5);
+
       if (mechanical && hours > 3) {
-        anomalies.push({ type: 'warning', icon: '🤖', user: e.user_id?.[1] || '?',
-          message: `Descripción mecánica: "${desc}"`,
-          detail: `${hours.toFixed(1)}h — "${desc}" — revisar si hay progreso real`,
-          category: 'descripcion_mecanica' });
+        anomalies.push({
+          type: 'warning',
+          icon: '🤖',
+          user,
+          message: `Descripcion mecanica: "${description}"`,
+          detail: `${hours.toFixed(1)}h - "${description}" - revisar si hay progreso real`,
+          category: 'descripcion_mecanica'
+        });
       }
-    });
+    }
 
-    // Inactive users
-    const lastEntry = {};
+    const lastEntryByUser = {};
     const userNames = {};
-    ts.forEach(e => {
-      const uid = e.user_id?.[0];
-      const d = new Date(e.date + 'T00:00:00');
-      if (uid) {
-        if (!lastEntry[uid] || d > lastEntry[uid]) lastEntry[uid] = d;
-        userNames[uid] = e.user_id?.[1] || '?';
+    for (const entry of timesheets30) {
+      const userId = entry.user_id?.[0];
+      if (!userId) continue;
+
+      const day = dayFromString(entry.date);
+      if (!lastEntryByUser[userId] || day > lastEntryByUser[userId]) {
+        lastEntryByUser[userId] = day;
       }
-    });
-    Object.entries(lastEntry).forEach(([uid, lastDate]) => {
+      userNames[userId] = entry.user_id?.[1] || '?';
+    }
+
+    for (const [userId, lastDate] of Object.entries(lastEntryByUser)) {
       const daysSince = Math.round((today - lastDate) / (1000 * 60 * 60 * 24));
       if (daysSince > 3) {
-        anomalies.push({ type: daysSince > 7 ? 'critical' : 'info', icon: '💤', user: userNames[uid] || '?',
-          message: `Sin horas en ${daysSince} días`,
-          detail: `Última entrada: ${lastDate.toLocaleDateString('es')}`,
-          category: 'inactivo' });
+        anomalies.push({
+          type: daysSince > 7 ? 'critical' : 'info',
+          icon: '💤',
+          user: userNames[userId] || '?',
+          message: `Sin horas en ${daysSince} dias`,
+          detail: `Ultima entrada: ${lastDate.toLocaleDateString('es')}`,
+          category: 'inactivo'
+        });
       }
-    });
+    }
 
     anomalies.sort((a, b) => {
-      const o = { critical: 0, warning: 1, info: 2 };
-      return (o[a.type] || 3) - (o[b.type] || 3);
+      const order = { critical: 0, warning: 1, info: 2 };
+      return (order[a.type] || 3) - (order[b.type] || 3);
     });
 
-    res.json(anomalies.slice(0, 50));
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    const projectsView = projects.map((project) => {
+      const projectTasks = project.tasks || [];
+      const totalAllocHours = projectTasks.reduce((sum, task) => sum + parseFloat(task.allocated_hours || 0), 0);
+      const totalLoggedHours = projectTasks.reduce((sum, task) => sum + parseFloat(task.effective_hours || 0), 0);
+      const openTasks = projectTasks.filter((task) => !isTaskDone(task)).length;
+      const doneProjectTasks = projectTasks.filter((task) => isTaskDone(task)).length;
+      const lastWrite = project.write_date ? new Date(project.write_date) : null;
+      const daysSinceUpdate = lastWrite ? Math.round((today - lastWrite) / 86400000) : 999;
 
-// GET /api/equipo/projects — project status
-router.get('/equipo/projects', async (req, res) => {
-  try {
-    const projects = await odoo.fetchProjectsWithTasks();
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    const statuses = projects.map(p => {
-      const totalAlloc = (p.tasks || []).reduce((s, t) => s + parseFloat(t.allocated_hours || 0), 0);
-      const totalLog = (p.tasks || []).reduce((s, t) => s + parseFloat(t.effective_hours || 0), 0);
-      const openTasks = (p.tasks || []).filter(t => !isTaskDone(t)).length;
-      const doneTasks = (p.tasks || []).filter(t => isTaskDone(t)).length;
-      const lastWrite = p.write_date ? new Date(p.write_date) : null;
-      const daysSince = lastWrite ? Math.round((today - lastWrite) / (86400000)) : 999;
-      const avgProgress = p.tasks.length > 0 
-        ? Math.round(p.tasks.reduce((s, t) => {
-            const stageName = (t.stageName || '').toLowerCase();
-            let pct = 0;
-            if (stageName.includes('complet')) pct = 100;
-            else if (stageName.includes('progreso')) pct = 50;
-            else if (stageName.includes('revis')) pct = 75;
-            else if (stageName.includes('espera') || stageName.includes('hold')) pct = 25;
-            return s + pct;
-          }, 0) / p.tasks.length)
+      const stageProgress = projectTasks.length > 0
+        ? Math.round(projectTasks.reduce((sum, task) => {
+            const stageName = (task.stageName || '').toLowerCase();
+            let percent = 0;
+            if (stageName.includes('complet')) percent = 100;
+            else if (stageName.includes('progreso')) percent = 50;
+            else if (stageName.includes('revis')) percent = 75;
+            else if (stageName.includes('espera') || stageName.includes('hold')) percent = 25;
+            return sum + percent;
+          }, 0) / projectTasks.length)
         : 0;
 
       return {
-        id: p.id,
-        name: shortName(p.name),
-        fullName: p.name,
-        totalAlloc: Math.round(totalAlloc * 10) / 10,
-        totalLog: Math.round(totalLog * 10) / 10,
+        id: project.id,
+        name: shortName(project.name),
+        fullName: project.name,
+        totalAlloc: round1(totalAllocHours),
+        totalLog: round1(totalLoggedHours),
         openTasks,
-        doneTasks,
-        totalTasks: p.tasks.length,
-        hoursPct: totalAlloc > 0 ? Math.round(totalLog / totalAlloc * 100) : null,
-        daysSinceUpdate: daysSince,
-        needsAttention: (totalAlloc > 0 && totalLog > totalAlloc * 1.2) || daysSince > 14,
-        needsUpdate: daysSince > 7,
-        stageProgress: avgProgress,
-        assignees: [...new Set(p.tasks.map(t => t.user_id?.[1] || 'Sin asignar'))].slice(0, 4)
+        doneTasks: doneProjectTasks,
+        totalTasks: projectTasks.length,
+        hoursPct: totalAllocHours > 0 ? Math.round((totalLoggedHours / totalAllocHours) * 100) : null,
+        daysSinceUpdate,
+        needsAttention: (totalAllocHours > 0 && totalLoggedHours > totalAllocHours * 1.2) || daysSinceUpdate > 14,
+        needsUpdate: daysSinceUpdate > 7,
+        stageProgress,
+        assignees: [...new Set(projectTasks.map((task) => task.user_id?.[1] || 'Sin asignar'))].slice(0, 4)
       };
     });
 
-    res.json(statuses);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    const weekly = [];
+    for (let i = 7; i >= 0; i -= 1) {
+      const weekEnd = new Date(today);
+      weekEnd.setDate(today.getDate() - today.getDay() - (i * 7));
+      const weekStartForSeries = new Date(weekEnd);
+      weekStartForSeries.setDate(weekEnd.getDate() - 6);
 
-// GET /api/equipo/weekly — weekly hours for last 8 weeks
-router.get('/equipo/weekly', async (req, res) => {
-  try {
-    const ts = await odoo.fetchTimesheets(90);
-    const now = new Date();
-    const weeks = [];
+      const hours = timesheets90
+        .filter((entry) => {
+          const day = dayFromString(entry.date);
+          return day >= weekStartForSeries && day <= weekEnd;
+        })
+        .reduce((sum, entry) => sum + parseFloat(entry.unit_amount || 0), 0);
 
-    for (let i = 7; i >= 0; i--) {
-      const weekEnd = new Date(now);
-      weekEnd.setDate(now.getDate() - now.getDay() - (i * 7));
-      const weekStart = new Date(weekEnd);
-      weekStart.setDate(weekEnd.getDate() - 6);
-      
-      const weekHours = ts.filter(e => {
-        const d = new Date(e.date + 'T00:00:00');
-        return d >= weekStart && d <= weekEnd;
-      }).reduce((s, e) => s + parseFloat(e.unit_amount || 0), 0);
-
-      weeks.push({
-        label: `Sem ${weekStart.toLocaleDateString('es', {day:'numeric',month:'short'})}`,
-        hours: Math.round(weekHours * 10) / 10
+      weekly.push({
+        label: `Sem ${weekStartForSeries.toLocaleDateString('es', { day: 'numeric', month: 'short' })}`,
+        hours: round1(hours)
       });
     }
 
-    res.json(weeks);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    return {
+      generatedAt: new Date().toISOString(),
+      summary,
+      consultants,
+      anomalies: anomalies.slice(0, 50),
+      projects: projectsView,
+      weekly
+    };
+  });
+}
+
+router.get('/equipo/bootstrap', async (req, res) => {
+  try {
+    res.json(await getDashboardData());
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/equipo/summary', async (req, res) => {
+  try {
+    const data = await getDashboardData();
+    res.json(data.summary);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/equipo/consultants', async (req, res) => {
+  try {
+    const data = await getDashboardData();
+    res.json(data.consultants);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/equipo/anomalies', async (req, res) => {
+  try {
+    const data = await getDashboardData();
+    res.json(data.anomalies);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/equipo/projects', async (req, res) => {
+  try {
+    const data = await getDashboardData();
+    res.json(data.projects);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/equipo/weekly', async (req, res) => {
+  try {
+    const data = await getDashboardData();
+    res.json(data.weekly);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 
