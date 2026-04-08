@@ -12,6 +12,7 @@ const ODOO = {
 let _uid = null;
 let _client = null;
 let _models = null;
+let _authPromise = null;
 
 function getXmlrpcTarget(pathname) {
   const parsed = new URL(ODOO.url);
@@ -38,7 +39,9 @@ function getModels() {
 
 async function authenticate() {
   if (_uid) return _uid;
-  return new Promise((resolve, reject) => {
+  if (_authPromise) return _authPromise;
+
+  _authPromise = new Promise((resolve, reject) => {
     getClient().methodCall('authenticate', [ODOO.db, ODOO.user, ODOO.password, {}], (err, uid) => {
       if (err || !uid) {
         console.error('[Odoo] Auth error:', err);
@@ -50,6 +53,12 @@ async function authenticate() {
       }
     });
   });
+
+  try {
+    return await _authPromise;
+  } finally {
+    _authPromise = null;
+  }
 }
 
 async function callKw(model, method, args = [], kwargs = {}) {
