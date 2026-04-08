@@ -15,7 +15,7 @@ const isWeekend = d => d.getDay() === 0 || d.getDay() === 6;
 function isTaskDone(task) {
   if (!task) return false;
   const stageName = (task.stageName || '').toLowerCase();
-  return stageName.includes('complet') || stageName.includes('done') || stageName.includes('cerrad');
+  return stageName.includes('complet') || stageName.includes('done') || stageName.includes('cerrad') || stageName.includes('terminad') || stageName.includes('finalizad');
 }
 
 function shortName(name) {
@@ -167,16 +167,19 @@ router.get('/equipo/anomalies', async (req, res) => {
 
     // Inactive users
     const lastEntry = {};
+    const userNames = {};
     ts.forEach(e => {
       const uid = e.user_id?.[0];
       const d = new Date(e.date + 'T00:00:00');
-      if (!lastEntry[uid] || d > lastEntry[uid]) lastEntry[uid] = d;
+      if (uid) {
+        if (!lastEntry[uid] || d > lastEntry[uid]) lastEntry[uid] = d;
+        userNames[uid] = e.user_id?.[1] || '?';
+      }
     });
     Object.entries(lastEntry).forEach(([uid, lastDate]) => {
       const daysSince = Math.round((today - lastDate) / (1000 * 60 * 60 * 24));
       if (daysSince > 3) {
-        const name = Object.values(lastEntry).find ? '?' : (ts.find(e => e.user_id?.[0] == uid)?.user_id?.[1]) || '?';
-        anomalies.push({ type: daysSince > 7 ? 'critical' : 'info', icon: '💤', user: name,
+        anomalies.push({ type: daysSince > 7 ? 'critical' : 'info', icon: '💤', user: userNames[uid] || '?',
           message: `Sin horas en ${daysSince} días`,
           detail: `Última entrada: ${lastDate.toLocaleDateString('es')}`,
           category: 'inactivo' });

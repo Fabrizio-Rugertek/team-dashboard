@@ -7,11 +7,13 @@ router.get('/', async (req, res) => {
     const users = await odoo.fetchUsers();
     res.render('dashboards/equipo', {
       title: 'Equipo — Torus Dashboard',
-      users
+      users: users || []
     });
   } catch (err) {
     console.error('Error loading equipo:', err.message);
-    res.status(500).render('error', { message: 'Error cargando datos: ' + err.message });
+    res.status(500).render('error', {
+      message: 'Error cargando datos del equipo: ' + err.message
+    });
   }
 });
 
