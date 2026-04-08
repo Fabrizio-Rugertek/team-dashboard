@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>* { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Nav -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+        <span class="text-white font-bold text-sm">T</span>
+      </div>
+      <span class="font-bold text-slate-900 text-lg">Torus</span>
+      <span class="text-slate-400 text-sm font-medium">/ Control de Equipo</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <a href="/" class="text-sm text-slate-500 hover:text-slate-900 font-medium">← Dashboards</a>
+      <div class="flex items-center gap-2">
+        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+        <span class="text-xs text-slate-500">Live</span>
+      </div>
+      <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-semibold text-slate-600">F</div>
+    </div>
+  </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-4 py-6">
+
+  <!-- KPI Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="kpiCards">
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Horas Semana</div>
+      <div class="mt-1 text-3xl font-extrabold text-slate-900" id="kpi-hours-week">—</div>
+      <div class="text-xs text-slate-400 mt-1" id="kpi-hours-week-label">Cargando...</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Horas Mes</div>
+      <div class="mt-1 text-3xl font-extrabold text-slate-900" id="kpi-hours-month">—</div>
+      <div class="text-xs text-slate-400 mt-1">último mes</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Consultores Activos</div>
+      <div class="mt-1 text-3xl font-extrabold text-slate-900" id="kpi-active-users">—</div>
+      <div class="text-xs text-slate-400 mt-1" id="kpi-total-users">de — totales</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Tareas Completadas</div>
+      <div class="mt-1 text-3xl font-extrabold text-slate-900"><span id="kpi-done">—</span><span class="text-lg text-slate-400">/<span id="kpi-total">—</span></span></div>
+      <div class="text-xs text-slate-400 mt-1"><span id="kpi-pct">—</span>% del total</div>
+    </div>
+  </div>
+
+  <!-- Anomalías Banner -->
+  <div id="anomalyBanner" class="mb-6 hidden">
+    <div class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+      <span class="text-2xl">🚨</span>
+      <div>
+        <div class="font-bold text-red-800">Anomalías detectadas</div>
+        <div class="text-sm text-red-600" id="anomalyBannerText"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+    <!-- Left: Weekly Chart + Consultants -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Weekly Hours Chart -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold text-slate-800 mb-4">📈 Horas por Semana (últimas 8 semanas)</h3>
+        <div style="height: 220px;">
+          <canvas id="weeklyChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Consultants Table -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <h3 class="font-bold text-slate-800 mb-4">👥 Consultores</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-100">
+                <th class="text-left py-2 px-3 font-semibold text-slate-600">Consultor</th>
+                <th class="text-right py-2 px-3 font-semibold text-slate-600">Esta Sem.</th>
+                <th class="text-right py-2 px-3 font-semibold text-slate-600">Sem. Pasada</th>
+                <th class="text-right py-2 px-3 font-semibold text-slate-600">Variación</th>
+                <th class="text-right py-2 px-3 font-semibold text-slate-600">Mes</th>
+                <th class="text-right py-2 px-3 font-semibold text-slate-600">Entradas</th>
+              </tr>
+            </thead>
+            <tbody id="consultantsTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right: Anomalías + Alerts -->
+    <div class="space-y-6">
+
+      <!-- Alerts -->
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-slate-800">⚠️ Alertas</h3>
+          <span class="text-xs text-slate-400" id="alertCount"></span>
+        </div>
+        <div id="alertsList" class="space-y-3 max-h-96 overflow-y-auto"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Projects Status -->
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <h3 class="font-bold text-slate-800 mb-4">📋 Estado de Proyectos</h3>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100">
+            <th class="text-left py-2 px-3 font-semibold text-slate-600">Proyecto</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600">Avance</th>
+            <th class="text-right py-2 px-3 font-semibold text-slate-600">Horas Log</th>
+            <th class="text-right py-2 px-3 font-semibold text-slate-600">Estimado</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600">Tareas Ab.</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600">Asignados</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600">Actualización</th>
+          </tr>
+        </thead>
+        <tbody id="projectsTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer class="text-center text-xs text-slate-400 py-6 mt-6">
+  Torus Dashboard Platform · Actualizado: <span id="lastUpdate">—</span>
+</footer>
+
+<script>
+const API = '/api';
+
+// ── Load All Data ─────────────────────────────────────────────────────────────
+async function loadAll() {
+  try {
+    const [summary, consultants, anomalies, projects, weekly] = await Promise.all([
+      fetch(`${API}/equipo/summary`).then(r => r.json()),
+      fetch(`${API}/equipo/consultants`).then(r => r.json()),
+      fetch(`${API}/equipo/anomalies`).then(r => r.json()),
+      fetch(`${API}/equipo/projects`).then(r => r.json()),
+      fetch(`${API}/equipo/weekly`).then(r => r.json())
+    ]);
+
+    renderKpis(summary);
+    renderConsultants(consultants);
+    renderAnomalies(anomalies);
+    renderProjects(projects);
+    renderWeeklyChart(weekly);
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('es');
+  } catch (e) {
+    console.error('Error loading data:', e);
+  }
+}
+
+// ── KPIs ────────────────────────────────────────────────────────────────────
+function renderKpis(s) {
+  document.getElementById('kpi-hours-week').textContent = s.weekHours + 'h';
+  document.getElementById('kpi-hours-month').textContent = s.monthHours + 'h';
+  document.getElementById('kpi-active-users').textContent = s.activeUsers;
+  document.getElementById('kpi-total-users').textContent = `de ${s.totalUsers} totales`;
+  document.getElementById('kpi-done').textContent = s.doneTasks;
+  document.getElementById('kpi-total').textContent = s.totalTasks;
+  document.getElementById('kpi-pct').textContent = s.completionRate;
+
+  const expectedWeek = s.activeUsers * 40;
+  const pct = expectedWeek > 0 ? Math.round(s.weekHours / expectedWeek * 100) : 0;
+  document.getElementById('kpi-hours-week-label').textContent = `${pct}% del objetivo semanal`;
+}
+
+// ── Consultants ─────────────────────────────────────────────────────────────
+function renderConsultants(consultants) {
+  const tbody = document.getElementById('consultantsTable');
+  tbody.innerHTML = consultants.map(c => {
+    const trend = c.hoursThisWeek - c.hoursPrevWeek;
+    const trendPct = c.hoursPrevWeek > 0 ? Math.round((trend / c.hoursPrevWeek) * 100) : 0;
+    const trendColor = trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-500' : 'text-slate-400';
+    const trendIcon = trend > 0 ? '↑' : trend < 0 ? '↓' : '→';
+    const initials = c.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="py-2 px-3">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">${initials}</div>
+          <span class="font-medium text-slate-800">${c.name}</span>
+        </div>
+      </td>
+      <td class="py-2 px-3 text-right font-bold text-slate-900">${c.hoursThisWeek}h</td>
+      <td class="py-2 px-3 text-right text-slate-500">${c.hoursPrevWeek}h</td>
+      <td class="py-2 px-3 text-right font-semibold ${trendColor}">${trendIcon} ${Math.abs(trendPct)}%</td>
+      <td class="py-2 px-3 text-right text-slate-500">${c.hoursThisMonth}h</td>
+      <td class="py-2 px-3 text-right text-slate-400">${c.entries}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Anomalies ────────────────────────────────────────────────────────────────
+function renderAnomalies(anomalies) {
+  const critical = anomalies.filter(a => a.type === 'critical');
+  const warning = anomalies.filter(a => a.type === 'warning');
+  const info = anomalies.filter(a => a.type === 'info');
+
+  const banner = document.getElementById('anomalyBanner');
+  const bannerText = document.getElementById('anomalyBannerText');
+  if (critical.length > 0) {
+    banner.classList.remove('hidden');
+    bannerText.textContent = `${critical.length} crítica(s), ${warning.length} warning(s)`;
+  } else if (warning.length > 0) {
+    banner.classList.remove('hidden');
+    banner.classList.replace('bg-red-50', 'bg-amber-50');
+    banner.classList.replace('border-red-200', 'border-amber-200');
+    bannerText.textContent = `${warning.length} warning(s), ${info.length} info`;
+  }
+
+  document.getElementById('alertCount').textContent = `${critical.length}🟥 ${warning.length}🟨 ${info.length}🟦`;
+
+  const list = document.getElementById('alertsList');
+  const display = anomalies.slice(0, 20);
+  list.innerHTML = display.length === 0 
+    ? '<p class="text-sm text-green-600 font-medium">✓ Sin anomalías detectadas</p>'
+    : display.map(a => {
+      const colors = {
+        critical: 'bg-red-50 border-l-4 border-red-500',
+        warning: 'bg-amber-50 border-l-4 border-amber-500',
+        info: 'bg-blue-50 border-l-4 border-blue-400'
+      };
+      return `<div class="${colors[a.type]} rounded-lg p-3">
+        <div class="flex items-start gap-2">
+          <span class="text-lg">${a.icon}</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-bold text-slate-700">${a.user}</div>
+            <div class="text-xs text-slate-600 mt-0.5">${a.message}</div>
+            <div class="text-xs text-slate-400 mt-0.5 truncate">${a.detail}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+function renderProjects(projects) {
+  const tbody = document.getElementById('projectsTable');
+  tbody.innerHTML = projects.map(p => {
+    const hoursColor = !p.hoursPct ? 'text-slate-400' : p.hoursPct > 120 ? 'text-red-600 font-bold' : p.hoursPct > 100 ? 'text-amber-600' : 'text-green-600';
+    const updateColor = p.daysSinceUpdate > 14 ? 'text-red-600' : p.daysSinceUpdate > 7 ? 'text-amber-500' : 'text-green-600';
+    const updateIcon = p.daysSinceUpdate > 14 ? '🔴' : p.daysSinceUpdate > 7 ? '🟡' : '🟢';
+    const updateLabel = p.daysSinceUpdate > 99 ? 'Nunca' : `Hace ${p.daysSinceUpdate}d`;
+    const progressColor = p.stageProgress > 80 ? 'text-green-600' : p.stageProgress > 50 ? 'text-amber-500' : 'text-slate-400';
+
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${p.needsAttention ? 'bg-red-50' : ''}">
+      <td class="py-2 px-3">
+        <div class="font-medium text-slate-800 text-sm">${p.name}</div>
+        ${p.needsAttention ? '<span class="text-xs text-red-600 font-semibold">⚠️ Exceso de horas</span>' : ''}
+      </td>
+      <td class="py-2 px-3 text-center">
+        <span class="font-bold ${progressColor}">${p.stageProgress}%</span>
+      </td>
+      <td class="py-2 px-3 text-right ${hoursColor}">${p.totalLog}h${p.hoursPct ? ` (${p.hoursPct}%)` : ''}</td>
+      <td class="py-2 px-3 text-right text-slate-400">${p.totalAlloc > 0 ? p.totalAlloc + 'h' : '—'}</td>
+      <td class="py-2 px-3 text-center text-slate-500">${p.openTasks}</td>
+      <td class="py-2 px-3 text-center text-slate-400 text-xs">${p.assignees.join(', ')}</td>
+      <td class="py-2 px-3 text-center font-semibold ${updateColor}">${updateIcon} ${updateLabel}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Weekly Chart ─────────────────────────────────────────────────────────────
+function renderWeeklyChart(weeks) {
+  const ctx = document.getElementById('weeklyChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: weeks.map(w => w.label),
+      datasets: [{
+        label: 'Horas',
+        data: weeks.map(w => w.hours),
+        backgroundColor: weeks.map((_, i) => i === weeks.length - 1 ? '#3B82F6' : '#BFDBFE'),
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.raw}h`
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: '#F1F5F9' },
+          ticks: { callback: v => v + 'h' }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+// Auto-refresh every 5 minutes
+loadAll();
+setInterval(loadAll, 5 * 60 * 1000);
+</script>
+
+</body>
+</html>
