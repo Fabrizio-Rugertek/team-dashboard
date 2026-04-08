@@ -1,59 +1,87 @@
 #!/bin/bash
 # Deploy Torus Dashboard Platform to VM
-# Run this on the VM as: bash <(curl -s https://raw.githubusercontent.com/Fabrizio-Rugerte/team-dashboard/master/deploy/deploy.sh)
+# Run on the VM as:
+# bash <(curl -fsSL https://raw.githubusercontent.com/Fabrizio-Rugertek/team-dashboard/master/deploy/deploy.sh)
 
-set -e
+set -euo pipefail
 
+REPO_URL="https://github.com/Fabrizio-Rugertek/team-dashboard.git"
 APP_DIR="/home/openclaw/team-dashboard"
+APP_USER="openclaw"
 SERVICE_NAME="team-dashboard"
-PORT=3511
+PORT="3511"
+SITE_NAME="dashboard.torus.dev"
+SECRETS_JSON="/home/openclaw/.openclaw/workspace/.secrets/credentials.json"
 
-echo "=== Torus Dashboard Deployment ==="
+log() { echo "[deploy] $*"; }
+fail() { echo "[deploy] ERROR: $*" >&2; exit 1; }
 
-# Create app directory
-mkdir -p $APP_DIR
+command -v git >/dev/null || fail "git no esta instalado"
+command -v node >/dev/null || fail "node no esta instalado"
+command -v npm >/dev/null || fail "npm no esta instalado"
+command -v python3 >/dev/null || fail "python3 no esta instalado"
+command -v nginx >/dev/null || fail "nginx no esta instalado"
 
-# Clone or pull latest
+log "Preparando $APP_DIR"
+mkdir -p "$APP_DIR"
+
 if [ -d "$APP_DIR/.git" ]; then
-    echo "Pulling latest..."
-    cd $APP_DIR && git pull origin master
+  log "Actualizando repo"
+  git -C "$APP_DIR" fetch origin master
+  git -C "$APP_DIR" reset --hard origin/master
 else
-    echo "Cloning repo..."
-    git clone https://github.com/Fabrizio-Rugerte/team-dashboard.git $APP_DIR
+  log "Clonando repo"
+  rm -rf "$APP_DIR"
+  git clone "$REPO_URL" "$APP_DIR"
 fi
 
-# Install dependencies
-cd $APP_DIR && npm install --production
+cd "$APP_DIR"
+log "Instalando dependencias"
+npm ci --omit=dev
 
-# Create .env from template
-if [ ! -f "$APP_DIR/.env" ]; then
-    cat > $APP_DIR/.env << 'EOF'
-PORT=3511
-ODOO_URL=https://www.torus.dev
-ODOO_DB=rugertek-company-odoo-production-17029773
-ODOO_USER=odoo@rugertek.com
-ODOO_PASSWORD=GGAmLPq@FxyUL85
-EOF
-    echo "Created .env file"
+if [ ! -f "$SECRETS_JSON" ]; then
+  fail "No existe $SECRETS_JSON; no puedo generar .env sin secretos"
 fi
 
-# Copy systemd service
-sudo cp $APP_DIR/deploy/team-dashboard.service /etc/systemd/system/
+log "Generando .env desde credenciales de OpenClaw"
+python3 - <<'PY' > "$APP_DIR/.env"
+import json, sys
+p = '/home/openclaw/.openclaw/workspace/.secrets/credentials.json'
+with open(p, 'r', encoding='utf-8') as f:
+    data = json.load(f)
+cfg = data.get('odoo_torus') or {}
+url = cfg.get('url')
+db = cfg.get('database') or cfg.get('db')
+user = cfg.get('username') or cfg.get('user') or cfg.get('login')
+pwd = cfg.get('password')
+missing = [name for name, value in [('url', url), ('db', db), ('user', user), ('password', pwd)] if not value]
+if missing:
+    raise SystemExit(f'Faltan credenciales en odoo_torus: {", ".join(missing)}')
+print('PORT=3511')
+print(f'ODOO_URL={url}')
+print(f'ODOO_DB={db}')
+print(f'ODOO_USER={user}')
+print(f'ODOO_PASSWORD={pwd}')
+PY
+chown "$APP_USER":"$APP_USER" "$APP_DIR/.env"
+chmod 600 "$APP_DIR/.env"
+
+log "Instalando service systemd"
+sudo cp "$APP_DIR/deploy/team-dashboard.service" "/etc/systemd/system/$SERVICE_NAME.service"
 sudo systemctl daemon-reload
-sudo systemctl enable $SERVICE_NAME
-sudo systemctl restart $SERVICE_NAME
+sudo systemctl enable "$SERVICE_NAME"
+sudo systemctl restart "$SERVICE_NAME"
 
-# Setup nginx (if not already)
-if [ ! -f /etc/nginx/sites-enabled/dashboard.torus.dev.conf ]; then
-    sudo cp $APP_DIR/deploy/nginx-dashboard.torus.dev.conf /etc/nginx/sites-available/
-    sudo ln -sf /etc/nginx/sites-available/dashboard.torus.dev.conf /etc/nginx/sites-enabled/
-    sudo nginx -t && sudo systemctl reload nginx
-fi
+log "Configurando nginx"
+sudo cp "$APP_DIR/deploy/nginx-dashboard.torus.dev.conf" "/etc/nginx/sites-available/$SITE_NAME"
+sudo ln -sfn "/etc/nginx/sites-available/$SITE_NAME" "/etc/nginx/sites-enabled/$SITE_NAME"
+sudo nginx -t
+sudo systemctl reload nginx
 
-# Check status
-sudo systemctl status $SERVICE_NAME --no-pager
+log "Estado del servicio"
+sudo systemctl --no-pager --full status "$SERVICE_NAME" || true
 
-echo ""
-echo "=== Deployment Complete ==="
-echo "Dashboard: http://dashboard.torus.dev"
-echo "API test: curl http://localhost:$PORT/api/equipo/summary"
+echo
+log "Deploy completado"
+echo "HTTP local: http://127.0.0.1:$PORT/equipo"
+echo "Host esperado: https://$SITE_NAME/equipo"

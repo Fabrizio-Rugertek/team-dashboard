@@ -1,4 +1,5 @@
 const xmlrpc = require('xmlrpc');
+const { URL } = require('url');
 require('dotenv').config();
 
 const ODOO = {
@@ -12,36 +13,35 @@ let _uid = null;
 let _client = null;
 let _models = null;
 
+function getXmlrpcTarget(pathname) {
+  const parsed = new URL(ODOO.url);
+  return {
+    host: parsed.hostname,
+    port: Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80)),
+    path: pathname,
+    headers: {
+      Host: parsed.hostname,
+      'User-Agent': 'team-dashboard/1.0'
+    }
+  };
+}
+
 function getClient() {
-  if (!_client) {
-    // Use https:// explicitly via hostname (not host) for SSL
-    _client = xmlrpc.createSecureClient({
-      host: ODOO.url.replace('https://', ''),
-      port: 443,
-      path: '/xmlrpc/2/common'
-    });
-  }
+  if (!_client) _client = xmlrpc.createSecureClient(getXmlrpcTarget('/xmlrpc/2/common'));
   return _client;
 }
 
 function getModels() {
-  if (!_models) {
-    _models = xmlrpc.createSecureClient({
-      host: ODOO.url.replace('https://', ''),
-      port: 443,
-      path: '/xmlrpc/2/object'
-    });
-  }
+  if (!_models) _models = xmlrpc.createSecureClient(getXmlrpcTarget('/xmlrpc/2/object'));
   return _models;
 }
 
 async function authenticate() {
   if (_uid) return _uid;
-
   return new Promise((resolve, reject) => {
     getClient().methodCall('authenticate', [ODOO.db, ODOO.user, ODOO.password, {}], (err, uid) => {
       if (err || !uid) {
-        console.error('[Odoo] Auth error:', err?.message || err);
+        console.error('[Odoo] Auth error:', err);
         reject(err || new Error('Authentication failed'));
       } else {
         _uid = uid;
@@ -52,100 +52,49 @@ async function authenticate() {
   });
 }
 
-async function callKw(model, method, args = []) {
+async function callKw(model, method, args = [], kwargs = {}) {
   return new Promise(async (resolve, reject) => {
-    try {
-      const uid = await authenticate();
-      if (!uid) return reject(new Error('Not authenticated'));
-
-      const callArgs = [ODOO.db, uid, ODOO.password, model, method, args];
-      getModels().methodCall('execute_kw', callArgs, (err, data) => {
-        if (err) {
-          console.error(`[Odoo] ${model}.${method} error:`, err?.message || err);
-          reject(err);
-        } else {
-          resolve(data);
-        }
-      });
-    } catch (e) {
-      reject(e);
-    }
+    const uid = await authenticate().catch(reject);
+    if (!uid) return;
+    const params = [ODOO.db, uid, ODOO.password, model, method, args];
+    if (kwargs && Object.keys(kwargs).length) params.push(kwargs);
+    getModels().methodCall('execute_kw', params, (err, data) => {
+      if (err) {
+        const fault = err?.faultString || err?.message || String(err);
+        console.error(`[Odoo] ${model}.${method} error:`, fault);
+        reject(new Error(`XML-RPC fault: ${fault}`));
+      } else {
+        resolve(data);
+      }
+    });
   });
 }
-
-// ─── Safe field getters ───────────────────────────────────────────────────────
-
-function safeGet(obj, path, fallback = null) {
-  return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : fallback, obj);
-}
-
-function idName(val) {
-  // Handle Odoo many2one format: [id, 'name'] or just id
-  if (Array.isArray(val)) return { id: val[0], name: val[1] };
-  if (typeof val === 'number') return { id: val, name: String(val) };
-  return { id: null, name: String(val || '?') };
-}
-
-// ─── Raw Odoo Data Fetchers ─────────────────────────────────────────────────
 
 async function fetchTimesheets(daysBack = 30) {
   const dateFrom = new Date();
   dateFrom.setDate(dateFrom.getDate() - daysBack);
   const dateStr = dateFrom.toISOString().slice(0, 10);
-
-  try {
-    const records = await callKw('account.analytic.line', 'search_read', [[
-      ['date', '>=', dateStr]
-    ], {
-      fields: ['id', 'date', 'user_id', 'project_id', 'task_id', 'unit_amount', 'name', 'create_date'],
-      context: { bin_size: false }
-    }]);
-    return records || [];
-  } catch (e) {
-    console.error('[Odoo] fetchTimesheets failed:', e.message);
-    return [];
-  }
+  return callKw('account.analytic.line', 'search_read', [[['date', '>=', dateStr]]], {
+    fields: ['id', 'date', 'user_id', 'project_id', 'task_id', 'unit_amount', 'name', 'create_date'],
+    context: { bin_size: true }
+  });
 }
 
 async function fetchProjectsWithTasks() {
-  // Fetch projects - use only fields that exist
-  let projects = [];
-  try {
-    projects = await callKw('project.project', 'search_read', [[
-      ['active', 'in', [true, false]]
-    ], {
-      fields: ['id', 'name', 'date_start', 'write_date'],
-      context: { bin_size: false }
-    }]) || [];
-  } catch (e) {
-    console.error('[Odoo] fetchProjects (projects) failed:', e.message);
-  }
+  const projects = await callKw('project.project', 'search_read', [[['active', 'in', [true, false]]]], {
+    fields: ['id', 'name', 'date_start', 'write_date', 'user_id'],
+    context: { bin_size: true }
+  });
 
-  // Fetch tasks with minimal fields to avoid field-not-found errors
-  let tasks = [];
-  try {
-    tasks = await callKw('project.task', 'search_read', [[
-      '|', ['active', '=', true], ['active', '=', false]
-    ], {
-      fields: ['id', 'name', 'project_id', 'stage_id', 'allocated_hours', 'effective_hours',
-               'date_deadline', 'write_date', 'create_date'],
-      context: { bin_size: false }
-    }]) || [];
-  } catch (e) {
-    console.error('[Odoo] fetchProjects (tasks) failed:', e.message);
-  }
+  const tasks = await callKw('project.task', 'search_read', [['|', ['active', '=', true], ['active', '=', false]]], {
+    fields: ['id', 'name', 'project_id', 'stage_id', 'allocated_hours', 'effective_hours', 'date_deadline', 'write_date', 'create_date', 'date_last_stage_update', 'description'],
+    context: { bin_size: true }
+  });
 
-  // Fetch stages
-  let stages = [];
-  try {
-    stages = await callKw('project.task.type', 'search_read', [[
-    ], {
-      fields: ['id', 'name', 'sequence'],
-      context: { bin_size: false }
-    }]) || [];
-  } catch (e) {
-    console.error('[Odoo] fetchProjects (stages) failed:', e.message);
-  }
+  const stages = await callKw('project.task.type', 'search_read', [[]], {
+    fields: ['id', 'name', 'sequence', 'mail_template_id'],
+    context: { bin_size: true }
+  });
 
   const stageMap = {};
   stages.forEach(s => { stageMap[s.id] = s.name; });
@@ -153,12 +102,12 @@ async function fetchProjectsWithTasks() {
   const projectMap = {};
   projects.forEach(p => { projectMap[p.id] = { ...p, tasks: [] }; });
   tasks.forEach(t => {
-    const pid = Array.isArray(t.project_id) ? t.project_id[0] : t.project_id;
+    const pid = t.project_id?.[0];
     if (pid && projectMap[pid]) {
       projectMap[pid].tasks.push({
         ...t,
-        stageName: stageMap[t.stage_id && t.stage_id[0]] || 'Unknown',
-        assignedNames: [t.user_id?.[1] || 'Sin asignar']
+        user_id: null,
+        stageName: stageMap[t.stage_id?.[0]] || 'Unknown'
       });
     }
   });
@@ -167,18 +116,10 @@ async function fetchProjectsWithTasks() {
 }
 
 async function fetchUsers() {
-  try {
-    const users = await callKw('res.users', 'search_read', [[
-      ['share', '=', false]
-    ], {
-      fields: ['id', 'name', 'login'],
-      context: { bin_size: false }
-    }]) || [];
-    return users;
-  } catch (e) {
-    console.error('[Odoo] fetchUsers failed:', e.message);
-    return [];
-  }
+  return callKw('res.users', 'search_read', [[['share', '=', false]]], {
+    fields: ['id', 'name', 'login', 'email'],
+    context: { bin_size: true }
+  });
 }
 
 module.exports = {

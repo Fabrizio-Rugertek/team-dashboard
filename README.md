@@ -53,7 +53,22 @@ views/
 
 ## Deployment
 
+Deploy reproducible on the RuBot VM:
+
 ```bash
-npm start
-# Runs on port 3511 (configured for dashboard.torus.dev via nginx reverse proxy)
+bash <(curl -fsSL https://raw.githubusercontent.com/Fabrizio-Rugertek/team-dashboard/master/deploy/deploy.sh)
+```
+
+The deploy script:
+
+1. clones or updates the repo in `/home/openclaw/team-dashboard`
+2. installs production dependencies with `npm ci --omit=dev`
+3. generates `.env` from `/home/openclaw/.openclaw/workspace/.secrets/credentials.json` using the `odoo_torus` entry
+4. installs/restarts `team-dashboard.service`
+5. installs nginx for `dashboard.torus.dev`
+
+Expected public URL:
+
+```text
+https://dashboard.torus.dev/equipo
 ```
