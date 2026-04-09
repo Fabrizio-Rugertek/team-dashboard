@@ -1,4 +1,4 @@
-# Team Dashboard Operations
+﻿# Team Dashboard Operations
 
 ## Runtime
 - App path on VM: `/home/openclaw/team-dashboard`
@@ -37,6 +37,17 @@ The app also prewarms the bootstrap endpoint:
 Environment flags:
 - `ENABLE_PREWARM=true`
 - `PREWARM_INTERVAL_MS=30000`
+
+Projects are paginated:
+- bootstrap returns page 1
+- additional pages are loaded from `GET /api/equipo/projects?page=N&pageSize=20`
+
+The service also persists the latest successful bootstrap snapshot to:
+- `data/cache/equipo-bootstrap.json`
+
+If Odoo is unavailable, the API serves this snapshot as a stale fallback instead of failing hard.
+
+The frontend also shows a stale-data banner when snapshot fallback is in use.
 
 ## Useful commands
 ```bash

@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { getDashboardCached } = require('../src/cache');
 
@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
     const infoCount = anomalies.filter(a => a.type === 'info').length;
 
     res.render('dashboards/equipo', {
-      title: 'Control de Equipo — Torus Dashboard',
+      title: 'Control de Equipo - Torus Dashboard',
       summary, consultants, projectStatuses, anomalies,
       criticalCount, warningCount, infoCount,
       weeklyLabels: weeklyData.map(w => w.label),
@@ -26,3 +26,4 @@ router.get('/', async (req, res) => {
 });
 
 module.exports = router;
+

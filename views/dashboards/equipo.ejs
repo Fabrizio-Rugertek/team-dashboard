@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -8,11 +7,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <style>* { font-family: 'Inter', sans-serif; }</style>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .alert-filter-btn.active { background: #0f172a; color: white; }
+  </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
-
-<!-- Nav -->
 <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -23,7 +23,7 @@
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-2 text-xs text-slate-500">
         <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-        <span>Actualizado: <%= lastUpdate %></span>
+        <span>Actualizado: <span id="lastUpdate"><%= lastUpdate %></span></span>
       </div>
       <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-bold text-slate-600">F</div>
     </div>
@@ -31,263 +31,212 @@
 </nav>
 
 <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-
-<!-- ══════════════════════════════════════════════════════════════ -->
-<!-- HERO: ALERTAS (la sección más importante)                    -->
-<!-- ══════════════════════════════════════════════════════════════ -->
-<section>
-  <div class="flex items-center justify-between mb-4">
-    <div class="flex items-center gap-3">
-      <span class="text-2xl">🚨</span>
-      <h2 class="text-xl font-extrabold text-slate-900">Alertas y Validaciones</h2>
-    </div>
-    <!-- Filter tabs -->
-    <div class="flex gap-1 bg-slate-100 rounded-lg p-1" id="alertFilters">
-      <button class="alert-filter-btn active px-3 py-1.5 rounded-md text-xs font-bold" data-filter="all">Todas <span class="ml-1"><%= criticalCount + warningCount + infoCount %></span></button>
-      <button class="alert-filter-btn px-3 py-1.5 rounded-md text-xs font-bold text-red-700 bg-red-100" data-filter="critical">🚨 <%= criticalCount %></button>
-      <button class="alert-filter-btn px-3 py-1.5 rounded-md text-xs font-bold text-amber-700" data-filter="warning">🟡 <%= warningCount %></button>
-      <button class="alert-filter-btn px-3 py-1.5 rounded-md text-xs font-bold text-blue-700" data-filter="info">💤 <%= infoCount %></button>
+  <div id="staleBanner" class="hidden">
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <div class="font-bold text-amber-900">Mostrando snapshot guardado</div>
+      <div class="text-sm text-amber-700" id="staleBannerText"></div>
     </div>
   </div>
 
-  <!-- Alert summary cards -->
-  <div class="grid grid-cols-3 gap-4 mb-4">
-    <div class="bg-white rounded-xl border-2 border-red-200 p-4 flex items-center gap-4 cursor-pointer hover:bg-red-50 transition-colors" onclick="filterAlerts('critical')">
-      <div class="text-4xl">🚨</div>
-      <div>
-        <div class="text-3xl font-black text-red-600"><%= criticalCount %></div>
-        <div class="text-xs font-semibold text-red-500 uppercase tracking-wide">Críticas</div>
-        <div class="text-xs text-slate-400 mt-0.5">Requieren atención inmediata</div>
+  <section>
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🚨</span>
+        <h2 class="text-xl font-extrabold text-slate-900">Alertas y Validaciones</h2>
+      </div>
+      <div class="flex gap-1 bg-slate-100 rounded-lg p-1" id="alertFilters">
+        <button class="alert-filter-btn active px-3 py-1.5 rounded-md text-xs font-bold" data-filter="all">Todas <span class="ml-1" id="alertFilterAllCount"><%= criticalCount + warningCount + infoCount %></span></button>
+        <button class="alert-filter-btn px-3 py-1.5 rounded-md text-xs font-bold text-red-700 bg-red-100" data-filter="critical">🚨 <span id="alertFilterCriticalCount"><%= criticalCount %></span></button>
+        <button class="alert-filter-btn px-3 py-1.5 rounded-md text-xs font-bold text-amber-700" data-filter="warning">🟡 <span id="alertFilterWarningCount"><%= warningCount %></span></button>
+        <button class="alert-filter-btn px-3 py-1.5 rounded-md text-xs font-bold text-blue-700" data-filter="info">💤 <span id="alertFilterInfoCount"><%= infoCount %></span></button>
       </div>
     </div>
-    <div class="bg-white rounded-xl border-2 border-amber-200 p-4 flex items-center gap-4 cursor-pointer hover:bg-amber-50 transition-colors" onclick="filterAlerts('warning')">
-      <div class="text-4xl">🟡</div>
-      <div>
-        <div class="text-3xl font-black text-amber-600"><%= warningCount %></div>
-        <div class="text-xs font-semibold text-amber-500 uppercase tracking-wide">Warnings</div>
-        <div class="text-xs text-slate-400 mt-0.5">Revisar y corregir</div>
-      </div>
-    </div>
-    <div class="bg-white rounded-xl border-2 border-blue-200 p-4 flex items-center gap-4 cursor-pointer hover:bg-blue-50 transition-colors" onclick="filterAlerts('info')">
-      <div class="text-4xl">💤</div>
-      <div>
-        <div class="text-3xl font-black text-blue-600"><%= infoCount %></div>
-        <div class="text-xs font-semibold text-blue-500 uppercase tracking-wide">Info</div>
-        <div class="text-xs text-slate-400 mt-0.5">Monitoreo pasivo</div>
-      </div>
-    </div>
-  </div>
 
-  <!-- Alerts table -->
-  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <div class="overflow-x-auto max-h-80 overflow-y-auto" id="alertsContainer">
+    <div class="grid grid-cols-3 gap-4 mb-4">
+      <div class="bg-white rounded-xl border-2 border-red-200 p-4 flex items-center gap-4 cursor-pointer hover:bg-red-50 transition-colors" onclick="filterAlerts('critical')">
+        <div class="text-4xl">🚨</div>
+        <div>
+          <div class="text-3xl font-black text-red-600" id="criticalCount"><%= criticalCount %></div>
+          <div class="text-xs font-semibold text-red-500 uppercase tracking-wide">Criticas</div>
+          <div class="text-xs text-slate-400 mt-0.5">Requieren atencion inmediata</div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border-2 border-amber-200 p-4 flex items-center gap-4 cursor-pointer hover:bg-amber-50 transition-colors" onclick="filterAlerts('warning')">
+        <div class="text-4xl">🟡</div>
+        <div>
+          <div class="text-3xl font-black text-amber-600" id="warningCount"><%= warningCount %></div>
+          <div class="text-xs font-semibold text-amber-500 uppercase tracking-wide">Warnings</div>
+          <div class="text-xs text-slate-400 mt-0.5">Revisar y corregir</div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border-2 border-blue-200 p-4 flex items-center gap-4 cursor-pointer hover:bg-blue-50 transition-colors" onclick="filterAlerts('info')">
+        <div class="text-4xl">💤</div>
+        <div>
+          <div class="text-3xl font-black text-blue-600" id="infoCount"><%= infoCount %></div>
+          <div class="text-xs font-semibold text-blue-500 uppercase tracking-wide">Info</div>
+          <div class="text-xs text-slate-400 mt-0.5">Monitoreo pasivo</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto max-h-80 overflow-y-auto" id="alertsContainer">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+            <tr>
+              <th class="text-left py-2.5 px-4 font-semibold text-slate-600 text-xs w-10">#</th>
+              <th class="text-left py-2.5 px-3 font-semibold text-slate-600 text-xs w-16">Nivel</th>
+              <th class="text-left py-2.5 px-3 font-semibold text-slate-600 text-xs w-28">Consultor</th>
+              <th class="text-left py-2.5 px-4 font-semibold text-slate-600 text-xs">Mensaje</th>
+              <th class="text-left py-2.5 px-3 font-semibold text-slate-600 text-xs w-28">Categoria</th>
+              <th class="text-left py-2.5 px-4 font-semibold text-slate-600 text-xs">Detalle</th>
+            </tr>
+          </thead>
+          <tbody id="alertsTableBody">
+            <% anomalies.forEach((a, i) => { %>
+            <tr class="alert-row border-b border-slate-50 hover:bg-slate-50 transition-colors" data-type="<%= a.type %>">
+              <td class="py-2.5 px-4 text-slate-400 text-xs"><%= i + 1 %></td>
+              <td class="py-2.5 px-3">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold <%= a.type === 'critical' ? 'bg-red-100 text-red-700' : a.type === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700' %>">
+                  <%= a.type === 'critical' ? '🚨' : a.type === 'warning' ? '🟡' : '💤' %>
+                  <%= a.type.charAt(0).toUpperCase() + a.type.slice(1) %>
+                </span>
+              </td>
+              <td class="py-2.5 px-3"><div class="font-medium text-slate-800 text-xs"><%= a.user %></div></td>
+              <td class="py-2.5 px-4"><div class="font-semibold text-slate-800 text-xs"><%= a.message %></div></td>
+              <td class="py-2.5 px-3">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600"><%= a.category %></span>
+              </td>
+              <td class="py-2.5 px-4"><div class="text-xs text-slate-500 max-w-xs truncate" title="<%= a.detail %>"><%= a.detail %></div></td>
+            </tr>
+            <% }) %>
+            <% if (anomalies.length === 0) { %>
+            <tr>
+              <td colspan="6" class="py-12 text-center">
+                <div class="text-4xl mb-2">✅</div>
+                <div class="font-bold text-green-600 text-lg">Sin anomalias detectadas</div>
+                <div class="text-sm text-slate-400 mt-1">Todo esta en orden esta semana</div>
+              </td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Horas Semana</div>
+        <div class="text-2xl font-black text-slate-900" id="kpiWeekHours"><%= summary.weekHours %>h</div>
+        <div class="text-xs text-slate-400 mt-1"><span id="kpiActiveUsers"><%= summary.activeUsers %></span> consultores activos</div>
+      </div>
+      <div class="bg-white rounded-xl border-2 border-green-200 p-4">
+        <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Billable</div>
+        <div class="text-2xl font-black text-green-600" id="kpiBillableWeek"><%= summary.billableWeek || 0 %>h</div>
+        <div class="text-xs text-slate-400 mt-1" id="kpiBillableWeekPct"><%= summary.weekHours > 0 ? Math.round((summary.billableWeek || 0) / summary.weekHours * 100) : 0 %>% del total</div>
+      </div>
+      <div class="bg-white rounded-xl border-2 border-orange-200 p-4">
+        <div class="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-1">Non-Billable</div>
+        <div class="text-2xl font-black text-orange-600" id="kpiNonBillableWeek"><%= summary.nonBillableWeek || 0 %>h</div>
+        <div class="text-xs text-slate-400 mt-1" id="kpiNonBillableWeekPct"><%= summary.weekHours > 0 ? Math.round((summary.nonBillableWeek || 0) / summary.weekHours * 100) : 0 %>% del total</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Horas Mes</div>
+        <div class="text-2xl font-black text-slate-900" id="kpiMonthHours"><%= summary.monthHours %>h</div>
+        <div class="text-xs text-slate-400 mt-1"><span id="kpiBillableMonth"><%= summary.billableMonth || 0 %></span> billable / <span id="kpiNonBillableMonth"><%= summary.nonBillableMonth || 0 %></span> non</div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Billable vs Non-Billable (semana)</div>
+      <div style="height: 160px;">
+        <canvas id="billableChart"></canvas>
+      </div>
+      <div class="flex justify-center gap-6 mt-3">
+        <div class="flex items-center gap-1.5 text-xs">
+          <div class="w-3 h-3 rounded-full bg-green-500"></div>
+          <span class="font-medium text-slate-700" id="billableLegend">Billable <%= summary.weekHours > 0 ? Math.round((summary.billableWeek || 0) / summary.weekHours * 100) : 0 %>%</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs">
+          <div class="w-3 h-3 rounded-full bg-orange-400"></div>
+          <span class="font-medium text-slate-700" id="nonBillableLegend">Non-Billable <%= summary.weekHours > 0 ? Math.round((summary.nonBillableWeek || 0) / summary.weekHours * 100) : 0 %>%</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="font-bold text-slate-800 mb-4">Horas por Semana</h3>
+      <div style="height: 200px;">
+        <canvas id="weeklyChart"></canvas>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="font-bold text-slate-800 mb-3">Top Consultores</h3>
+      <div class="space-y-3 max-h-52 overflow-y-auto" id="topConsultantsList">
+        <% consultants.slice(0, 8).forEach((c) => { %>
+        <div class="flex items-center gap-2 <%= !c.hasHours ? 'opacity-40' : '' %>">
+          <div class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"><%= (c.name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() %></div>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-semibold text-slate-800 truncate"><%= c.name %></div>
+            <% if (c.job) { %><div class="text-xs text-slate-400 truncate"><%= c.job %></div><% } %>
+          </div>
+          <div class="text-right flex-shrink-0">
+            <div class="text-sm font-bold <%= c.hasHours ? 'text-slate-900' : 'text-slate-400' %>"><%= c.hoursThisWeek %>h</div>
+            <div class="text-xs <%= (c.billableWeek || 0) > (c.nonBillableWeek || 0) ? 'text-green-600' : 'text-orange-500' %>">B <%= c.billableWeek || 0 %> / N <%= c.nonBillableWeek || 0 %></div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between gap-4 mb-4">
+      <h3 class="font-bold text-slate-800">Estado de Proyectos</h3>
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <button id="projectsPrev" class="px-3 py-1 rounded border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed">Anterior</button>
+        <span id="projectsPageLabel">Pagina 1</span>
+        <button id="projectsNext" class="px-3 py-1 rounded border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed">Siguiente</button>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
       <table class="w-full text-sm">
-        <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
-          <tr>
-            <th class="text-left py-2.5 px-4 font-semibold text-slate-600 text-xs w-10">#</th>
-            <th class="text-left py-2.5 px-3 font-semibold text-slate-600 text-xs w-16">Nivel</th>
-            <th class="text-left py-2.5 px-3 font-semibold text-slate-600 text-xs w-28">Consultor</th>
-            <th class="text-left py-2.5 px-4 font-semibold text-slate-600 text-xs">Mensaje</th>
-            <th class="text-left py-2.5 px-3 font-semibold text-slate-600 text-xs w-28">Categoría</th>
-            <th class="text-left py-2.5 px-4 font-semibold text-slate-600 text-xs">Detalle</th>
+        <thead>
+          <tr class="border-b-2 border-slate-100">
+            <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Proyecto</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Avance</th>
+            <th class="text-right py-2 px-3 font-semibold text-slate-600 text-xs">Log</th>
+            <th class="text-right py-2 px-3 font-semibold text-slate-600 text-xs">Estimado</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Ab. / Hechas</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Backlog</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Actualizacion</th>
           </tr>
         </thead>
-        <tbody id="alertsTableBody">
-          <% anomalies.forEach((a, i) => { %>
-          <tr class="alert-row border-b border-slate-50 hover:bg-slate-50 transition-colors" data-type="<%= a.type %>" data-category="<%= a.category %>">
-            <td class="py-2.5 px-4 text-slate-400 text-xs"><%= i + 1 %></td>
-            <td class="py-2.5 px-3">
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold
-                <%= a.type === 'critical' ? 'bg-red-100 text-red-700' : a.type === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700' %>">
-                <%= a.type === 'critical' ? '🚨' : a.type === 'warning' ? '🟡' : '💤' %>
-                <%= a.type.charAt(0).toUpperCase() + a.type.slice(1) %>
-              </span>
+        <tbody id="projectsTable">
+          <% projectStatuses.slice(0, 20).forEach((p) => { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 <%= p.needsAttention ? 'bg-red-50' : '' %>">
+            <td class="py-2 px-3">
+              <div class="font-medium text-slate-800 text-xs"><%= p.name %></div>
+              <% if (p.needsAttention) { %><span class="text-xs text-red-600 font-semibold">Atencion</span><% } %>
             </td>
-            <td class="py-2.5 px-3">
-              <div class="font-medium text-slate-800 text-xs"><%= a.user %></div>
-            </td>
-            <td class="py-2.5 px-4">
-              <div class="font-semibold text-slate-800 text-xs"><%= a.message %></div>
-            </td>
-            <td class="py-2.5 px-3">
-              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
-                <%= a.category === 'exceso_dia' ? 'bg-red-50 text-red-600' :
-                   a.category === 'horas_inhabituales' ? 'bg-orange-50 text-orange-600' :
-                   a.category === 'sin_estimacion' ? 'bg-amber-50 text-amber-600' :
-                   a.category === 'descripcion_mecanica' ? 'bg-yellow-50 text-yellow-700' :
-                   a.category === 'tarea_sin_fechas' ? 'bg-indigo-50 text-indigo-600' :
-                   a.category === 'hijo_sin_sprint' ? 'bg-violet-50 text-violet-600' :
-                   a.category === 'inactivo' ? 'bg-slate-100 text-slate-600' :
-                   'bg-slate-100 text-slate-600' %>">
-                <%= a.category === 'exceso_dia' ? '⚡ Exceso' :
-                   a.category === 'horas_inhabituales' ? '📅 Fds/Feriado' :
-                   a.category === 'sin_estimacion' ? '📊 Sin estimación' :
-                   a.category === 'descripcion_mecanica' ? '🤖 Desc. mecánica' :
-                   a.category === 'tarea_sin_fechas' ? '📅 Sin fechas' :
-                   a.category === 'hijo_sin_sprint' ? '🔗 Hijo sin sprint' :
-                   a.category === 'inactivo' ? '💤 Sin actividad' :
-                   a.category %>
-              </span>
-            </td>
-            <td class="py-2.5 px-4">
-              <div class="text-xs text-slate-500 max-w-xs truncate" title="<%= a.detail %>"><%= a.detail %></div>
-            </td>
+            <td class="py-2 px-3 text-center"><span class="font-bold <%= p.stageProgress > 80 ? 'text-green-600' : p.stageProgress > 50 ? 'text-amber-500' : 'text-slate-400' %>"><%= p.stageProgress %>%</span></td>
+            <td class="py-2 px-3 text-right <%= p.hoursPct && p.hoursPct > 120 ? 'text-red-600 font-bold' : p.hoursPct && p.hoursPct > 100 ? 'text-amber-600' : 'text-green-600' %>"><%= p.totalLog %>h<%= p.hoursPct ? ` (${p.hoursPct}%)` : '' %></td>
+            <td class="py-2 px-3 text-right text-slate-400"><%= p.totalAlloc > 0 ? p.totalAlloc + 'h' : '-' %></td>
+            <td class="py-2 px-3 text-center text-slate-500"><%= p.openTasks %> / <%= p.doneTasks %></td>
+            <td class="py-2 px-3 text-center text-slate-400"><%= p.backlogTasks %></td>
+            <td class="py-2 px-3 text-center"><span class="<%= p.daysSinceUpdate > 14 ? 'text-red-600 font-bold' : p.daysSinceUpdate > 7 ? 'text-amber-500' : 'text-green-600' %> text-xs font-semibold"><%= p.daysSinceUpdate > 14 ? '🔴' : p.daysSinceUpdate > 7 ? '🟡' : '🟢' %> <%= p.daysSinceUpdate > 99 ? 'Nunca' : `Hace ${p.daysSinceUpdate}d` %></span></td>
           </tr>
           <% }) %>
-          <% if (anomalies.length === 0) { %>
-          <tr>
-            <td colspan="6" class="py-12 text-center">
-              <div class="text-4xl mb-2">✅</div>
-              <div class="font-bold text-green-600 text-lg">Sin anomalías detectadas</div>
-              <div class="text-sm text-slate-400 mt-1">Todo está en orden esta semana</div>
-            </td>
-          </tr>
-          <% } %>
         </tbody>
       </table>
     </div>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════════════════════════════ -->
-<!-- BILLABLE VS NON-BILLABLE                                        -->
-<!-- ══════════════════════════════════════════════════════════════ -->
-<section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-  <!-- KPI Cards -->
-  <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Horas Semana</div>
-      <div class="text-2xl font-black text-slate-900"><%= summary.weekHours %>h</div>
-      <div class="text-xs text-slate-400 mt-1"><%= summary.activeUsers %> consultores activos</div>
-    </div>
-    <div class="bg-white rounded-xl border-2 border-green-200 p-4">
-      <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">💰 Billable</div>
-      <div class="text-2xl font-black text-green-600"><%= summary.billableWeek %>h</div>
-      <div class="text-xs text-slate-400 mt-1">
-        <%= summary.weekHours > 0 ? Math.round(summary.billableWeek / summary.weekHours * 100) : 0 %>% del total
-      </div>
-    </div>
-    <div class="bg-white rounded-xl border-2 border-orange-200 p-4">
-      <div class="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-1">📁 Non-Billable</div>
-      <div class="text-2xl font-black text-orange-600"><%= summary.nonBillableWeek %>h</div>
-      <div class="text-xs text-slate-400 mt-1">
-        <%= summary.weekHours > 0 ? Math.round(summary.nonBillableWeek / summary.weekHours * 100) : 0 %>% del total
-      </div>
-    </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Horas Mes</div>
-      <div class="text-2xl font-black text-slate-900"><%= summary.monthHours %>h</div>
-      <div class="text-xs text-slate-400 mt-1">
-        <%= summary.billableMonth %> billable / <%= summary.nonBillableMonth %> non
-      </div>
-    </div>
-  </div>
-
-  <!-- Donut Chart -->
-  <div class="bg-white rounded-xl border border-slate-200 p-4">
-    <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Billable vs Non-Billable (semana)</div>
-    <div style="height: 160px;">
-      <canvas id="billableChart"></canvas>
-    </div>
-    <div class="flex justify-center gap-6 mt-3">
-      <div class="flex items-center gap-1.5 text-xs">
-        <div class="w-3 h-3 rounded-full bg-green-500"></div>
-        <span class="font-medium text-slate-700">Billable <%= summary.weekHours > 0 ? Math.round(summary.billableWeek / summary.weekHours * 100) : 0 %>%</span>
-      </div>
-      <div class="flex items-center gap-1.5 text-xs">
-        <div class="w-3 h-3 rounded-full bg-orange-400"></div>
-        <span class="font-medium text-slate-700">Non-Billable <%= summary.weekHours > 0 ? Math.round(summary.nonBillableWeek / summary.weekHours * 100) : 0 %>%</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════════════════════════════ -->
-<!-- WEEKLY CHART + CONSULTANTS                                      -->
-<!-- ══════════════════════════════════════════════════════════════ -->
-<section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-  <!-- Weekly Hours Chart -->
-  <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
-    <h3 class="font-bold text-slate-800 mb-4">📈 Horas por Semana</h3>
-    <div style="height: 200px;">
-      <canvas id="weeklyChart"></canvas>
-    </div>
-  </div>
-
-  <!-- Top Consultants -->
-  <div class="bg-white rounded-xl border border-slate-200 p-5">
-    <h3 class="font-bold text-slate-800 mb-3">👥 Top Consultores</h3>
-    <div class="space-y-3 max-h-52 overflow-y-auto">
-      <% consultants.slice(0, 8).forEach((c, i) => { %>
-      <div class="flex items-center gap-2 <%= !c.hasHours ? 'opacity-40' : '' %>">
-        <div class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
-          <%= (c.name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() %>
-        </div>
-        <div class="flex-1 min-w-0">
-          <div class="text-xs font-semibold text-slate-800 truncate"><%= c.name %></div>
-          <% if (c.job) { %><div class="text-xs text-slate-400 truncate"><%= c.job %></div><% } %>
-        </div>
-        <div class="text-right flex-shrink-0">
-          <div class="text-sm font-bold <%= c.hasHours ? 'text-slate-900' : 'text-slate-400' %>"><%= c.hoursThisWeek %>h</div>
-          <div class="text-xs <%= c.billableWeek > c.nonBillableWeek ? 'text-green-600' : 'text-orange-500' %>">
-            💰<%= c.billableWeek %> / 📁<%= c.nonBillableWeek %>
-          </div>
-        </div>
-      </div>
-      <% }) %>
-    </div>
-  </div>
-
-</section>
-
-<!-- ══════════════════════════════════════════════════════════════ -->
-<!-- PROJECT STATUS TABLE                                             -->
-<!-- ══════════════════════════════════════════════════════════════ -->
-<section class="bg-white rounded-xl border border-slate-200 p-5">
-  <h3 class="font-bold text-slate-800 mb-4">📋 Estado de Proyectos</h3>
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="border-b-2 border-slate-100">
-          <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Proyecto</th>
-          <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Avance</th>
-          <th class="text-right py-2 px-3 font-semibold text-slate-600 text-xs">Log</th>
-          <th class="text-right py-2 px-3 font-semibold text-slate-600 text-xs">Estimado</th>
-          <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Ab. / Hechas</th>
-          <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Backlog</th>
-          <th class="text-center py-2 px-3 font-semibold text-slate-600 text-xs">Actualización</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% projectStatuses.forEach(p => { %>
-        <tr class="border-b border-slate-50 hover:bg-slate-50 <%= p.needsAttention ? 'bg-red-50' : '' %>">
-          <td class="py-2 px-3">
-            <div class="font-medium text-slate-800 text-xs"><%= p.name %></div>
-            <% if (p.needsAttention) { %><span class="text-xs text-red-600 font-semibold">⚠️ Revisar</span><% } %>
-          </td>
-          <td class="py-2 px-3 text-center">
-            <span class="font-bold <%= p.stageProgress > 80 ? 'text-green-600' : p.stageProgress > 50 ? 'text-amber-500' : 'text-slate-400' %>"><%= p.stageProgress %>%</span>
-          </td>
-          <td class="py-2 px-3 text-right <%= p.hoursPct && p.hoursPct > 120 ? 'text-red-600 font-bold' : p.hoursPct && p.hoursPct > 100 ? 'text-amber-600' : 'text-green-600' %>">
-            <%= p.totalLog %>h<%= p.hoursPct ? ` (${p.hoursPct}%)` : '' %>
-          </td>
-          <td class="py-2 px-3 text-right text-slate-400"><%= p.totalAlloc > 0 ? p.totalAlloc + 'h' : '—' %></td>
-          <td class="py-2 px-3 text-center text-slate-500"><%= p.openTasks %> / <%= p.doneTasks %></td>
-          <td class="py-2 px-3 text-center text-slate-400"><%= p.backlogTasks %></td>
-          <td class="py-2 px-3 text-center">
-            <span class="<%= p.daysSinceUpdate > 14 ? 'text-red-600 font-bold' : p.daysSinceUpdate > 7 ? 'text-amber-500' : 'text-green-600' %> text-xs font-semibold">
-              <%= p.daysSinceUpdate > 14 ? '🔴' : p.daysSinceUpdate > 7 ? '🟡' : '🟢' %>
-              <%= p.daysSinceUpdate > 99 ? 'Nunca' : `Hace ${p.daysSinceUpdate}d` %>
-            </span>
-          </td>
-        </tr>
-        <% }) %>
-      </tbody>
-    </table>
-  </div>
-</section>
-
+    <div class="mt-3 text-xs text-slate-400" id="projectsPageMeta"><%= projectStatuses.length %> proyectos totales</div>
+  </section>
 </div>
 
 <footer class="text-center text-xs text-slate-400 py-6 mt-8">
@@ -295,80 +244,210 @@
 </footer>
 
 <script>
-// ── Alert Filter ─────────────────────────────────────────────────
+const API = '/api';
+const PROJECTS_PAGE_SIZE = 20;
 let currentFilter = 'all';
+let projectsState = { page: 1, totalPages: Math.max(1, Math.ceil(<%= projectStatuses.length %> / PROJECTS_PAGE_SIZE)), totalItems: <%= projectStatuses.length %> };
+let weeklyChart;
+let billableChart;
+
+const weeklyLabels = <%- JSON.stringify(weeklyLabels) %>;
+const weeklyHours = <%- JSON.stringify(weeklyHours) %>;
+const initialSummary = <%- JSON.stringify(summary) %>;
+const initialConsultants = <%- JSON.stringify(consultants) %>;
+const initialAnomalies = <%- JSON.stringify(anomalies) %>;
+
+function renderBillableChart(summary) {
+  const ctx = document.getElementById('billableChart').getContext('2d');
+  const data = [summary.billableWeek || 0, summary.nonBillableWeek || 0];
+  if (billableChart) {
+    billableChart.destroy();
+  }
+  billableChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Billable', 'Non-Billable'],
+      datasets: [{ data, backgroundColor: ['#10B981', '#FB923C'], borderWidth: 0, hoverOffset: 4 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.label}: ${context.raw}h` } } }
+    }
+  });
+}
+
+function renderWeeklyChart(labels, hours) {
+  const ctx = document.getElementById('weeklyChart').getContext('2d');
+  if (weeklyChart) {
+    weeklyChart.destroy();
+  }
+  weeklyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Horas',
+        data: hours,
+        backgroundColor: hours.map((_, index) => index === hours.length - 1 ? '#3B82F6' : '#BFDBFE'),
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.raw}h` } } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: (value) => `${value}h` } },
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+function updateAlertCounters(anomalies) {
+  const critical = anomalies.filter((item) => item.type === 'critical').length;
+  const warning = anomalies.filter((item) => item.type === 'warning').length;
+  const info = anomalies.filter((item) => item.type === 'info').length;
+  document.getElementById('criticalCount').textContent = critical;
+  document.getElementById('warningCount').textContent = warning;
+  document.getElementById('infoCount').textContent = info;
+  document.getElementById('alertFilterAllCount').textContent = critical + warning + info;
+  document.getElementById('alertFilterCriticalCount').textContent = critical;
+  document.getElementById('alertFilterWarningCount').textContent = warning;
+  document.getElementById('alertFilterInfoCount').textContent = info;
+}
 
 function filterAlerts(type) {
   currentFilter = type;
-  document.querySelectorAll('.alert-filter-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === type);
-    btn.classList.toggle('bg-slate-100', btn.dataset.filter !== type);
-    btn.classList.toggle('text-slate-600', btn.dataset.filter !== type);
-    if (btn.dataset.filter === 'critical') {
-      btn.classList.toggle('bg-red-100', btn.dataset.filter === 'critical');
-    }
+  document.querySelectorAll('.alert-filter-btn').forEach((btn) => {
+    const isActive = btn.dataset.filter === type;
+    btn.classList.toggle('active', isActive);
+    btn.classList.toggle('bg-slate-100', !isActive && btn.dataset.filter === 'all');
+    btn.classList.toggle('text-slate-600', !isActive && btn.dataset.filter === 'all');
   });
-  document.querySelectorAll('.alert-row').forEach(row => {
+  document.querySelectorAll('.alert-row').forEach((row) => {
     const show = type === 'all' || row.dataset.type === type;
     row.style.display = show ? '' : 'none';
   });
 }
 
-document.querySelectorAll('.alert-filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => filterAlerts(btn.dataset.filter));
-});
-
-// ── Charts ────────────────────────────────────────────────────────
-const billableData = {
-  labels: ['Billable', 'Non-Billable'],
-  datasets: [{
-    data: [<%= summary.billableWeek %>, <%= summary.nonBillableWeek %>],
-    backgroundColor: ['#10B981', '#FB923C'],
-    borderWidth: 0,
-    hoverOffset: 4
-  }]
-};
-
-new Chart(document.getElementById('billableChart'), {
-  type: 'doughnut',
-  data: billableData,
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: '65%',
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw}h` } }
-    }
+function renderStaleState(payload) {
+  const banner = document.getElementById('staleBanner');
+  const bannerText = document.getElementById('staleBannerText');
+  if (payload.stale) {
+    banner.classList.remove('hidden');
+    bannerText.textContent = payload.staleReason ? `Odoo no respondio. Se muestra el ultimo snapshot valido. Motivo: ${payload.staleReason}` : 'Odoo no respondio. Se muestra el ultimo snapshot valido.';
+  } else {
+    banner.classList.add('hidden');
+    bannerText.textContent = '';
   }
-});
+}
 
-const weeklyLabels = <%= JSON.stringify(weeklyLabels) %>;
-const weeklyHours = <%= JSON.stringify(weeklyHours) %>;
+function renderSummary(summary) {
+  document.getElementById('kpiWeekHours').textContent = `${summary.weekHours || 0}h`;
+  document.getElementById('kpiActiveUsers').textContent = summary.activeUsers || 0;
+  document.getElementById('kpiBillableWeek').textContent = `${summary.billableWeek || 0}h`;
+  document.getElementById('kpiNonBillableWeek').textContent = `${summary.nonBillableWeek || 0}h`;
+  document.getElementById('kpiMonthHours').textContent = `${summary.monthHours || 0}h`;
+  document.getElementById('kpiBillableMonth').textContent = summary.billableMonth || 0;
+  document.getElementById('kpiNonBillableMonth').textContent = summary.nonBillableMonth || 0;
+  const totalWeek = summary.weekHours || 0;
+  const billablePct = totalWeek > 0 ? Math.round(((summary.billableWeek || 0) / totalWeek) * 100) : 0;
+  const nonBillablePct = totalWeek > 0 ? Math.round(((summary.nonBillableWeek || 0) / totalWeek) * 100) : 0;
+  document.getElementById('kpiBillableWeekPct').textContent = `${billablePct}% del total`;
+  document.getElementById('kpiNonBillableWeekPct').textContent = `${nonBillablePct}% del total`;
+  document.getElementById('billableLegend').textContent = `Billable ${billablePct}%`;
+  document.getElementById('nonBillableLegend').textContent = `Non-Billable ${nonBillablePct}%`;
+}
 
-new Chart(document.getElementById('weeklyChart'), {
-  type: 'bar',
-  data: {
-    labels: weeklyLabels,
-    datasets: [{
-      label: 'Horas',
-      data: weeklyHours,
-      backgroundColor: weeklyHours.map((_, i) => i === weeklyHours.length - 1 ? '#3B82F6' : '#BFDBFE'),
-      borderRadius: 6,
-      borderSkipped: false
-    }]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw}h` } } },
-    scales: {
-      y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: v => v + 'h' } },
-      x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+function renderTopConsultants(consultants) {
+  const container = document.getElementById('topConsultantsList');
+  const top = [...consultants].sort((a, b) => (b.hoursThisWeek || 0) - (a.hoursThisWeek || 0)).slice(0, 8);
+  container.innerHTML = top.map((c) => {
+    const initials = (c.name || '?').split(' ').map((word) => word[0] || '').join('').slice(0, 2).toUpperCase();
+    const faded = c.hasHours === false ? 'opacity-40' : '';
+    const detailColor = (c.billableWeek || 0) > (c.nonBillableWeek || 0) ? 'text-green-600' : 'text-orange-500';
+    return `
+      <div class="flex items-center gap-2 ${faded}">
+        <div class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">${initials}</div>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs font-semibold text-slate-800 truncate">${c.name || ''}</div>
+          ${c.job ? `<div class="text-xs text-slate-400 truncate">${c.job}</div>` : ''}
+        </div>
+        <div class="text-right flex-shrink-0">
+          <div class="text-sm font-bold ${c.hasHours === false ? 'text-slate-400' : 'text-slate-900'}">${c.hoursThisWeek || 0}h</div>
+          <div class="text-xs ${detailColor}">B ${c.billableWeek || 0} / N ${c.nonBillableWeek || 0}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderProjects(projectsPayload) {
+  const tbody = document.getElementById('projectsTable');
+  const projects = projectsPayload.items || [];
+  const pagination = projectsPayload.pagination || { page: 1, totalPages: 1, totalItems: projects.length, hasPrev: false, hasNext: false };
+  projectsState = { page: pagination.page, totalPages: pagination.totalPages, totalItems: pagination.totalItems };
+  tbody.innerHTML = projects.map((project) => {
+    const hoursColor = !project.hoursPct ? 'text-slate-400' : project.hoursPct > 120 ? 'text-red-600 font-bold' : project.hoursPct > 100 ? 'text-amber-600' : 'text-green-600';
+    const progressColor = project.stageProgress > 80 ? 'text-green-600' : project.stageProgress > 50 ? 'text-amber-500' : 'text-slate-400';
+    const updateColor = project.daysSinceUpdate > 14 ? 'text-red-600 font-bold' : project.daysSinceUpdate > 7 ? 'text-amber-500' : 'text-green-600';
+    const updateIcon = project.daysSinceUpdate > 14 ? '🔴' : project.daysSinceUpdate > 7 ? '🟡' : '🟢';
+    const updateLabel = project.daysSinceUpdate > 99 ? 'Nunca' : `Hace ${project.daysSinceUpdate}d`;
+    return `
+      <tr class="border-b border-slate-50 hover:bg-slate-50 ${project.needsAttention ? 'bg-red-50' : ''}">
+        <td class="py-2 px-3">
+          <div class="font-medium text-slate-800 text-xs">${project.name}</div>
+          ${project.needsAttention ? '<span class="text-xs text-red-600 font-semibold">Atencion</span>' : ''}
+        </td>
+        <td class="py-2 px-3 text-center"><span class="font-bold ${progressColor}">${project.stageProgress}%</span></td>
+        <td class="py-2 px-3 text-right ${hoursColor}">${project.totalLog}h${project.hoursPct ? ` (${project.hoursPct}%)` : ''}</td>
+        <td class="py-2 px-3 text-right text-slate-400">${project.totalAlloc > 0 ? `${project.totalAlloc}h` : '-'}</td>
+        <td class="py-2 px-3 text-center text-slate-500">${project.openTasks} / ${project.doneTasks}</td>
+        <td class="py-2 px-3 text-center text-slate-400">${project.backlogTasks}</td>
+        <td class="py-2 px-3 text-center"><span class="text-xs font-semibold ${updateColor}">${updateIcon} ${updateLabel}</span></td>
+      </tr>
+    `;
+  }).join('');
+  document.getElementById('projectsPageLabel').textContent = `Pagina ${pagination.page} de ${pagination.totalPages}`;
+  document.getElementById('projectsPageMeta').textContent = `${pagination.totalItems} proyectos totales - ${projects.length} visibles`;
+  document.getElementById('projectsPrev').disabled = !pagination.hasPrev;
+  document.getElementById('projectsNext').disabled = !pagination.hasNext;
+}
+
+async function loadBootstrap(page = 1) {
+  try {
+    const response = await fetch(`${API}/equipo/bootstrap?page=${page}&pageSize=${PROJECTS_PAGE_SIZE}`);
+    if (!response.ok) {
+      throw new Error(`Bootstrap request failed with ${response.status}`);
     }
+    const payload = await response.json();
+    renderStaleState(payload);
+    renderSummary(payload.summary || {});
+    updateAlertCounters(payload.anomalies || []);
+    renderProjects(payload.projects || {});
+    renderTopConsultants(payload.consultants || []);
+    renderWeeklyChart((payload.weekly || []).map((w) => w.label), (payload.weekly || []).map((w) => w.hours));
+    renderBillableChart(payload.summary || {});
+    document.getElementById('lastUpdate').textContent = new Date(payload.generatedAt).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' });
+    filterAlerts(currentFilter);
+  } catch (error) {
+    console.error('Error loading bootstrap:', error);
   }
-});
+}
+
+document.querySelectorAll('.alert-filter-btn').forEach((btn) => btn.addEventListener('click', () => filterAlerts(btn.dataset.filter)));
+document.getElementById('projectsPrev').addEventListener('click', () => { if (projectsState.page > 1) { loadBootstrap(projectsState.page - 1); } });
+document.getElementById('projectsNext').addEventListener('click', () => { if (projectsState.page < projectsState.totalPages) { loadBootstrap(projectsState.page + 1); } });
+
+renderWeeklyChart(weeklyLabels, weeklyHours);
+renderBillableChart(initialSummary);
+filterAlerts('all');
+loadBootstrap(1);
+setInterval(() => loadBootstrap(projectsState.page), 5 * 60 * 1000);
 </script>
-
 </body>
 </html>

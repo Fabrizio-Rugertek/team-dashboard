@@ -1,4 +1,4 @@
-# Torus Dashboard Platform
+﻿# Torus Dashboard Platform
 
 Multi-dashboard platform for Torus project management control.
 
@@ -27,19 +27,19 @@ ODOO_PASSWORD=<password>
 
 ### Control de Equipo (`/equipo`)
 - KPIs: horas semana/mes, consultores activos, tareas completadas
-- Gráfico de horas por semana
-- Tabla de consultores con variación vs semana pasada
-- Detección de anomalías:
-  - Exceso de horas (>12h/día)
+- Grafico de horas por semana
+- Tabla de consultores con variacion vs semana pasada
+- Deteccion de anomalias:
+  - Exceso de horas (>12h/dia)
   - Horas en fin de semana/feriados
-  - Tareas sin estimación
-  - Descripciones mecánicas
+  - Tareas sin estimacion
+  - Descripciones mecanicas
   - Consultores inactivos
 - Estado de todos los proyectos
 
 ## Architecture
 
-```
+```text
 src/
   index.js      # Express server
   odoo.js       # Odoo XML-RPC connector
@@ -49,7 +49,7 @@ routes/
   api.js        # /api/equipo/* JSON endpoints
 views/
   platform/     # Shell and hub
-  dashboards/    # Per-dashboard pages
+  dashboards/   # Per-dashboard pages
 ```
 
 ## Performance
@@ -68,6 +68,20 @@ That endpoint reuses cached Odoo reads to reduce duplicate XML-RPC traffic:
 - bootstrap payload: 45 seconds
 
 The app also prewarms `/api/equipo/bootstrap` on startup and every 30 seconds by default so the first user-facing load usually hits hot cache.
+
+Projects are paginated server-side:
+
+```text
+GET /api/equipo/projects?page=2&pageSize=20
+```
+
+The first page is embedded in the bootstrap payload and later pages are loaded on demand from the browser.
+
+If Odoo is temporarily unavailable, the API can serve the most recent persisted snapshot from:
+
+```text
+data/cache/equipo-bootstrap.json
+```
 
 Environment flags:
 
