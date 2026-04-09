@@ -250,7 +250,9 @@ async function getDashboardCached() {
     const weekHours = timesheets
       .filter(ts => {
         const d = new Date(ts.date + 'T00:00:00');
-        return d >= wStart && d <= wEnd && activeLogins.has(ts.user_id && ts.user_id[1]);
+        const ruId = ts.user_id && ts.user_id[0];
+        const login = ruId ? (userIdToLogin[ruId] || null) : (ts.user_id && ts.user_id[1]);
+        return d >= wStart && d <= wEnd && !!login && activeLogins.has(login);
       })
       .reduce((s, ts) => s + parseFloat(ts.unit_amount || 0), 0);
     weeklyData.push({
