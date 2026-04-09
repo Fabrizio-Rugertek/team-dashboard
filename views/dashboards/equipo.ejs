@@ -189,21 +189,27 @@ function renderKpis(s) {
 // ── Consultants ─────────────────────────────────────────────────────────────
 function renderConsultants(consultants) {
   const tbody = document.getElementById('consultantsTable');
-  tbody.innerHTML = consultants.map(c => {
+  const sorted = [...consultants].sort((a,b) => b.hoursThisWeek - a.hoursThisWeek);
+  tbody.innerHTML = sorted.map(c => {
     const trend = c.hoursThisWeek - c.hoursPrevWeek;
     const trendPct = c.hoursPrevWeek > 0 ? Math.round((trend / c.hoursPrevWeek) * 100) : 0;
     const trendColor = trend > 0 ? 'text-green-600' : trend < 0 ? 'text-red-500' : 'text-slate-400';
     const trendIcon = trend > 0 ? '↑' : trend < 0 ? '↓' : '→';
-    const initials = c.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+    const initials = (c.name || '').split(' ').map(w => w[0] || '').join('').slice(0,2).toUpperCase();
+    const isActive = c.hasHours !== false;
+    const rowClass = !isActive ? 'opacity-50' : '';
+    return `<tr class="border-b border-slate-50 hover:bg-slate-100 ${rowClass}">
       <td class="py-2 px-3">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-xs font-bold">${initials}</div>
-          <span class="font-medium text-slate-800">${c.name}</span>
+          <div>
+            <div class="font-medium text-slate-800 text-sm">${c.name}</div>
+            ${c.job ? `<div class="text-xs text-slate-400">${c.job}${c.department ? ' · ' + c.department : ''}</div>` : ''}
+          </div>
         </div>
       </td>
-      <td class="py-2 px-3 text-right font-bold text-slate-900">${c.hoursThisWeek}h</td>
-      <td class="py-2 px-3 text-right text-slate-500">${c.hoursPrevWeek}h</td>
+      <td class="py-2 px-3 text-right font-bold ${isActive ? 'text-slate-900' : 'text-slate-400'}">${c.hoursThisWeek}h</td>
+      <td class="py-2 px-3 text-right text-slate-400">${c.hoursPrevWeek}h</td>
       <td class="py-2 px-3 text-right font-semibold ${trendColor}">${trendIcon} ${Math.abs(trendPct)}%</td>
       <td class="py-2 px-3 text-right text-slate-500">${c.hoursThisMonth}h</td>
       <td class="py-2 px-3 text-right text-slate-400">${c.entries}</td>

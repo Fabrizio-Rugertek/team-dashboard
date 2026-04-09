@@ -138,3 +138,118 @@ module.exports = {
   fetchProjectsWithTasks,
   fetchUsers
 };
+
+// ─── Active Employees (Torus only) ───────────────────────────────────────────
+
+const TORUS_COMPANY_ID = 1;
+const ACTIVE_CONTRACT_STATES = ['open', 'draft'];
+
+async function fetchActiveEmployees() {
+  let contracts = [];
+  try {
+    contracts = await callKw('hr.contract', 'search_read', [[
+      ['employee_id.company_id', '=', TORUS_COMPANY_ID],
+      ['state', 'in', ACTIVE_CONTRACT_STATES]
+    ], {
+      fields: ['id', 'state', 'employee_id', 'date_start', 'date_end']
+    }]) || [];
+  } catch (e) {
+    console.error('[Odoo] fetchActiveEmployees (contracts):', e.message);
+    return [];
+  }
+
+  const empIds = [...new Set(contracts.map(c => c.employee_id && c.employee_id[0]).filter(Boolean))];
+  if (!empIds.length) return [];
+
+  let employees = [];
+  try {
+    employees = await callKw('hr.employee', 'search_read', [[
+      ['id', 'in', empIds]
+    ], {
+      fields: ['id', 'name', 'user_id', 'department_id', 'job_id', 'active']
+    }]) || [];
+  } catch (e) {
+    console.error('[Odoo] fetchActiveEmployees (employees):', e.message);
+    return [];
+  }
+
+  const userIds = employees.map(e => e.user_id && e.user_id[0]).filter(Boolean);
+  let userMap = {};
+  if (userIds.length) {
+    try {
+      const users = await callKw('res.users', 'search_read', [[
+        ['id', 'in', userIds]
+      ], { fields: ['id', 'login'] }]) || [];
+      users.forEach(u => { userMap[u.id] = u.login; });
+    } catch (e) {
+      console.error('[Odoo] fetchActiveEmployees (users):', e.message);
+    }
+  }
+
+  const cMap = {};
+  contracts.forEach(c => {
+    const eid = c.employee_id && c.employee_id[0];
+    if (eid && !cMap[eid]) cMap[eid] = c;
+  });
+
+  return employees.map(e => {
+    const c = cMap[e.id] || {};
+    return {
+      id: e.id,
+      name: e.name,
+      login: e.user_id ? (userMap[e.user_id[0]] || null) : null,
+      department: e.department_id && e.department_id[1] || null,
+      job: e.job_id && e.job_id[1] || null,
+      contract_state: c.state || null,
+      contract_start: c.date_start || null
+    };
+  });
+}
+
+async function fetchAllEmployees() {
+  let employees = [];
+  try {
+    employees = await callKw('hr.employee', 'search_read', [[
+      ['company_id', '=', TORUS_COMPANY_ID]
+    ], {
+      fields: ['id', 'name', 'user_id', 'department_id', 'job_id', 'active']
+    }]) || [];
+  } catch (e) {
+    console.error('[Odoo] fetchAllEmployees:', e.message);
+    return [];
+  }
+
+  let contracts = [];
+  try {
+    contracts = await callKw('hr.contract', 'search_read', [[
+      ['employee_id.company_id', '=', TORUS_COMPANY_ID]
+    ], { fields: ['id', 'state', 'employee_id', 'date_start', 'date_end'] }]) || [];
+  } catch (e) {
+    console.error('[Odoo] fetchAllEmployees (contracts):', e.message);
+  }
+
+  const activeMap = {};
+  contracts.forEach(c => {
+    const eid = c.employee_id && c.employee_id[0];
+    if (eid) {
+      if (!activeMap[eid]) activeMap[eid] = c;
+    }
+  });
+
+  return employees.map(e => {
+    const c = activeMap[e.id];
+    return {
+      id: e.id, name: e.name,
+      department: e.department_id && e.department_id[1] || null,
+      job: e.job_id && e.job_id[1] || null,
+      active: e.active,
+      contract_state: c ? c.state : null
+    };
+  });
+}
+
+module.exports = {
+  authenticate, callKw,
+  fetchTimesheets, fetchProjectsWithTasks,
+  fetchActiveEmployees, fetchAllEmployees
+};
