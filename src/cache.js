@@ -12,10 +12,15 @@ function isDone(task) {
   return n.includes('complet') || n.includes('done') || n.includes('cerrad') || n.includes('terminad') || n.includes('finalizad');
 }
 
+// Backlog = "1. Lista de Tareas" (stage id 8), "Bandeja de entrada" (249), "Internal" (20)
+const BACKLOG_STAGE_IDS = new Set([8, 20, 249]);
+const BACKLOG_KEYWORDS = ['backlog', 'lista de tarea', 'bandeja', 'internal'];
+
 function isBacklog(task) {
   if (!task) return false;
+  if (task.stage_id && BACKLOG_STAGE_IDS.has(task.stage_id[0])) return true;
   const n = (task.stageName || '').toLowerCase();
-  return n.includes('backlog');
+  return BACKLOG_KEYWORDS.some(k => n.includes(k));
 }
 
 async function getDashboardCached() {
@@ -33,6 +38,9 @@ async function getDashboardCached() {
   ]);
 
   const activeLogins = new Set(employees.map(e => e.login).filter(Boolean));
+  const userIdToLogin = {};
+  employees.forEach(e => { if (e.userId && e.login) userIdToLogin[e.userId] = e.login; });
+
   const allTasks = projects.flatMap(p => p.tasks || []);
 
   // ─── Timesheet assignment ────────────────────────────────────────────────
@@ -63,7 +71,8 @@ async function getDashboardCached() {
 
   // Timesheets
   for (const ts of timesheets) {
-    const login = ts.user_id && ts.user_id[1];
+    const ruId = ts.user_id && ts.user_id[0];
+    const login = ruId ? (userIdToLogin[ruId] || null) : (ts.user_id && ts.user_id[1]);
     if (!login || !userMap[login]) continue;
 
     const ue = userMap[login];
@@ -91,7 +100,8 @@ async function getDashboardCached() {
   const anomalies = [];
 
   for (const ts of timesheets) {
-    const login = ts.user_id && ts.user_id[1];
+    const ruId = ts.user_id && ts.user_id[0];
+    const login = ruId ? (userIdToLogin[ruId] || null) : (ts.user_id && ts.user_id[1]);
     if (!login || !activeLogins.has(login)) continue;
 
     const hours = parseFloat(ts.unit_amount || 0);
@@ -149,7 +159,10 @@ async function getDashboardCached() {
   // Inactive employees
   const weekLogins = new Set(
     timesheets.filter(ts => new Date(ts.date + 'T00:00:00') >= weekStart)
-      .map(ts => ts.user_id && ts.user_id[1]).filter(Boolean)
+      .map(ts => {
+        const ruId = ts.user_id && ts.user_id[0];
+        return ruId ? (userIdToLogin[ruId] || null) : null;
+      }).filter(Boolean)
   );
   for (const emp of employees) {
     if (!weekLogins.has(emp.login) && emp.login) {
@@ -210,8 +223,9 @@ async function getDashboardCached() {
   let totalBillableMonth = 0, totalNonBillableMonth = 0;
 
   for (const ts of timesheets) {
-    const login = ts.user_id && ts.user_id[1];
-    if (!activeLogins.has(login)) continue;
+    const ruId = ts.user_id && ts.user_id[0];
+    const login = ruId ? (userIdToLogin[ruId] || null) : (ts.user_id && ts.user_id[1]);
+    if (!login || !activeLogins.has(login)) continue;
     const d = new Date(ts.date + 'T00:00:00');
     const h = parseFloat(ts.unit_amount || 0);
     const taskId = ts.task_id && ts.task_id[0];
@@ -308,7 +322,7 @@ async function getDashboardCached() {
     },
     consultants,
     projectStatuses,
-    anomalies: anomalies.slice(0, 60),
+    anomalies: anomalies.slice(0, 500),
     weeklyData,
     lastUpdate: new Date().toISOString()
   };

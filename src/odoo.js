@@ -96,7 +96,10 @@ async function fetchProjectsWithTasks() {
   });
 
   const tasks = await callKw('project.task', 'search_read', [['|', ['active', '=', true], ['active', '=', false]]], {
-    fields: ['id', 'name', 'project_id', 'stage_id', 'allocated_hours', 'effective_hours', 'date_deadline', 'write_date', 'create_date', 'date_last_stage_update', 'description'],
+    fields: ['id', 'name', 'project_id', 'stage_id', 'user_ids', 'allocated_hours', 'effective_hours',
+             'planned_date_begin', 'date_end', 'date_deadline', 'write_date', 'create_date',
+             'date_last_stage_update', 'description', 'sale_line_id', 'parent_id',
+             'x_studio_sprint', 'x_studio_fecha_de_sprint'],
     context: { bin_size: true }
   });
 
@@ -114,9 +117,15 @@ async function fetchProjectsWithTasks() {
     const pid = t.project_id?.[0];
     if (pid && projectMap[pid]) {
       projectMap[pid].tasks.push({
-        ...t,
-        user_id: null,
-        stageName: stageMap[t.stage_id?.[0]] || 'Unknown'
+        id: t.id, name: t.name, project_id: t.project_id,
+        stage_id: t.stage_id, stageName: stageMap[t.stage_id?.[0]] || 'Unknown',
+        user_id: t.user_ids && t.user_ids[0] || null,
+        user_ids: t.user_ids,
+        allocated_hours: t.allocated_hours, effective_hours: t.effective_hours,
+        date_start: t.planned_date_begin, date_end: t.date_end,
+        sale_line_id: t.sale_line_id, parent_id: t.parent_id,
+        sprint_id: t.x_studio_sprint,
+        sprint_start: t.x_studio_fecha_de_sprint
       });
     }
   });
@@ -194,10 +203,12 @@ async function fetchActiveEmployees() {
 
   return employees.map(e => {
     const c = cMap[e.id] || {};
+    const ruId = e.user_id && e.user_id[0];
     return {
       id: e.id,
       name: e.name,
-      login: e.user_id ? (userMap[e.user_id[0]] || null) : null,
+      login: ruId ? (userMap[ruId] || null) : null,
+      userId: ruId || null,
       department: e.department_id && e.department_id[1] || null,
       job: e.job_id && e.job_id[1] || null,
       contract_state: c.state || null,
