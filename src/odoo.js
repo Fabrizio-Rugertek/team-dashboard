@@ -150,9 +150,9 @@ async function fetchActiveEmployees() {
     contracts = await callKw('hr.contract', 'search_read', [[
       ['employee_id.company_id', '=', TORUS_COMPANY_ID],
       ['state', 'in', ACTIVE_CONTRACT_STATES]
-    ], {
+    ]], {
       fields: ['id', 'state', 'employee_id', 'date_start', 'date_end']
-    }]) || [];
+    }) || [];
   } catch (e) {
     console.error('[Odoo] fetchActiveEmployees (contracts):', e.message);
     return [];
@@ -165,9 +165,9 @@ async function fetchActiveEmployees() {
   try {
     employees = await callKw('hr.employee', 'search_read', [[
       ['id', 'in', empIds]
-    ], {
+    ]], {
       fields: ['id', 'name', 'user_id', 'department_id', 'job_id', 'active']
-    }]) || [];
+    }) || [];
   } catch (e) {
     console.error('[Odoo] fetchActiveEmployees (employees):', e.message);
     return [];
@@ -179,7 +179,7 @@ async function fetchActiveEmployees() {
     try {
       const users = await callKw('res.users', 'search_read', [[
         ['id', 'in', userIds]
-      ], { fields: ['id', 'login'] }]) || [];
+      ]], { fields: ['id', 'login'] }) || [];
       users.forEach(u => { userMap[u.id] = u.login; });
     } catch (e) {
       console.error('[Odoo] fetchActiveEmployees (users):', e.message);
@@ -211,9 +211,9 @@ async function fetchAllEmployees() {
   try {
     employees = await callKw('hr.employee', 'search_read', [[
       ['company_id', '=', TORUS_COMPANY_ID]
-    ], {
+    ]], {
       fields: ['id', 'name', 'user_id', 'department_id', 'job_id', 'active']
-    }]) || [];
+    }) || [];
   } catch (e) {
     console.error('[Odoo] fetchAllEmployees:', e.message);
     return [];
@@ -223,7 +223,7 @@ async function fetchAllEmployees() {
   try {
     contracts = await callKw('hr.contract', 'search_read', [[
       ['employee_id.company_id', '=', TORUS_COMPANY_ID]
-    ], { fields: ['id', 'state', 'employee_id', 'date_start', 'date_end'] }]) || [];
+    ]], { fields: ['id', 'state', 'employee_id', 'date_start', 'date_end'] }) || [];
   } catch (e) {
     console.error('[Odoo] fetchAllEmployees (contracts):', e.message);
   }
