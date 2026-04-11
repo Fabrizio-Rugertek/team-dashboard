@@ -5,7 +5,7 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3511;
 const ENABLE_PREWARM = process.env.ENABLE_PREWARM !== 'false';
-const PREWARM_INTERVAL_MS = Number(process.env.PREWARM_INTERVAL_MS || 30000);
+const PREWARM_INTERVAL_MS = Number(process.env.PREWRM_INTERVAL_MS || 30000);
 
 // View engine
 app.set('view engine', 'ejs');
@@ -16,9 +16,11 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // Routes
 const equipoRoutes = require('../routes/equipo');
+const finanzasRoutes = require('../routes/finanzas');
 const apiRoutes = require('../routes/api');
 
 app.use('/equipo', equipoRoutes);
+app.use('/finanzas', finanzasRoutes);
 app.use('/api', apiRoutes);
 
 // Platform hub
@@ -28,11 +30,20 @@ app.get('/', (req, res) => {
     dashboards: [
       {
         id: 'equipo',
-        name: 'Equipo',
-        description: 'Control de horas, anomalías y estado del equipo',
+        name: 'Control de Equipo',
+        description: 'Horas por consultor, anomalías, estado de proyectos',
         icon: '👥',
         color: '#3B82F6',
         href: '/equipo',
+        status: 'active'
+      },
+      {
+        id: 'finanzas',
+        name: 'Finanzas',
+        description: 'Ingresos, gastos, rentabilidad por proyecto y flujo de caja',
+        icon: '📊',
+        color: '#10B981',
+        href: '/finanzas',
         status: 'active'
       }
     ]
@@ -47,29 +58,23 @@ app.use((req, res) => {
 let prewarmInFlight = false;
 
 async function prewarmEquipoBootstrap() {
-  if (!ENABLE_PREWARM || prewarmInFlight) {
-    return;
-  }
-
+  if (!ENABLE_PREWARM || prewarmInFlight) return;
   prewarmInFlight = true;
   try {
-    const response = await fetch(`http://127.0.0.1:${PORT}/api/equipo/bootstrap`);
-    if (!response.ok) {
-      console.warn(`[Torus Dashboard] Bootstrap prewarm failed with ${response.status}`);
-    }
-  } catch (error) {
-    console.warn(`[Torus Dashboard] Bootstrap prewarm error: ${error.message}`);
+    const response = await fetch('http://127.0.0.1:' + PORT + '/api/equipo/bootstrap');
+    if (!response.ok) console.warn('[Torus Dashboard] Bootstrap prewarm failed', response.status);
+  } catch (e) {
+    console.warn('[Torus Dashboard] Bootstrap prewarm error:', e.message);
   } finally {
     prewarmInFlight = false;
   }
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[Torus Dashboard] Running on http://0.0.0.0:${PORT}`);
-  console.log(`[Torus Dashboard] Platform ready at http://dashboard.torus.dev`);
-
+app.listen(PORT, '0.0.0.0', function() {
+  console.log('[Torus Dashboard] Running on http://0.0.0.0:' + PORT);
+  console.log('[Torus Dashboard] Platform ready at http://dashboard.torus.dev');
   if (ENABLE_PREWARM) {
-    setTimeout(() => {
+    setTimeout(function() {
       prewarmEquipoBootstrap();
       setInterval(prewarmEquipoBootstrap, PREWARM_INTERVAL_MS);
     }, 1500);
