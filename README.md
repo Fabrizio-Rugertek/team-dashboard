@@ -135,11 +135,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Fabrizio-Rugertek/team-dashb
 
 The deploy script:
 
-1. clones or updates the repo in `/home/openclaw/team-dashboard`
-2. installs production dependencies with `npm ci --omit=dev`
-3. generates `.env` from `/home/openclaw/.openclaw/workspace/.secrets/credentials.json` using the `odoo_torus` entry
-4. installs/restarts `team-dashboard.service`
-5. installs nginx for `dashboard.torus.dev`
+1. runs only on `vm-rugertek-bot` (fails fast on the wrong host)
+2. fast-forwards the repo in `/home/openclaw/team-dashboard` without destructive resets
+3. installs production dependencies with `npm ci --omit=dev`
+4. generates `.env` from `/home/openclaw/.openclaw/workspace/.secrets/credentials.json` using the `odoo_torus` entry
+5. installs/restarts `team-dashboard.service`
+6. validates the existing nginx vhost for `dashboard.torus.dev` and reloads nginx
 
 Expected public URL:
 

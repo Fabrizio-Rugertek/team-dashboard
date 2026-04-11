@@ -11,6 +11,12 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/Fabrizio-Rugertek/team-dashboard/master/deploy/deploy.sh)
 ```
 
+Deploy invariants:
+- must run on `vm-rugertek-bot`
+- uses `git pull --ff-only` when the repo already exists
+- refuses to deploy if `/home/openclaw/team-dashboard` has local changes
+- does not overwrite nginx/certbot config; it only validates the existing `dashboard.torus.dev` vhost and reloads nginx
+
 ## Secrets
 Deploy reads Odoo credentials from:
 - `/home/openclaw/.openclaw/workspace/.secrets/credentials.json`
