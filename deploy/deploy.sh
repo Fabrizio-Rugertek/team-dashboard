@@ -117,12 +117,27 @@ validate_nginx() {
   sudo systemctl reload nginx
 }
 
+wait_for_http() {
+  local url="$1"
+  local label="$2"
+  local attempt
+
+  for attempt in $(seq 1 20); do
+    if curl -fsS -m 15 "$url" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+
+  fail "$label no respondio a tiempo: $url"
+}
+
 verify_runtime() {
   log "Verificando servicio local"
-  curl -fsS -m 15 "http://127.0.0.1:$PORT/" >/dev/null
+  wait_for_http "http://127.0.0.1:$PORT/" "servicio local"
 
   log "Verificando endpoint publico"
-  curl -fsSI -m 15 "https://$SITE_NAME/" >/dev/null
+  wait_for_http "https://$SITE_NAME/" "endpoint publico"
 }
 
 show_summary() {
