@@ -10,7 +10,6 @@
 </head>
 <body class="bg-slate-50 min-h-screen">
 
-<!-- Nav -->
 <nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -23,9 +22,9 @@
     <div class="flex items-center gap-3">
       <a href="/" class="text-sm text-slate-500 hover:text-slate-900 font-medium">← Volver</a>
       <select id="yearSelect" onchange="window.location.href='/finanzas?year='+this.value" class="text-sm border rounded-lg px-3 py-1.5 bg-white">
-        <% for(let y=2024;y<=new Date().getFullYear();y++){%>
-        <option value="<%=y%>" <%=year==y?'selected':''%>><%=y%></option>
-        <%}%>
+        <% for(var y=2024; y<=new Date().getFullYear(); y++) { %>
+          <option value="<%= y %>" <%= (year === y) ? 'selected' : '' %>><%= y %></option>
+        <% } %>
       </select>
       <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-semibold text-slate-600">F</div>
     </div>
@@ -37,40 +36,48 @@
   <!-- KPI Cards -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <p class="text-sm text-slate-500 font-medium">Ingresos 2026</p>
-      <p class="text-2xl font-extrabold text-slate-900 mt-1"><%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(kpis.totalRevenue) %></p>
+      <p class="text-sm text-slate-500 font-medium">Ingresos <%= year %></p>
+      <p class="text-2xl font-extrabold text-slate-900 mt-1"><%= new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(kpis.totalRevenue) %></p>
       <p class="text-xs text-slate-400 mt-1">GS sin IVA</p>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <p class="text-sm text-slate-500 font-medium">Costos 2026</p>
-      <p class="text-2xl font-extrabold text-slate-900 mt-1"><%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(kpis.totalCost) %></p>
+      <p class="text-sm text-slate-500 font-medium">Costos <%= year %></p>
+      <p class="text-2xl font-extrabold text-slate-900 mt-1"><%= new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(kpis.totalCost) %></p>
       <p class="text-xs text-slate-400 mt-1">GS sin IVA</p>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-5">
       <p class="text-sm text-slate-500 font-medium">Margen Bruto</p>
-      <p class="text-2xl font-extrabold <%= kpis.margin>=0?'text-emerald-600':'text-red-500' %> mt-1"><%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(kpis.margin) %></p>
-      <p class="text-xs text-slate-400 mt-1"><%= kpis.marginPct>=0?'+':'' %><%= kpis.marginPct.toFixed(1) %>% margen</p>
+      <p class="text-2xl font-extrabold <%= kpis.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %> mt-1"><%= new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(kpis.margin) %></p>
+      <p class="text-xs text-slate-400 mt-1"><%= kpis.marginPct >= 0 ? '+' : '' %><%= kpis.marginPct.toFixed(1) %> margen</p>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <p class="text-sm text-slate-500 font-medium">Última actualización</p>
+      <p class="text-sm text-slate-500 font-medium">Ultima actualizacion</p>
       <p class="text-lg font-bold text-slate-700 mt-2"><%= lastUpdate %></p>
     </div>
   </div>
 
-  <!-- Monthly Revenue bar chart (simple) -->
+  <!-- Monthly bar chart -->
   <div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
     <h2 class="text-lg font-bold text-slate-800 mb-4">Ingresos vs Costos por Mes</h2>
     <div class="flex items-end gap-1 h-40" id="monthlyChart">
-      <% ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].forEach(function(m, i){ %>
-        <% const ms='2026-'+String(i+1).padStart(2,'0'); const rev=revByMonth[ms]||0; const cost=costByMonth[ms]||0; const max=Math.max(...Object.values(revByMonth).concat(Object.values(costByMonth)),1); const hRev=rev/max*100; const hCost=cost/max*100; %>
+      <% var monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+         var allValues = Object.values(revByMonth).concat(Object.values(costByMonth));
+         var maxVal = Math.max.apply(null, allValues.length ? allValues : [1]);
+         for(var i=0; i<12; i++) {
+           var ms = year + '-' + String(i+1).padStart(2,'0');
+           var rev = revByMonth[ms] || 0;
+           var cost = costByMonth[ms] || 0;
+           var hRev = maxVal > 0 ? (rev / maxVal * 100) : 0;
+           var hCost = maxVal > 0 ? (cost / maxVal * 100) : 0;
+      %>
         <div class="flex-1 flex flex-col items-center gap-0.5">
-          <div class="w-full flex flex-col gap-0.5" style="height:160px">
-            <div class="w-full bg-emerald-400 rounded-t hover:bg-emerald-500 transition" style="height:<%=hRev%>%;" title="Ingreso: <%=new Intl.NumberFormat('es-PY').format(rev)%>"></div>
-            <div class="w-full bg-red-400 rounded-t hover:bg-red-500 transition" style="height:<%=hCost%>%;" title="Costo: <%=new Intl.NumberFormat('es-PY').format(cost)%>"></div>
+          <div class="w-full flex flex-col-reverse gap-0.5" style="height:160px">
+            <div class="w-full bg-emerald-400 rounded-t hover:bg-emerald-500 transition" style="height:<%= hRev %>%; min-height:2px" title="Ingreso: <%= new Intl.NumberFormat('es-PY').format(rev) %>"></div>
+            <div class="w-full bg-red-400 rounded-t hover:bg-red-500 transition" style="height:<%= hCost %>%; min-height:2px" title="Costo: <%= new Intl.NumberFormat('es-PY').format(cost) %>"></div>
           </div>
-          <span class="text-xs text-slate-500 mt-1"><%= m %></span>
+          <span class="text-xs text-slate-500 mt-1"><%= monthNames[i] %></span>
         </div>
-      <% }); %>
+      <% } %>
     </div>
     <div class="flex items-center gap-4 mt-3 text-xs text-slate-500">
       <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-400 rounded inline-block"></span> Ingreso</span>
@@ -93,35 +100,34 @@
             <th class="text-right px-4 py-3 font-semibold text-slate-600">Total Costo</th>
             <th class="text-right px-4 py-3 font-semibold text-slate-600">Margen</th>
             <th class="text-right px-4 py-3 font-semibold text-slate-600">%</th>
-            <% ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'].forEach(function(m,i){%>
-              <th class="text-right px-3 py-3 font-semibold text-slate-600"><%=m%></th>
-            <%});%>
+            <% for(var mi=0; mi<monthNames.length; mi++) { %>
+              <th class="text-right px-3 py-3 font-semibold text-slate-600"><%= monthNames[mi] %></th>
+            <% } %>
           </tr>
         </thead>
         <tbody id="eerrTable">
-          <% rows.forEach(function(row){ %>
-            <tr class="border-b border-slate-100 hover:bg-blue-50 cursor-pointer eerr-row"
-                data-analytic="<%=row.name%>"
-                onclick="toggleDetail(this)">
-              <td class="px-5 py-3 font-medium text-slate-800">
-                <%= row.name %>
-              </td>
-              <td class="text-right px-4 py-3 text-emerald-700 font-semibold">
-                <%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(row.totalRevenue) %>
-              </td>
-              <td class="text-right px-4 py-3 text-red-600 font-semibold">
-                <%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(row.totalCost) %>
-              </td>
-              <td class="text-right px-4 py-3 font-bold <%= row.margin>=0?'text-emerald-600':'text-red-500' %>">
-                <%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(row.margin) %>
-              </td>
-              <td class="text-right px-4 py-3 text-slate-500">
-                <%= row.marginPct>=0?'+':'' %><%= row.marginPct.toFixed(1) %而言
-              </td>
-              <% for(let i=1;i<=12;i++){ const ms='2026-'+String(i).padStart(2,'0'); %>
-                <td class="text-right px-3 py-3 <%= row.months[ms]&&row.months[ms].revenue>0?'text-emerald-600 font-medium':'text-slate-300' %>">
-                  <%= row.months[ms]&&row.months[ms].revenue>0?new Intl.NumberFormat('es-PY',{notation:'compact'}).format(row.months[ms].revenue):'' %>
-                </td>
+          <% for(var ri=0; ri<rows.length; ri++) {
+               var row = rows[ri];
+               var safeId = row.name.replace(/[^a-zA-Z0-9]/g, '_');
+               var marginClass = row.margin >= 0 ? 'text-emerald-600' : 'text-red-500';
+               var revTotalFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(row.totalRevenue);
+               var costTotalFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(row.totalCost);
+               var marginFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(row.margin);
+               var marginPctFmt = (row.marginPct >= 0 ? '+' : '') + row.marginPct.toFixed(1);
+          %>
+            <tr class="border-b border-slate-100 hover:bg-blue-50 cursor-pointer eerr-row" data-analytic="<%= row.name %>" onclick="toggleDetail(this)">
+              <td class="px-5 py-3 font-medium text-slate-800"><%= row.name %></td>
+              <td class="text-right px-4 py-3 text-emerald-700 font-semibold"><%= revTotalFmt %></td>
+              <td class="text-right px-4 py-3 text-red-600 font-semibold"><%= costTotalFmt %></td>
+              <td class="text-right px-4 py-3 font-bold <%= marginClass %>"><%= marginFmt %></td>
+              <td class="text-right px-4 py-3 text-slate-500"><%= marginPctFmt %></td>
+              <% for(var mi=0; mi<12; mi++) {
+                   var ms = year + '-' + String(mi+1).padStart(2,'0');
+                   var cellVal = (row.months && row.months[ms] && row.months[ms].revenue > 0) ? row.months[ms].revenue : null;
+                   var cellFmt = cellVal ? new Intl.NumberFormat('es-PY', {notation:'compact'}).format(cellVal) : '';
+                   var cellClass = cellVal ? 'text-emerald-600 font-medium' : 'text-slate-300';
+              %>
+                <td class="text-right px-3 py-3 <%= cellClass %>"><%= cellFmt %></td>
               <% } %>
             </tr>
             <tr class="detail-row hidden">
@@ -129,26 +135,34 @@
                 <div class="flex items-center justify-between mb-3">
                   <span class="font-semibold text-slate-700">Detalle: <%= row.name %></span>
                   <div class="flex gap-2">
-                    <button onclick="loadDetail('revenue','<%=row.name%>','<%=year%>')" class="text-xs px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition">Ver Ingresos</button>
-                    <button onclick="loadDetail('cost','<%=row.name%>','<%=year%>')" class="text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition">Ver Costos</button>
-                    <a href="https://www.torus.dev/web#active_id=account.analytic.account&model=account.analytic.account&view_type=list" target="_blank" class="text-xs px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition">Ir a Odoo →</a>
+                    <button onclick="loadDetail('revenue','<%= row.name %>')" class="text-xs px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition">Ver Ingresos</button>
+                    <button onclick="loadDetail('cost','<%= row.name %>')" class="text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition">Ver Costos</button>
+                    <a href="https://www.torus.dev/web#active_id=account.analytic.account&model=account.analytic.account&view_type=list" target="_blank" class="text-xs px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition">Ir a Odoo</a>
                   </div>
                 </div>
-                <div id="detail_<%= row.name.replace(/[^a-zA-Z0-9]/g,'_') %>" class="text-xs text-slate-500">Cargando...</div>
+                <div id="detail_<%= safeId %>" class="text-xs text-slate-500">Click en un boton para cargar detalle</div>
               </td>
             </tr>
-          <% }); %>
+          <% } %>
           <!-- Totals row -->
+          <% var tRevFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totals.totalRevenue);
+             var tCostFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totals.totalCost);
+             var tMarginFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totals.margin);
+             var tMarginPctFmt = (totals.marginPct >= 0 ? '+' : '') + totals.marginPct.toFixed(1);
+             var tMarginClass = totals.margin >= 0 ? 'text-emerald-600' : 'text-red-500';
+          %>
           <tr class="bg-slate-100 border-t-2 border-slate-300 font-bold">
             <td class="px-5 py-3 text-slate-800">TOTALES</td>
-            <td class="text-right px-4 py-3 text-emerald-700"><%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(totals.totalRevenue) %></td>
-            <td class="text-right px-4 py-3 text-red-600"><%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(totals.totalCost) %></td>
-            <td class="text-right px-4 py-3 <%= totals.margin>=0?'text-emerald-600':'text-red-500' %>"><%= new Intl.NumberFormat('es-PY',{minimumFractionDigits:0}).format(totals.margin) %></td>
-            <td class="text-right px-4 py-3 text-slate-600"><%= totals.marginPct>=0?'+':'' %><%= totals.marginPct.toFixed(1) %而言</td>
-            <% for(let i=1;i<=12;i++){ const ms='2026-'+String(i).padStart(2,'0'); %>
-              <td class="text-right px-3 py-3 text-slate-600">
-                <%= (totals.byMonth[ms]&&totals.byMonth[ms].revenue>0)?new Intl.NumberFormat('es-PY',{notation:'compact'}).format(totals.byMonth[ms].revenue):'' %>
-              </td>
+            <td class="text-right px-4 py-3 text-emerald-700"><%= tRevFmt %></td>
+            <td class="text-right px-4 py-3 text-red-600"><%= tCostFmt %></td>
+            <td class="text-right px-4 py-3 <%= tMarginClass %>"><%= tMarginFmt %></td>
+            <td class="text-right px-4 py-3 text-slate-600"><%= tMarginPctFmt %></td>
+            <% for(var mi=0; mi<12; mi++) {
+                 var ms = year + '-' + String(mi+1).padStart(2,'0');
+                 var tVal = (totals.byMonth && totals.byMonth[ms] && totals.byMonth[ms].revenue > 0) ? totals.byMonth[ms].revenue : null;
+                 var tFmt = tVal ? new Intl.NumberFormat('es-PY', {notation:'compact'}).format(tVal) : '';
+            %>
+              <td class="text-right px-3 py-3 text-slate-600"><%= tFmt %></td>
             <% } %>
           </tr>
         </tbody>
@@ -156,26 +170,28 @@
     </div>
   </div>
 
-  <!-- Odoo link -->
   <div class="text-center text-sm text-slate-400 mb-8">
-    Datos实际的 en <a href="https://www.torus.dev" target="_blank" class="text-blue-500 hover:underline">Odoo Torus</a> · <a href="https://github.com/Fabrizio-Rugertek/team-dashboard" target="_blank" class="text-blue-500 hover:underline">Código en GitHub</a>
+    Datos reales en <a href="https://www.torus.dev" target="_blank" class="text-blue-500 hover:underline">Odoo Torus</a> &middot; <a href="https://github.com/Fabrizio-Rugertek/team-dashboard" target="_blank" class="text-blue-500 hover:underline">Codigo en GitHub</a>
   </div>
 </div>
 
 <script>
 function toggleDetail(row) {
-  const next = row.nextElementSibling;
-  if (!next || !next.classList.contains('detail-row')) return;
-  next.classList.toggle('hidden');
+  var next = row.nextElementSibling;
+  if (next && next.classList.contains('detail-row')) next.classList.toggle('hidden');
 }
 
-const detailCache = {};
-async function loadDetail(type, analytic, year) {
-  const months = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'];
-  const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const key = type + '|' + analytic;
-  const containerId = 'detail_' + analytic.replace(/[^a-zA-Z0-9]/g, '_');
-  const container = document.getElementById(containerId);
+var detailCache = {};
+
+async function loadDetail(type, analytic) {
+  var months = [];
+  for(var m=1; m<=12; m++) {
+    months.push('2026-' + String(m).padStart(2,'0'));
+  }
+  var monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var key = type + '|' + analytic;
+  var containerId = 'detail_' + analytic.replace(/[^a-zA-Z0-9]/g, '_');
+  var container = document.getElementById(containerId);
   if (!container) return;
 
   if (detailCache[key]) {
@@ -186,50 +202,52 @@ async function loadDetail(type, analytic, year) {
   container.innerHTML = '<div class="text-center py-4 text-slate-400">Cargando datos de Odoo...</div>';
 
   try {
-    const results = await Promise.all(months.map(m => {
-      return fetch('/finanzas/detail?type=' + type + '&analytic=' + encodeURIComponent(analytic) + '&month=' + m)
-        .then(r => r.json());
-    }));
+    var results = [];
+    for(var i=0; i<months.length; i++) {
+      var m = months[i];
+      var r = await fetch('/finanzas/detail?type=' + type + '&analytic=' + encodeURIComponent(analytic) + '&month=' + m);
+      results.push(await r.json());
+    }
 
-    let html = '<table class="w-full"><thead><tr><th class="text-left text-slate-500">Fecha</th><th class="text-left text-slate-500">Doc</th><th class="text-left text-slate-500">Partner</th><th class="text-left text-slate-500">Descripci&oacute;n</th><th class="text-right text-slate-500">Monto</th><th class="text-right text-slate-500">Ir a Odoo</th></tr></thead><tbody>';
+    var html = '<table class=\"w-full\"><thead><tr><th class=\"text-left text-slate-500\">Fecha</th><th class=\"text-left text-slate-500\">Doc</th><th class=\"text-left text-slate-500\">Partner</th><th class=\"text-left text-slate-500\">Descripcion</th><th class=\"text-right text-slate-500\">Monto</th><th class=\"text-right text-slate-500\">Ir a Odoo</th></tr></thead><tbody>';
 
-    let totalAmt = 0;
-    let rowCount = 0;
+    var totalAmt = 0;
+    var rowCount = 0;
+    var typeColor = type === 'revenue' ? 'text-emerald-600' : 'text-red-600';
 
-    for (let i = 0; i < months.length; i++) {
-      const ms = months[i];
-      const data = results[i];
+    for(var i=0; i<months.length; i++) {
+      var data = results[i];
       if (!data.lines || data.lines.length === 0) continue;
-
-      for (const line of data.lines) {
+      for(var j=0; j<data.lines.length; j++) {
+        var line = data.lines[j];
         rowCount++;
         totalAmt += line.amount;
-        const amtStr = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(line.amount);
-        const odooUrl = 'https://www.torus.dev/web#id=' + line.move_id + '&model=account.move&view_type=form';
-        html += '<tr class="border-t border-slate-100">';
-        html += '<td class="py-2 pr-4 text-slate-600">' + line.date + '</td>';
-        html += '<td class="py-2 pr-4 text-slate-500">' + line.move_name + '</td>';
-        html += '<td class="py-2 pr-4 text-slate-600">' + line.partner_name + '</td>';
-        html += '<td class="py-2 pr-4 text-slate-600">' + line.desc + '</td>';
-        html += '<td class="py-2 pr-4 text-right font-semibold ' + (type === 'revenue' ? 'text-emerald-600' : 'text-red-600') + '">' + amtStr + '</td>';
-        html += '<td class="py-2 pr-4 text-right"><a href="' + odooUrl + '" target="_blank" class="text-blue-500 hover:underline text-xs">Ver ↗</a></td>';
+        var amtStr = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(line.amount);
+        var odooUrl = 'https://www.torus.dev/web#id=' + line.move_id + '&model=account.move&view_type=form';
+        html += '<tr class=\"border-t border-slate-100\">';
+        html += '<td class=\"py-2 pr-4 text-slate-600\">' + line.date + '</td>';
+        html += '<td class=\"py-2 pr-4 text-slate-500\">' + line.move_name + '</td>';
+        html += '<td class=\"py-2 pr-4 text-slate-600\">' + line.partner_name + '</td>';
+        html += '<td class=\"py-2 pr-4 text-slate-600\">' + line.desc + '</td>';
+        html += '<td class=\"py-2 pr-4 text-right font-semibold ' + typeColor + '\">' + amtStr + '</td>';
+        html += '<td class=\"py-2 pr-4 text-right\"><a href=\"' + odooUrl + '\" target=\"_blank\" class=\"text-blue-500 hover:underline text-xs\">Ver</a></td>';
         html += '</tr>';
       }
     }
 
     if (rowCount === 0) {
-      html += '<tr><td colspan="6" class="py-4 text-center text-slate-400">Sin registros</td></tr>';
+      html += '<tr><td colspan=\"6\" class=\"py-4 text-center text-slate-400\">Sin registros</td></tr>';
     } else {
-      const totalStr = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(totalAmt);
-      html += '<tr class="border-t-2 border-slate-300 bg-slate-50"><td colspan="4" class="py-2 font-bold text-slate-700">Total ' + rowCount + ' registros</td>';
-      html += '<td class="py-2 text-right font-bold ' + (type === 'revenue' ? 'text-emerald-600' : 'text-red-600') + '">' + totalStr + '</td><td></td></tr>';
+      var totalStr = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totalAmt);
+      html += '<tr class=\"border-t-2 border-slate-300 bg-slate-50\"><td colspan=\"4\" class=\"py-2 font-bold text-slate-700\">Total ' + rowCount + ' registros</td>';
+      html += '<td class=\"py-2 text-right font-bold ' + typeColor + '\">' + totalStr + '</td><td></td></tr>';
     }
 
     html += '</tbody></table>';
     container.innerHTML = html;
     detailCache[key] = html;
-  } catch (e) {
-    container.innerHTML = '<div class="text-red-500 py-2">Error cargando detalle: ' + e.message + '</div>';
+  } catch(e) {
+    container.innerHTML = '<div class=\"text-red-500 py-2\">Error: ' + e.message + '</div>';
   }
 }
 </script>

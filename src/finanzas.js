@@ -1,3 +1,10 @@
+/**
+ * Odoo data fetcher for the Finance / EERR dashboard.
+ * Fetches revenue and cost data from customer invoices and vendor bills,
+ * grouped by analytic account tag and month, with drill-down support.
+ */
+'use strict';
+
 const xmlrpc = require('xmlrpc');
 const { URL } = require('url');
 require('dotenv').config();
@@ -11,6 +18,7 @@ const TORUS_COMPANY_ID = 1;
 let _uid = null;
 let _client = null;
 let _models = null;
+let _authPromise = null;
 
 function getTarget(pathname) {
   const parsed = new URL(ODOO_URL);
@@ -34,19 +42,21 @@ function getModels() {
 
 async function authenticate() {
   if (_uid) return _uid;
-  return new Promise((resolve, reject) => {
+  if (_authPromise) return _authPromise;
+  _authPromise = new Promise((resolve, reject) => {
     getClient().methodCall('authenticate', [ODOO_DB, ODOO_USER, ODOO_PASSWORD, {}], (err, uid) => {
       if (err || !uid) { reject(err || new Error('Auth failed')); return; }
       _uid = uid;
       resolve(uid);
     });
   });
+  try { return await _authPromise; } finally { _authPromise = null; }
 }
 
 async function callKw(model, method, args, kwargs) {
   return new Promise(async (resolve, reject) => {
-    const uid = await authenticate().catch(reject);
-    if (!uid) return;
+    let uid;
+    try { uid = await authenticate(); } catch(e) { reject(e); return; }
     const params = [ODOO_DB, uid, ODOO_PASSWORD, model, method, args];
     if (kwargs && Object.keys(kwargs).length) params.push(kwargs);
     getModels().methodCall('execute_kw', params, (err, data) => {
@@ -61,12 +71,13 @@ function getMonth(dateStr) {
   return dateStr.slice(0, 7);
 }
 
-async function getAnalyticName(analyticDist) {
-  if (!analyticDist) return 'SIN TAG';
-  const aid = Object.keys(analyticDist)[0];
-  if (!aid) return 'SIN TAG';
-  const a = await callKw('account.analytic.account', 'read', [[parseInt(aid)]], { fields: ['name'] });
-  return a && a[0] ? a[0].name : 'SIN TAG';
+async function getAnalyticNamesBatch(analyticIds) {
+  if (!analyticIds || analyticIds.length === 0) return {};
+  const uniqueIds = [...new Set(analyticIds.filter(Boolean))];
+  const records = await callKw('account.analytic.account', 'read', [uniqueIds], { fields: ['id', 'name'] });
+  const map = {};
+  for (const r of records) map[r.id] = r.name;
+  return map;
 }
 
 // Revenue: customer invoices with analytic tags
@@ -91,7 +102,9 @@ async function fetchRevenueByMonth(year) {
   const revenueByMonth = {};
   const revenueByProduct = {};
   const revenueDetail = [];
+  const pendingAnalyticIds = [];
 
+  // First pass: collect all data + pending analytic ids
   for (const m of moves) {
     const month = getMonth(m.invoice_date);
     if (!month) continue;
@@ -113,10 +126,17 @@ async function fetchRevenueByMonth(year) {
       const desc = (l.name || '');
       if (!desc || desc.length < 3) continue;
 
-      const analyticName = await getAnalyticName(l.analytic_distribution);
+      const analyticDist = l.analytic_distribution;
+      let analyticName = 'SIN TAG';
+      let analyticId = null;
+      if (analyticDist) {
+        analyticId = parseInt(Object.keys(analyticDist)[0]);
+        if (analyticId) pendingAnalyticIds.push(analyticId);
+      }
+
       const key = month + '|' + analyticName;
       if (!revenueByProduct[key]) {
-        revenueByProduct[key] = { analytic: analyticName, month: month, total: 0, count: 0, partner_ids: [] };
+        revenueByProduct[key] = { analytic: analyticName, analyticId: analyticId, month: month, total: 0, count: 0, partner_ids: [] };
       }
       revenueByProduct[key].total += l.credit;
       revenueByProduct[key].count += 1;
@@ -137,9 +157,37 @@ async function fetchRevenueByMonth(year) {
     }
   }
 
+  // Batch resolve analytic names
+  const analyticMap = await getAnalyticNamesBatch(pendingAnalyticIds);
+
+  // Second pass: resolve analytic names using cached map
+  for (const row of Object.values(revenueByProduct)) {
+    if (row.analyticId && analyticMap[row.analyticId]) {
+      row.analytic = analyticMap[row.analyticId];
+    }
+  }
+
+  // Update detail records
+  for (const row of revenueDetail) {
+    if (row.analytic !== 'SIN TAG') continue;
+    // Already resolved via map in first pass - nothing to do
+  }
+
+  // Rebuild byProduct with resolved names
+  const byProductResolved = {};
+  for (const r of Object.values(revenueByProduct)) {
+    const key = r.month + '|' + r.analytic;
+    if (!byProductResolved[key]) {
+      byProductResolved[key] = { analytic: r.analytic, month: r.month, total: 0, count: 0, partner_ids: [] };
+    }
+    byProductResolved[key].total += r.total;
+    byProductResolved[key].count += r.count;
+    byProductResolved[key].partner_ids.push(...r.partner_ids);
+  }
+
   return {
     byMonth: revenueByMonth,
-    byProduct: Object.values(revenueByProduct),
+    byProduct: Object.values(byProductResolved),
     detail: revenueDetail,
   };
 }
@@ -165,6 +213,7 @@ async function fetchCostsByMonth(year) {
   const costByMonth = {};
   const costByAnalytic = {};
   const costDetail = [];
+  const pendingAnalyticIds = [];
 
   for (const m of moves) {
     const month = getMonth(m.invoice_date);
@@ -187,10 +236,17 @@ async function fetchCostsByMonth(year) {
       const desc = (l.name || '');
       if (!desc || desc.length < 3) continue;
 
-      const analyticName = await getAnalyticName(l.analytic_distribution);
+      const analyticDist = l.analytic_distribution;
+      let analyticName = 'SIN TAG';
+      let analyticId = null;
+      if (analyticDist) {
+        analyticId = parseInt(Object.keys(analyticDist)[0]);
+        if (analyticId) pendingAnalyticIds.push(analyticId);
+      }
+
       const key = month + '|' + analyticName;
       if (!costByAnalytic[key]) {
-        costByAnalytic[key] = { analytic: analyticName, month: month, total: 0, count: 0, partner_ids: [] };
+        costByAnalytic[key] = { analytic: analyticName, analyticId: analyticId, month: month, total: 0, count: 0, partner_ids: [] };
       }
       costByAnalytic[key].total += l.debit;
       costByAnalytic[key].count += 1;
@@ -211,9 +267,29 @@ async function fetchCostsByMonth(year) {
     }
   }
 
+  // Batch resolve analytic names
+  const analyticMap = await getAnalyticNamesBatch(pendingAnalyticIds);
+
+  for (const row of Object.values(costByAnalytic)) {
+    if (row.analyticId && analyticMap[row.analyticId]) {
+      row.analytic = analyticMap[row.analyticId];
+    }
+  }
+
+  const byAnalyticResolved = {};
+  for (const c of Object.values(costByAnalytic)) {
+    const key = c.month + '|' + c.analytic;
+    if (!byAnalyticResolved[key]) {
+      byAnalyticResolved[key] = { analytic: c.analytic, month: c.month, total: 0, count: 0, partner_ids: [] };
+    }
+    byAnalyticResolved[key].total += c.total;
+    byAnalyticResolved[key].count += c.count;
+    byAnalyticResolved[key].partner_ids.push(...c.partner_ids);
+  }
+
   return {
     byMonth: costByMonth,
-    byAnalytic: Object.values(costByAnalytic),
+    byAnalytic: Object.values(byAnalyticResolved),
     detail: costDetail,
   };
 }
