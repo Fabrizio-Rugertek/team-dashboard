@@ -22,6 +22,13 @@ module.exports = {
   MECHANICAL_DESC_HOURS: 3,       // hours with a mechanical description → warning anomaly
 
   // ── Anomaly categories ───────────────────────────────────────────────────
+  LOG_HISTORY_BUSINESS_DAYS: 10,
+  LOG_COMPLIANCE_BUSINESS_DAYS: 20,
+  LOG_MIN_DESC_LENGTH: 8,
+  LATE_LOG_DAYS_THRESHOLD: 1,
+  SUSPICIOUS_LOG_SCORE_WARNING: 40,
+  SUSPICIOUS_LOG_SCORE_CRITICAL: 70,
+
   BACKLOG_STAGE_IDS: new Set([8, 20, 249]),
   BACKLOG_KEYWORDS:  ['backlog', 'lista de tarea', 'bandeja', 'internal'],
 

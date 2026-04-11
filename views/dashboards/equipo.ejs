@@ -12,6 +12,7 @@
     .alert-filter-btn.active { background: #0f172a; color: white; }
     .filter-btn.active { background: #3B82F6; color: white; border-color: #3B82F6; }
     .filter-btn:hover:not(.active) { background: #EFF6FF; }
+    .log-day { min-width: 48px; }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -33,6 +34,8 @@
 </nav>
 
 <div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+  <% const lc = loggingControl || { overview: {}, displayDates: [], people: [] }; %>
+  <% const lco = lc.overview || {}; %>
   <div id="staleBanner" class="hidden">
     <div class="bg-amber-50 border border-amber-200 rounded-xl p-4">
       <div class="font-bold text-amber-900">Mostrando snapshot guardado</div>
@@ -172,6 +175,123 @@
   </section>
 
   <%# ── Weekly Chart + Top Consultants ─────────────────────────────────────── %>
+  <%# Logging Discipline %>
+  <section class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3 mb-5">
+      <div>
+        <h3 class="font-bold text-slate-900 text-lg">Disciplina de Logeo</h3>
+        <p class="text-sm text-slate-500">Control historico de carga sobre los ultimos <span id="loggingWindowLabel"><%= lco.complianceDays || 0 %></span> dias habiles. Buscamos ausencia de logeo, carga tardia y patrones de baja calidad.</p>
+      </div>
+      <div class="text-xs text-slate-400">Referencia actual: <span id="loggingLatestBusinessLabel"><%= lco.latestBusinessLabel || '-' %></span></div>
+    </div>
+
+    <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-5">
+      <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Compliance</div>
+        <div class="text-2xl font-black text-slate-900" id="loggingCompliancePct"><%= lco.compliancePct || 0 %>%</div>
+        <div class="text-xs text-slate-400 mt-1"><span id="loggingPeopleCount"><%= lco.peopleCount || 0 %></span> personas activas</div>
+      </div>
+      <div class="rounded-xl border border-red-200 bg-red-50 p-4">
+        <div class="text-xs font-semibold text-red-600 uppercase tracking-wide mb-1">Sin log ultimo dia habil</div>
+        <div class="text-2xl font-black text-red-600" id="loggingMissingLatestCount"><%= lco.missingLatestBusinessDayCount || 0 %></div>
+        <div class="text-xs text-red-500 mt-1">Sobre <span id="loggingLatestBusinessLabelCard"><%= lco.latestBusinessLabel || '-' %></span></div>
+      </div>
+      <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <div class="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Sin log esta semana</div>
+        <div class="text-2xl font-black text-amber-600" id="loggingNoWeekCount"><%= lco.noLogThisWeekCount || 0 %></div>
+        <div class="text-xs text-amber-600 mt-1">Riesgo operativo inmediato</div>
+      </div>
+      <div class="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+        <div class="text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-1">Carga sospechosa</div>
+        <div class="text-2xl font-black text-indigo-700" id="loggingSuspiciousCount"><%= lco.suspiciousCount || 0 %></div>
+        <div class="text-xs text-indigo-500 mt-1"><span id="loggingCriticalCount"><%= lco.criticalCount || 0 %></span> criticos / <span id="loggingWarningCount"><%= lco.warningCount || 0 %></span> warning</div>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b-2 border-slate-100 align-bottom">
+            <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Persona</th>
+            <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Compliance</th>
+            <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Semana</th>
+            <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Calidad</th>
+            <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Ultimos dias habiles</th>
+            <th class="text-left py-2 px-3 font-semibold text-slate-600 text-xs">Estado</th>
+          </tr>
+          <tr class="border-b border-slate-100 text-[11px] text-slate-400" id="loggingDatesHeaderRow">
+            <th></th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th class="py-2 px-3">
+              <div class="flex gap-1">
+                <% lc.displayDates.forEach((day) => { %>
+                  <span class="log-day text-center"><%= day.label %></span>
+                <% }) %>
+              </div>
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="loggingTableBody">
+          <% lc.people.forEach((person) => { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50">
+            <td class="py-3 px-3 align-top">
+              <div class="font-semibold text-slate-900 text-xs"><%= person.name %></div>
+              <div class="text-xs text-slate-400 mt-1"><%= person.job || 'Sin rol' %><% if (person.department) { %> - <%= person.department %><% } %></div>
+            </td>
+            <td class="py-3 px-3 align-top">
+              <div class="text-sm font-black <%= person.compliancePct >= 85 ? 'text-green-600' : person.compliancePct >= 65 ? 'text-amber-600' : 'text-red-600' %>"><%= person.compliancePct %>%</div>
+              <div class="text-xs text-slate-400"><%= person.loggedDays %>/<%= person.expectedDays %> dias - faltan <%= person.missingDays %></div>
+            </td>
+            <td class="py-3 px-3 align-top">
+              <div class="text-sm font-bold text-slate-900"><%= person.hoursThisWeek %>h</div>
+              <div class="text-xs text-slate-400"><%= person.entriesThisWeek %> cargas - ultimo log <%= person.lastLogDate || '-' %></div>
+            </td>
+            <td class="py-3 px-3 align-top">
+              <div class="text-xs text-slate-500">desc cortas <span class="font-semibold text-slate-700"><%= person.quality.shortDescPct %>%</span></div>
+              <div class="text-xs text-slate-500">cargas tardias <span class="font-semibold text-slate-700"><%= person.quality.latePct %>%</span></div>
+              <div class="text-xs text-slate-500">cargas redondas <span class="font-semibold text-slate-700"><%= person.quality.roundPct %>%</span></div>
+            </td>
+            <td class="py-3 px-3 align-top">
+              <div class="flex gap-1">
+                <% person.recentDays.forEach((day) => { %>
+                  <div class="log-day rounded-md border px-1.5 py-1 text-center text-[11px] font-semibold <%= day.isMissing ? 'bg-red-50 border-red-200 text-red-600' : day.hours >= 8 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : day.hours >= 4 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-amber-50 border-amber-200 text-amber-700' %>" title="<%= `${day.label}: ${day.hours}h / ${day.entries} cargas${day.lateEntries ? ` / tardias: ${day.lateEntries}` : ''}` %>">
+                    <div><%= day.hours > 0 ? `${day.hours}h` : '0' %></div>
+                    <div class="text-[10px] <%= day.lateEntries ? 'text-amber-500' : 'text-slate-300' %>"><%= day.lateEntries ? 'T' : '.' %></div>
+                  </div>
+                <% }) %>
+              </div>
+            </td>
+            <td class="py-3 px-3 align-top">
+              <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold <%= person.status === 'critical' ? 'bg-red-100 text-red-700' : person.status === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700' %>">
+                <%= person.status === 'critical' ? 'Critico' : person.status === 'warning' ? 'Warning' : 'Sano' %>
+                &nbsp;|&nbsp;<%= person.suspiciousScore %>
+              </div>
+              <% if (person.flags.length) { %>
+              <div class="mt-2 space-y-1 max-w-xs">
+                <% person.flags.forEach((flag) => { %>
+                <div class="text-xs text-slate-500">- <%= flag %></div>
+                <% }) %>
+              </div>
+              <% } else { %>
+              <div class="mt-2 text-xs text-slate-400">Sin alertas relevantes</div>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+          <% if (!lc.people.length) { %>
+          <tr>
+            <td colspan="6" class="py-10 text-center text-slate-400">No hay datos de logeo para mostrar.</td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
   <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
       <h3 class="font-bold text-slate-800 mb-4">Horas por Semana</h3>
@@ -329,9 +449,10 @@ let billableChart;
 // ── Initial data (server-rendered) ──────────────────────────────────────────
 const weeklyLabels = <%- JSON.stringify(weeklyLabels) %>;
 const weeklyHours  = <%- JSON.stringify(weeklyHours) %>;
-const initialSummary     = <%- JSON.stringify(summary) %>;
-const initialConsultants = <%- JSON.stringify(consultants) %>;
-const initialAnomalies   = <%- JSON.stringify(anomalies) %>;
+const initialSummary        = <%- JSON.stringify(summary) %>;
+const initialConsultants    = <%- JSON.stringify(consultants) %>;
+const initialAnomalies      = <%- JSON.stringify(anomalies) %>;
+const initialLoggingControl = <%- JSON.stringify(loggingControl) %>;
 
 // ── Charts ───────────────────────────────────────────────────────────────────
 function renderBillableChart(summary) {
@@ -434,6 +555,111 @@ function renderSummary(summary) {
   document.getElementById('nonBillableLegend').textContent = `Non-Billable ${nonBillablePct}%`;
 }
 
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function getLoggingStatusClass(status) {
+  if (status === 'critical') return 'bg-red-100 text-red-700';
+  if (status === 'warning') return 'bg-amber-100 text-amber-700';
+  return 'bg-green-100 text-green-700';
+}
+
+function getLoggingStatusLabel(status) {
+  if (status === 'critical') return 'Critico';
+  if (status === 'warning') return 'Warning';
+  return 'Sano';
+}
+
+function getLoggingDayClass(day) {
+  if (day.isMissing) return 'bg-red-50 border-red-200 text-red-600';
+  if ((day.hours || 0) >= 8) return 'bg-indigo-50 border-indigo-200 text-indigo-700';
+  if ((day.hours || 0) >= 4) return 'bg-blue-50 border-blue-200 text-blue-700';
+  return 'bg-amber-50 border-amber-200 text-amber-700';
+}
+
+function renderLoggingControl(loggingControl) {
+  const overview = loggingControl?.overview || {};
+  const dates = loggingControl?.displayDates || [];
+  const people = loggingControl?.people || [];
+
+  document.getElementById('loggingWindowLabel').textContent = overview.complianceDays || 0;
+  document.getElementById('loggingLatestBusinessLabel').textContent = overview.latestBusinessLabel || '-';
+  document.getElementById('loggingCompliancePct').textContent = `${overview.compliancePct || 0}%`;
+  document.getElementById('loggingPeopleCount').textContent = overview.peopleCount || 0;
+  document.getElementById('loggingMissingLatestCount').textContent = overview.missingLatestBusinessDayCount || 0;
+  document.getElementById('loggingLatestBusinessLabelCard').textContent = overview.latestBusinessLabel || '-';
+  document.getElementById('loggingNoWeekCount').textContent = overview.noLogThisWeekCount || 0;
+  document.getElementById('loggingSuspiciousCount').textContent = overview.suspiciousCount || 0;
+  document.getElementById('loggingCriticalCount').textContent = overview.criticalCount || 0;
+  document.getElementById('loggingWarningCount').textContent = overview.warningCount || 0;
+
+  document.getElementById('loggingDatesHeaderRow').innerHTML = `
+    <th></th>
+    <th></th>
+    <th></th>
+    <th></th>
+    <th class="py-2 px-3">
+      <div class="flex gap-1">
+        ${dates.map(day => `<span class="log-day text-center">${escapeHtml(day.label)}</span>`).join('')}
+      </div>
+    </th>
+    <th></th>`;
+
+  const tbody = document.getElementById('loggingTableBody');
+  tbody.innerHTML = people.length ? people.map(person => {
+    const flags = (person.flags || []).length
+      ? `<div class="mt-2 space-y-1 max-w-xs">${person.flags.map(flag => `<div class="text-xs text-slate-500">- ${escapeHtml(flag)}</div>`).join('')}</div>`
+      : '<div class="mt-2 text-xs text-slate-400">Sin alertas relevantes</div>';
+    const days = (person.recentDays || []).map(day => {
+      const title = `${day.label}: ${day.hours || 0}h / ${day.entries || 0} cargas${day.lateEntries ? ` / tardias: ${day.lateEntries}` : ''}`;
+      return `
+        <div class="log-day rounded-md border px-1.5 py-1 text-center text-[11px] font-semibold ${getLoggingDayClass(day)}" title="${escapeHtml(title)}">
+          <div>${(day.hours || 0) > 0 ? `${day.hours}h` : '0'}</div>
+          <div class="text-[10px] ${day.lateEntries ? 'text-amber-500' : 'text-slate-300'}">${day.lateEntries ? 'T' : '.'}</div>
+        </div>`;
+    }).join('');
+
+    const complianceColor = person.compliancePct >= 85
+      ? 'text-green-600'
+      : person.compliancePct >= 65
+      ? 'text-amber-600'
+      : 'text-red-600';
+
+    return `
+      <tr class="border-b border-slate-50 hover:bg-slate-50">
+        <td class="py-3 px-3 align-top">
+          <div class="font-semibold text-slate-900 text-xs">${escapeHtml(person.name || '')}</div>
+          <div class="text-xs text-slate-400 mt-1">${escapeHtml(person.job || 'Sin rol')}${person.department ? ` - ${escapeHtml(person.department)}` : ''}</div>
+        </td>
+        <td class="py-3 px-3 align-top">
+          <div class="text-sm font-black ${complianceColor}">${person.compliancePct || 0}%</div>
+          <div class="text-xs text-slate-400">${person.loggedDays || 0}/${person.expectedDays || 0} dias - faltan ${person.missingDays || 0}</div>
+        </td>
+        <td class="py-3 px-3 align-top">
+          <div class="text-sm font-bold text-slate-900">${person.hoursThisWeek || 0}h</div>
+          <div class="text-xs text-slate-400">${person.entriesThisWeek || 0} cargas - ultimo log ${escapeHtml(person.lastLogDate || '-')}</div>
+        </td>
+        <td class="py-3 px-3 align-top">
+          <div class="text-xs text-slate-500">desc cortas <span class="font-semibold text-slate-700">${person.quality?.shortDescPct || 0}%</span></div>
+          <div class="text-xs text-slate-500">cargas tardias <span class="font-semibold text-slate-700">${person.quality?.latePct || 0}%</span></div>
+          <div class="text-xs text-slate-500">cargas redondas <span class="font-semibold text-slate-700">${person.quality?.roundPct || 0}%</span></div>
+        </td>
+        <td class="py-3 px-3 align-top"><div class="flex gap-1">${days}</div></td>
+        <td class="py-3 px-3 align-top">
+          <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${getLoggingStatusClass(person.status)}">${getLoggingStatusLabel(person.status)}&nbsp;|&nbsp;${person.suspiciousScore || 0}</div>
+          ${flags}
+        </td>
+      </tr>`;
+  }).join('') : '<tr><td colspan="6" class="py-10 text-center text-slate-400">No hay datos de logeo para mostrar.</td></tr>';
+}
+
 function renderTopConsultants(consultants) {
   const container = document.getElementById('topConsultantsList');
   const top = [...consultants].sort((a, b) => (b.hoursThisWeek || 0) - (a.hoursThisWeek || 0)).slice(0, 8);
@@ -513,6 +739,7 @@ async function loadBootstrap(page = 1) {
     renderSummary(payload.summary    || {});
     updateAlertCounters(payload.anomalies || []);
     renderProjects(payload.projects  || {});
+    renderLoggingControl(payload.loggingControl || { overview: {}, displayDates: [], people: [] });
     renderTopConsultants(payload.consultants || []);
     renderWeeklyChart(
       (payload.weekly || []).map(w => w.label),
@@ -559,6 +786,7 @@ document.getElementById('projectsNext').addEventListener('click', () => {
 // ── Init ─────────────────────────────────────────────────────────────────────
 renderWeeklyChart(weeklyLabels, weeklyHours);
 renderBillableChart(initialSummary);
+renderLoggingControl(initialLoggingControl || { overview: {}, displayDates: [], people: [] });
 filterAlerts('all');
 loadBootstrap();
 setInterval(() => loadBootstrap(projectsState.page), 5 * 60 * 1000);

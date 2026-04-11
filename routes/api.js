@@ -89,6 +89,7 @@ function buildBootstrapPayload(data, opts = {}) {
     },
     consultants:  data.consultants || [],
     anomalies:    data.anomalies     || [],
+    loggingControl: data.loggingControl || { overview: {}, displayDates: [], people: [] },
     projects,
     weekly:       data.weeklyData   || [],
   };
@@ -180,6 +181,19 @@ router.get('/equipo/projects', async (req, res) => {
     res.json(payload.projects);
   } catch (error) {
     console.error('[/api/equipo/projects]', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/equipo/logging', async (req, res) => {
+  try {
+    const payload = await getDashboardData({
+      status: req.query.status,
+      tag:    req.query.tag,
+    });
+    res.json(payload.loggingControl || { overview: {}, displayDates: [], people: [] });
+  } catch (error) {
+    console.error('[/api/equipo/logging]', error.message);
     res.status(500).json({ error: error.message });
   }
 });

@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     };
 
     const data = await getDashboardCached(filters);
-    const { summary, consultants, projectStatuses, anomalies, weeklyData } = data;
+    const { summary, consultants, projectStatuses, anomalies, weeklyData, loggingControl } = data;
 
     const criticalCount = anomalies.filter(a => a.type === 'critical').length;
     const warningCount  = anomalies.filter(a => a.type === 'warning').length;
@@ -39,6 +39,7 @@ router.get('/', async (req, res) => {
       infoCount,
       weeklyLabels:    weeklyData.map(w => w.label),
       weeklyHours:     weeklyData.map(w => w.hours),
+      loggingControl,
       lastUpdate:      new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }),
       // Pass active filters and options to the template
       activeFilters:   filters,
