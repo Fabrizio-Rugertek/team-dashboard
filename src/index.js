@@ -7,6 +7,9 @@ const { requireAuth, requireRole } = require('../middleware/requireAuth');
 
 const app  = express();
 const PORT = process.env.PORT || 3511;
+
+// ── Trust reverse proxy (nginx) ───────────────────────────────────────────────
+app.set('trust proxy', 1);
 const ENABLE_PREWARM      = process.env.ENABLE_PREWARM !== 'false';
 const PREWARM_INTERVAL_MS = Number(process.env.PREWARM_INTERVAL_MS || 30000);
 
