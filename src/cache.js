@@ -639,10 +639,13 @@ function computeDashboard(raw, filters = {}) {
       : 0;
 
     const flags = computeProjectFlags({ totalAlloc, totalLog, daysSinceUpdate: daysSince, stageProgress: avgProg, doneTasks, totalTasks: tasks.length });
-    const shortName = p.name.length > 28 ? `${p.name.slice(0, 28)}…` : p.name;
+    const isInternal = /actividades?\s*interna|internal\s*activities/i.test(p.name);
+    const responsible = p.user_id?.[1] || null;
 
     return {
-      id: p.id, name: shortName, fullName: p.name,
+      id: p.id, name: p.name, fullName: p.name,
+      responsible,
+      isInternal,
       totalAlloc: round(totalAlloc), totalLog: round(totalLog),
       openTasks, doneTasks, backlogTasks, totalTasks: tasks.length,
       hoursPct:       totalAlloc > 0 ? Math.round((totalLog / totalAlloc) * 100) : null,
@@ -654,11 +657,15 @@ function computeDashboard(raw, filters = {}) {
       ganttTasks: tasks
         .filter(t => t.date_start || t.date_end)
         .map(t => ({
-          id:    t.id,
-          name:  (t.name || '').slice(0, 60),
-          start: t.date_start ? String(t.date_start).slice(0, 10) : null,
-          end:   t.date_end   ? String(t.date_end).slice(0, 10)   : null,
-          done:  isDone(t),
+          id:         t.id,
+          name:       (t.name || '').slice(0, 80),
+          start:      t.date_start ? String(t.date_start).slice(0, 10) : null,
+          end:        t.date_end   ? String(t.date_end).slice(0, 10)   : null,
+          done:       isDone(t),
+          parentId:   t.parent_id?.[0] || null,
+          assignee:   t.user_id?.[1] || null,
+          allocHours: round(t.allocated_hours || 0),
+          sprint:     t.sprint_id?.[1] || null,
         }))
         .sort((a, b) => (a.start || '9999') < (b.start || '9999') ? -1 : 1),
     };
