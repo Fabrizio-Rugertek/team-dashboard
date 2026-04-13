@@ -10,16 +10,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Inter', sans-serif; }
+    .tab-btn { border-bottom: 3px solid transparent; transition: all .15s; }
+    .tab-btn.active { border-bottom-color: #2563EB; color: #2563EB; font-weight: 700; }
+    .aging-bar { transition: width .4s ease; }
     .kpi-delta-up   { color: #10b981; }
     .kpi-delta-down { color: #ef4444; }
-    .aging-bar { transition: width .4s ease; }
+    details > summary::-webkit-details-marker { display:none; }
+    details[open] .chevron { transform: rotate(180deg); }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
 
 <%
-  // ── Helpers ────────────────────────────────────────────────────────────
-  const gs = n => '₲\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(n || 0);
+  const gs  = n => '₲\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(n || 0);
   const gsM = n => {
     const abs = Math.abs(n || 0);
     if (abs >= 1e9) return (n/1e9).toFixed(1) + ' B';
@@ -27,39 +30,44 @@
     if (abs >= 1e3) return Math.round(n/1e3) + ' K';
     return String(Math.round(n || 0));
   };
-  const pct = n => (n >= 0 ? '+' : '') + n + '%';
-  const bucketLabel = { current: 'Al día', d1_30: '1–30 días', d31_60: '31–60 días', d61_90: '61–90 días', d90plus: '+90 días' };
-  const bucketColor = { current: 'emerald', d1_30: 'amber', d31_60: 'orange', d61_90: 'red', d90plus: 'rose' };
-  const stateLabel  = { draft: 'Borrador', sent: 'Enviada' };
-  const stateColor  = { draft: 'slate', sent: 'blue' };
+  const ingRows = fin.eerrRows.filter(r => r.totalRevenue > 0).sort((a,b) => b.totalRevenue - a.totalRevenue);
+  const egRows  = fin.eerrRows.filter(r => r.totalRevenue === 0 && r.totalCost > 0).sort((a,b) => b.totalCost - a.totalCost);
+  const totalIngRev  = ingRows.reduce((s,r) => s + r.totalRevenue, 0);
+  const totalIngCost = ingRows.reduce((s,r) => s + r.totalCost,    0);
+  const totalIngMgn  = totalIngRev - totalIngCost;
+  const totalIngMgnPct = totalIngRev > 0 ? Math.round(totalIngMgn / totalIngRev * 100) : 0;
+  const totalEgCost  = egRows.reduce((s,r) => s + r.totalCost, 0);
+  const overdue = (cxc.buckets.d1_30||0) + (cxc.buckets.d31_60||0) + (cxc.buckets.d61_90||0) + (cxc.buckets.d90plus||0);
 %>
 
-<!-- ── Navbar ──────────────────────────────────────────────────────────── -->
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
 <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <img src="/img/torus-icon-green.png" alt="Torus" class="h-8 w-auto">
-
-      <span class="text-slate-400 text-sm font-medium">/ Finanzas</span>
-      <span class="text-slate-300">·</span>
-      <a href="/"       class="text-sm font-medium text-blue-600 hover:text-blue-800">Inicio</a>
-      <span class="text-slate-300">·</span>
-      <a href="/equipo" class="text-sm font-medium text-blue-600 hover:text-blue-800">Equipo</a>
+      <span class="text-slate-300 text-sm">·</span>
+      <a href="/"       class="text-sm font-semibold text-blue-600 hover:text-blue-800">Inicio</a>
+      <span class="text-slate-300 text-sm">·</span>
+      <a href="/equipo" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Equipo</a>
+      <span class="text-slate-300 text-sm">·</span>
+      <span class="text-sm font-bold text-slate-900">Finanzas</span>
       <% if (typeof user !== 'undefined' && user && user.role === 'admin') { %>
-      <span class="text-slate-300">·</span>
+      <span class="text-slate-300 text-sm">·</span>
       <a href="/admin/users" class="text-sm font-medium text-slate-500 hover:text-slate-700">Usuarios</a>
       <% } %>
     </div>
     <div class="flex items-center gap-3">
+      <!-- Year selector -->
       <div class="flex items-center gap-1">
         <% for (let y = 2024; y <= new Date().getFullYear(); y++) { %>
         <a href="/finanzas?year=<%= y %>"
-           class="px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors <%= y === year ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50' %>">
+           class="px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors
+           <%= y === year ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300 hover:text-blue-600' %>">
           <%= y %>
         </a>
         <% } %>
       </div>
-      <div class="flex items-center gap-2 text-xs text-slate-500">
+      <div class="flex items-center gap-1.5 text-xs text-slate-400 border-l border-slate-200 pl-3">
         <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
         <span><%= lastUpdate %></span>
       </div>
@@ -82,190 +90,464 @@
   </div>
 </nav>
 
-<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+<!-- ── KPI Cards (always visible) ────────────────────────────────────────── -->
+<div class="bg-white border-b border-slate-200">
+  <div class="max-w-7xl mx-auto px-4 py-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
 
-  <!-- ── KPI Cards ───────────────────────────────────────────────────── -->
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-
-    <!-- Ingresos YTD -->
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Ingresos <%= year %></div>
-      <div class="text-2xl font-black text-slate-900">₲ <%= gsM(fin.totalRevenue) %></div>
-      <div class="text-xs text-slate-400 mt-1"><%= gs(fin.totalRevenue) %></div>
-      <% if (fin.curMonth.revDelta !== null) { %>
+      <!-- Ingresos YTD -->
+      <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Ingresos <%= year %></div>
+        <div class="text-2xl font-black text-slate-900">₲&nbsp;<%= gsM(fin.totalRevenue) %></div>
+        <% if (fin.curMonth.revDelta !== null) { %>
         <div class="text-xs mt-1 font-semibold <%= fin.curMonth.revDelta >= 0 ? 'kpi-delta-up' : 'kpi-delta-down' %>">
           <%= fin.curMonth.revDelta >= 0 ? '▲' : '▼' %> <%= Math.abs(fin.curMonth.revDelta) %>% vs mes ant.
         </div>
-      <% } %>
-    </div>
-
-    <!-- Costos YTD -->
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Costos <%= year %></div>
-      <div class="text-2xl font-black text-slate-900">₲ <%= gsM(fin.totalCost) %></div>
-      <div class="text-xs text-slate-400 mt-1"><%= gs(fin.totalCost) %></div>
-      <div class="text-xs text-slate-400 mt-1">Facturas de proveedores</div>
-    </div>
-
-    <!-- Margen Bruto -->
-    <div class="bg-white rounded-xl border-2 <%= fin.totalMargin >= 0 ? 'border-emerald-200' : 'border-red-200' %> p-4">
-      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Margen Bruto</div>
-      <div class="text-2xl font-black <%= fin.totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
-        ₲ <%= gsM(fin.totalMargin) %>
+        <% } %>
       </div>
-      <div class="text-xs mt-1 font-bold <%= fin.totalMargin >= 0 ? 'text-emerald-500' : 'text-red-500' %>">
-        <%= fin.totalMargin >= 0 ? '+' : '' %><%= fin.marginPct %>% margen
+
+      <!-- Costos directos -->
+      <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Costos Directos</div>
+        <div class="text-2xl font-black text-slate-900">₲&nbsp;<%= gsM(totalIngCost) %></div>
+        <div class="text-xs text-slate-400 mt-1">Sobre ingresos registrados</div>
       </div>
-      <div class="text-xs text-amber-600 mt-1">⚠ Sin nómina</div>
+
+      <!-- Margen de contribución -->
+      <div class="bg-slate-50 rounded-xl border-2 <%= totalIngMgn >= 0 ? 'border-emerald-200' : 'border-red-200' %> p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Margen Contribución</div>
+        <div class="text-2xl font-black <%= totalIngMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
+          ₲&nbsp;<%= gsM(totalIngMgn) %>
+        </div>
+        <div class="text-xs mt-1 font-bold <%= totalIngMgn >= 0 ? 'text-emerald-500' : 'text-red-500' %>">
+          <%= totalIngMgn >= 0 ? '+' : '' %><%= totalIngMgnPct %>% · <span class="text-amber-500">⚠ sin nómina</span>
+        </div>
+      </div>
+
+      <!-- Egresos indirectos -->
+      <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Egresos Indirectos</div>
+        <div class="text-2xl font-black text-red-500">₲&nbsp;<%= gsM(totalEgCost) %></div>
+        <div class="text-xs text-slate-400 mt-1"><%= egRows.length %> cuentas sin ingreso</div>
+      </div>
+
+      <!-- CXC -->
+      <div class="bg-slate-50 rounded-xl border-2 border-amber-200 p-4 cursor-pointer hover:bg-amber-50 transition"
+           onclick="switchTab('cxc')">
+        <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">CXC Pendiente</div>
+        <div class="text-2xl font-black text-amber-700">₲&nbsp;<%= gsM(cxc.total) %></div>
+        <div class="text-xs text-red-500 font-semibold mt-1">₲&nbsp;<%= gsM(overdue) %> vencido</div>
+      </div>
+
+      <!-- Pipeline -->
+      <div class="bg-slate-50 rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:bg-blue-50 transition"
+           onclick="switchTab('pipeline')">
+        <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Pipeline</div>
+        <div class="text-2xl font-black text-blue-700">₲&nbsp;<%= gsM(pipeline.total) %></div>
+        <div class="text-xs text-blue-500 font-semibold mt-1"><%= closingRate.rate !== null ? closingRate.rate + '% cierre' : pipeline.count + ' cotizaciones' %></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Tab navigation ─────────────────────────────────────────────────────── -->
+<div class="bg-white border-b border-slate-200 sticky top-[57px] z-40">
+  <div class="max-w-7xl mx-auto px-4 overflow-x-auto">
+    <div class="flex items-center gap-0 min-w-max">
+      <button class="tab-btn active text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="resumen" onclick="switchTab('resumen')">📊 Resumen</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="eerr"     onclick="switchTab('eerr')">📋 EERR</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="margenes" onclick="switchTab('margenes')">📈 Márgenes</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="cxc"      onclick="switchTab('cxc')">💰 CXC</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="pipeline" onclick="switchTab('pipeline')">🗂 Pipeline</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: RESUMEN
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-resumen" class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- Monthly chart + Revenue donut side by side -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Monthly Ingresos vs Costos (2/3 width) -->
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-base font-bold text-slate-800">Ingresos vs Costos — <%= year %></h2>
+          <p class="text-xs text-slate-400 mt-0.5">Por mes · eje derecho = margen %</p>
+        </div>
+        <div class="flex items-center gap-4 text-xs text-slate-500">
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Ingresos</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-400 inline-block"></span>Costos</span>
+          <span class="flex items-center gap-1.5"><span class="w-6 h-0.5 bg-blue-500 inline-block"></span>Margen %</span>
+        </div>
+      </div>
+      <div style="height:260px"><canvas id="chartMonthly"></canvas></div>
     </div>
 
-    <!-- CXC -->
-    <div class="bg-white rounded-xl border-2 border-amber-200 p-4 cursor-pointer hover:bg-amber-50 transition" onclick="document.getElementById('secCXC').scrollIntoView({behavior:'smooth'})">
-      <div class="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">CXC Pendiente</div>
-      <div class="text-2xl font-black text-amber-700">₲ <%= gsM(cxc.total) %></div>
-      <div class="text-xs text-slate-400 mt-1"><%= cxc.count %> facturas sin cobrar</div>
-      <% const overdue = cxc.buckets.d1_30 + cxc.buckets.d31_60 + cxc.buckets.d61_90 + cxc.buckets.d90plus; %>
-      <div class="text-xs text-red-500 font-semibold mt-1">₲ <%= gsM(overdue) %> vencido</div>
+    <!-- Revenue breakdown donut (1/3 width) -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="mb-4">
+        <h2 class="text-base font-bold text-slate-800">Mix de Ingresos</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Por cuenta analítica · YTD <%= year %></p>
+      </div>
+      <div style="height:200px"><canvas id="chartDonut"></canvas></div>
+      <div id="donutLegend" class="mt-3 space-y-1 text-xs"></div>
     </div>
-
-    <!-- Pipeline -->
-    <div class="bg-white rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:bg-blue-50 transition" onclick="document.getElementById('secPipeline').scrollIntoView({behavior:'smooth'})">
-      <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Pipeline</div>
-      <div class="text-2xl font-black text-blue-700">₲ <%= gsM(pipeline.total) %></div>
-      <div class="text-xs text-slate-400 mt-1"><%= pipeline.count %> cotizaciones abiertas</div>
-      <div class="text-xs text-blue-500 font-semibold mt-1">₲ <%= gsM(pipeline.totalSent) %> enviadas</div>
-    </div>
-
   </div>
 
-  <!-- ── Gráfico mensual ─────────────────────────────────────────────── -->
+  <!-- Margin heatmap by month (summary) -->
   <div class="bg-white rounded-xl border border-slate-200 p-5">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-lg font-bold text-slate-800">Ingresos vs Costos — <%= year %></h2>
-      <div class="flex items-center gap-4 text-xs text-slate-500">
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Ingresos</span>
-        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-400 inline-block"></span>Costos</span>
-        <span class="flex items-center gap-1.5"><span class="w-6 h-0.5 bg-blue-500 inline-block"></span>Margen %</span>
-      </div>
-    </div>
-    <div style="height:260px">
-      <canvas id="chartMonthly"></canvas>
-    </div>
-  </div>
-
-  <!-- ── EERR Table ──────────────────────────────────────────────────── -->
-  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
       <div>
-        <h2 class="text-lg font-bold text-slate-800">Estado de Resultados por Cuenta Analítica</h2>
-        <p class="text-xs text-slate-400 mt-0.5">Ingresos (facturas emitidas) y Costos (facturas de proveedores) taggeados por cuenta analítica</p>
+        <h2 class="text-base font-bold text-slate-800">Margen % mensual por cuenta</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Top <%= Math.min(ingRows.length, 8) %> cuentas por ingreso · verde = buen margen</p>
       </div>
-      <span class="text-xs text-slate-400"><%= fin.eerrRows.length %> líneas</span>
     </div>
     <div class="overflow-x-auto">
-      <table class="w-full text-sm">
+      <table class="w-full text-xs">
         <thead>
-          <tr class="bg-slate-50 border-b border-slate-200 text-xs">
-            <th class="text-left px-5 py-3 font-semibold text-slate-600 min-w-48">Cuenta Analítica</th>
-            <th class="text-right px-3 py-3 font-semibold text-emerald-700">Ingresos</th>
-            <th class="text-right px-3 py-3 font-semibold text-red-600">Costos</th>
-            <th class="text-right px-3 py-3 font-semibold text-slate-700">Margen</th>
-            <th class="text-right px-3 py-3 font-semibold text-slate-500">%</th>
-            <% fin.months.forEach(m => { %><th class="text-right px-2 py-3 font-semibold text-slate-400"><%= m.label %></th><% }) %>
+          <tr class="border-b border-slate-100">
+            <th class="text-left py-2 px-3 font-semibold text-slate-500 w-48">Cuenta</th>
+            <th class="text-right py-2 px-2 font-semibold text-slate-500 w-20">YTD %</th>
+            <% fin.months.forEach(m => { %><th class="text-center py-2 px-1.5 font-semibold text-slate-400 w-12"><%= m.label %></th><% }) %>
           </tr>
         </thead>
         <tbody>
-          <% fin.eerrRows.forEach(row => {
+          <% ingRows.slice(0, 8).forEach(row => { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50">
+            <td class="py-2 px-3 font-medium text-slate-700 truncate max-w-[192px]" title="<%= row.name %>"><%= row.name %></td>
+            <td class="py-2 px-2 text-right">
+              <span class="font-bold <%= row.marginPct >= 50 ? 'text-emerald-600' : row.marginPct >= 25 ? 'text-blue-500' : row.marginPct >= 0 ? 'text-amber-600' : 'text-red-500' %>">
+                <%= row.marginPct %>%
+              </span>
+            </td>
+            <% row.months.forEach(m => {
+              const mp = (m.revenue > 0) ? Math.round((m.revenue - m.cost) / m.revenue * 100) : null;
+            %>
+            <td class="py-2 px-1.5 text-center">
+              <% if (mp !== null) { %>
+              <span class="inline-block px-1 py-0.5 rounded text-[10px] font-bold
+                <%= mp >= 50 ? 'bg-emerald-100 text-emerald-700' : mp >= 25 ? 'bg-blue-100 text-blue-700' : mp >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
+                <%= mp %>%
+              </span>
+              <% } else { %><span class="text-slate-200">—</span><% } %>
+            </td>
+            <% }) %>
+          </tr>
+          <% }) %>
+          <% if (ingRows.length === 0) { %>
+          <tr><td colspan="14" class="py-8 text-center text-slate-400">Sin datos de ingresos para <%= year %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /tab-resumen -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: EERR
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-eerr" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-4">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h2 class="text-xl font-extrabold text-slate-900">Estado de Resultados — Torus · <%= year %></h2>
+      <p class="text-xs text-slate-400 mt-0.5">Basado en cuentas analíticas de Odoo · facturas de clientes (ingresos) y proveedores (costos directos)</p>
+    </div>
+    <div class="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+      <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      Nómina y gastos de estructura no incluidos (no están en Odoo)
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="bg-slate-50 border-b-2 border-slate-200">
+            <th class="text-left px-5 py-3 font-bold text-slate-600 min-w-56 sticky left-0 bg-slate-50 z-10">Cuenta Analítica</th>
+            <th class="text-right px-3 py-3 font-bold text-emerald-700 min-w-24">Ingresos</th>
+            <th class="text-right px-3 py-3 font-bold text-red-600 min-w-24">Costo Directo</th>
+            <th class="text-right px-3 py-3 font-bold text-slate-700 min-w-24">Margen</th>
+            <th class="text-right px-3 py-3 font-bold text-slate-500 min-w-14">%</th>
+            <% fin.months.forEach(m => { %><th class="text-center px-2 py-3 font-semibold text-slate-400 min-w-16"><%= m.label %></th><% }) %>
+          </tr>
+        </thead>
+        <tbody>
+
+          <%# ── INGRESOS section ── %>
+          <tr class="bg-emerald-50 border-b border-emerald-100">
+            <td colspan="<%= 5 + fin.months.length %>" class="px-5 py-2 text-xs font-extrabold text-emerald-800 uppercase tracking-wide">
+              INGRESOS — <%= ingRows.length %> cuentas
+            </td>
+          </tr>
+          <% ingRows.forEach(row => {
             const mClass = row.margin >= 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
             const pClass = row.marginPct >= 0 ? 'text-emerald-500' : 'text-red-500';
           %>
           <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
-            <td class="px-5 py-2.5 font-medium text-slate-800 text-xs"><%= row.name %></td>
-            <td class="text-right px-3 py-2.5 text-emerald-700 text-xs"><%= gsM(row.totalRevenue) %></td>
-            <td class="text-right px-3 py-2.5 text-red-600 text-xs"><%= gsM(row.totalCost) %></td>
-            <td class="text-right px-3 py-2.5 text-xs <%= mClass %>"><%= gsM(row.margin) %></td>
-            <td class="text-right px-3 py-2.5 text-xs <%= pClass %>"><%= row.marginPct %>%</td>
+            <td class="px-5 py-2.5 font-medium text-slate-800 sticky left-0 bg-white z-10"><%= row.name %></td>
+            <td class="text-right px-3 py-2.5 text-emerald-700 font-semibold"><%= gsM(row.totalRevenue) %></td>
+            <td class="text-right px-3 py-2.5 text-red-600"><%= row.totalCost > 0 ? gsM(row.totalCost) : '—' %></td>
+            <td class="text-right px-3 py-2.5 <%= mClass %>"><%= gsM(row.margin) %></td>
+            <td class="text-right px-3 py-2.5 <%= pClass %>"><%= row.marginPct %>%</td>
             <% row.months.forEach(m => {
-              const hasRev = m.revenue > 0;
+              const hasRev  = m.revenue > 0;
               const hasCost = m.cost > 0;
-              const cellClass = hasRev ? 'text-emerald-600' : hasCost ? 'text-red-500' : 'text-slate-200';
-              const val = hasRev ? gsM(m.revenue) : hasCost ? gsM(m.cost) : '';
+              const cellVal = hasRev ? gsM(m.revenue) : hasCost ? '(' + gsM(m.cost) + ')' : '';
+              const cellCls = hasRev ? 'text-emerald-600' : hasCost ? 'text-red-500' : 'text-slate-200';
             %>
-            <td class="text-right px-2 py-2.5 text-xs <%= cellClass %>" title="<%= m.label %>: Rev ₲<%= m.revenue.toLocaleString() %> | Cost ₲<%= m.cost.toLocaleString() %>">
-              <%= val %>
+            <td class="text-right px-2 py-2.5 <%= cellCls %>"
+                title="<%= m.label %>: Ing <%= gs(m.revenue) %> | Costo <%= gs(m.cost) %>">
+              <%= cellVal %>
             </td>
             <% }) %>
           </tr>
           <% }) %>
 
-          <!-- Totals row -->
-          <tr class="bg-slate-50 border-t-2 border-slate-300 font-bold text-xs">
-            <td class="px-5 py-3 font-extrabold text-slate-900">TOTAL</td>
-            <td class="text-right px-3 py-3 text-emerald-700"><%= gsM(fin.totalRevenue) %></td>
-            <td class="text-right px-3 py-3 text-red-600"><%= gsM(fin.totalCost) %></td>
-            <td class="text-right px-3 py-3 <%= fin.totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%= gsM(fin.totalMargin) %></td>
-            <td class="text-right px-3 py-3 <%= fin.totalMargin >= 0 ? 'text-emerald-500' : 'text-red-500' %>"><%= fin.marginPct %>%</td>
+          <!-- Subtotal Ingresos -->
+          <tr class="bg-emerald-50 border-y border-emerald-200 font-bold text-xs">
+            <td class="px-5 py-2.5 font-extrabold text-emerald-900 sticky left-0 bg-emerald-50 z-10">SUBTOTAL INGRESOS</td>
+            <td class="text-right px-3 py-2.5 text-emerald-700 font-extrabold"><%= gsM(totalIngRev) %></td>
+            <td class="text-right px-3 py-2.5 text-red-600 font-extrabold"><%= gsM(totalIngCost) %></td>
+            <td class="text-right px-3 py-2.5 <%= totalIngMgn >= 0 ? 'text-emerald-700' : 'text-red-600' %> font-extrabold"><%= gsM(totalIngMgn) %></td>
+            <td class="text-right px-3 py-2.5 <%= totalIngMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %> font-extrabold"><%= totalIngMgnPct %>%</td>
             <% fin.months.forEach(m => { %>
-            <td class="text-right px-2 py-3 <%= m.revenue > 0 ? 'text-emerald-600' : 'text-slate-300' %>">
-              <%= m.revenue > 0 ? gsM(m.revenue) : '' %>
+            <td class="text-right px-2 py-2.5 <%= m.revenue > 0 ? 'text-emerald-600' : 'text-slate-300' %>">
+              <%= m.revenue > 0 ? gsM(m.revenue) : '—' %>
+            </td>
+            <% }) %>
+          </tr>
+
+          <% if (egRows.length > 0) { %>
+          <%# ── EGRESOS INDIRECTOS section ── %>
+          <tr><td colspan="<%= 5 + fin.months.length %>" class="px-5 pt-4 pb-0"></td></tr>
+          <tr class="bg-red-50 border-b border-red-100">
+            <td colspan="<%= 5 + fin.months.length %>" class="px-5 py-2 text-xs font-extrabold text-red-800 uppercase tracking-wide">
+              EGRESOS SIN CONTRAPARTIDA — <%= egRows.length %> cuentas
+            </td>
+          </tr>
+          <% egRows.forEach(row => { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-5 py-2.5 font-medium text-slate-800 sticky left-0 bg-white z-10"><%= row.name %></td>
+            <td class="text-right px-3 py-2.5 text-slate-300">—</td>
+            <td class="text-right px-3 py-2.5 text-red-600 font-semibold"><%= gsM(row.totalCost) %></td>
+            <td class="text-right px-3 py-2.5 text-red-500 font-bold">(<%= gsM(row.totalCost) %>)</td>
+            <td class="text-right px-3 py-2.5 text-red-400">—</td>
+            <% row.months.forEach(m => { %>
+            <td class="text-right px-2 py-2.5 <%= m.cost > 0 ? 'text-red-500' : 'text-slate-200' %>">
+              <%= m.cost > 0 ? '(' + gsM(m.cost) + ')' : '' %>
+            </td>
+            <% }) %>
+          </tr>
+          <% }) %>
+
+          <!-- Subtotal Egresos -->
+          <tr class="bg-red-50 border-y border-red-200 font-bold text-xs">
+            <td class="px-5 py-2.5 font-extrabold text-red-900 sticky left-0 bg-red-50 z-10">SUBTOTAL EGRESOS INDIRECTOS</td>
+            <td class="text-right px-3 py-2.5 text-slate-300">—</td>
+            <td class="text-right px-3 py-2.5 text-red-700 font-extrabold"><%= gsM(totalEgCost) %></td>
+            <td class="text-right px-3 py-2.5 text-red-700 font-extrabold">(<%= gsM(totalEgCost) %>)</td>
+            <td colspan="<%= 1 + fin.months.length %>"></td>
+          </tr>
+          <% } %>
+
+          <!-- Grand total -->
+          <tr class="bg-slate-900 text-white font-bold text-xs">
+            <td class="px-5 py-3 font-extrabold sticky left-0 bg-slate-900 z-10">RESULTADO NETO PARCIAL</td>
+            <td class="text-right px-3 py-3 text-emerald-400 font-extrabold"><%= gsM(totalIngRev) %></td>
+            <td class="text-right px-3 py-3 text-red-400 font-extrabold"><%= gsM(totalIngCost + totalEgCost) %></td>
+            <td class="text-right px-3 py-3 <%= totalIngMgn - totalEgCost >= 0 ? 'text-emerald-400' : 'text-red-400' %> font-extrabold">
+              <%= gsM(totalIngMgn - totalEgCost) %>
+            </td>
+            <td class="text-right px-3 py-3 <%= totalIngMgn - totalEgCost >= 0 ? 'text-emerald-300' : 'text-red-300' %> font-extrabold">
+              <%= totalIngRev > 0 ? Math.round((totalIngMgn - totalEgCost) / totalIngRev * 100) : 0 %>%
+            </td>
+            <% fin.months.forEach(m => { %>
+            <td class="text-right px-2 py-3 <%= m.revenue > 0 ? 'text-emerald-300' : 'text-slate-500' %>">
+              <%= m.revenue > 0 ? gsM(m.revenue - m.cost) : '' %>
             </td>
             <% }) %>
           </tr>
 
           <% if (fin.eerrRows.length === 0) { %>
-          <tr><td colspan="17" class="py-12 text-center text-slate-400">Sin datos para <%= year %></td></tr>
+          <tr><td colspan="17" class="py-12 text-center text-slate-400">Sin datos contables para <%= year %></td></tr>
           <% } %>
         </tbody>
       </table>
     </div>
-    <% if (fin.note) { %>
-    <div class="px-5 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700">⚠ <%= fin.note %></div>
+    <div class="px-5 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700">
+      ⚠ El "Resultado Neto Parcial" NO incluye nómina del equipo ni gastos de estructura (alquiler, servicios, etc.) ya que no están registrados en Odoo.
+      Los costos directos representan facturas de proveedores taggeadas con cuentas analíticas.
+    </div>
+  </div>
+
+</div><!-- /tab-eerr -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: MÁRGENES
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-margenes" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Horizontal bar: Revenue vs Direct Cost per account -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="mb-4">
+        <h2 class="text-base font-bold text-slate-800">Ingresos vs Costos por Cuenta</h2>
+        <p class="text-xs text-slate-400 mt-0.5">YTD <%= year %> · ordenado por ingreso</p>
+      </div>
+      <div style="height:<%= Math.max(280, ingRows.length * 32) %>px"><canvas id="chartHBar"></canvas></div>
+    </div>
+
+    <!-- Margin % ranking -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="mb-4">
+        <h2 class="text-base font-bold text-slate-800">Ranking de Margen</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Contribución por cuenta analítica</p>
+      </div>
+      <div class="space-y-2">
+        <% ingRows.forEach(row => {
+          const barW = Math.max(0, Math.min(100, row.marginPct));
+          const barColor = row.marginPct >= 50 ? 'bg-emerald-500' : row.marginPct >= 25 ? 'bg-blue-500' : row.marginPct >= 0 ? 'bg-amber-400' : 'bg-red-500';
+        %>
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-medium text-slate-700 truncate max-w-[200px]" title="<%= row.name %>"><%= row.name %></span>
+            <div class="flex items-center gap-3 shrink-0 ml-2">
+              <span class="text-xs text-slate-400"><%= gsM(row.totalRevenue) %></span>
+              <span class="text-xs font-bold <%= row.marginPct >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%= row.marginPct %>%</span>
+            </div>
+          </div>
+          <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-2 rounded-full <%= barColor %> transition-all" style="width:<%= barW %>%"></div>
+          </div>
+        </div>
+        <% }) %>
+        <% if (ingRows.length === 0) { %>
+        <div class="py-8 text-center text-slate-400 text-sm">Sin datos para <%= year %></div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stacked revenue by account over months -->
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-base font-bold text-slate-800">Evolución de Ingresos por Cuenta</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Top <%= Math.min(ingRows.length, 6) %> cuentas · barras apiladas por mes</p>
+      </div>
+    </div>
+    <div style="height:280px"><canvas id="chartStacked"></canvas></div>
+  </div>
+
+</div><!-- /tab-margenes -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: CXC
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-cxc" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <div class="flex items-center gap-3">
+    <h2 class="text-xl font-extrabold text-slate-900">Cuentas por Cobrar</h2>
+    <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">
+      <%= cxc.count %> facturas · ₲&nbsp;<%= gsM(cxc.total) %>
+    </span>
+    <% if (overdue > 0) { %>
+    <span class="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">
+      ₲&nbsp;<%= gsM(overdue) %> vencido
+    </span>
     <% } %>
   </div>
 
-  <!-- ── CXC ─────────────────────────────────────────────────────────── -->
-  <div id="secCXC">
-    <div class="flex items-center gap-3 mb-4">
-      <h2 class="text-xl font-extrabold text-slate-900">Cuentas por Cobrar</h2>
-      <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full"><%= cxc.count %> facturas · ₲ <%= gsM(cxc.total) %></span>
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- CXC Aging donut -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="text-sm font-bold text-slate-800 mb-4">Distribución de Saldo</h3>
+      <div style="height:200px"><canvas id="chartCxcDonut"></canvas></div>
+      <div id="cxcDonutLegend" class="mt-3 space-y-1.5"></div>
     </div>
 
-    <!-- Aging buckets -->
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+    <!-- Aging buckets (2/3 width) -->
+    <div class="lg:col-span-2 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 content-start">
       <%
         const agingCfg = [
-          { key: 'current', label: 'Al día',      color: 'emerald', icon: '✅' },
-          { key: 'd1_30',   label: '1–30 días',   color: 'amber',   icon: '🟡' },
-          { key: 'd31_60',  label: '31–60 días',  color: 'orange',  icon: '🟠' },
-          { key: 'd61_90',  label: '61–90 días',  color: 'red',     icon: '🔴' },
-          { key: 'd90plus', label: '+90 días',     color: 'rose',    icon: '💀' },
+          { key: 'current', label: 'Al día',      color: 'emerald', textColor: 'text-emerald-700' },
+          { key: 'd1_30',   label: '1–30 días',   color: 'amber',   textColor: 'text-amber-700' },
+          { key: 'd31_60',  label: '31–60 días',  color: 'orange',  textColor: 'text-orange-700' },
+          { key: 'd61_90',  label: '61–90 días',  color: 'red',     textColor: 'text-red-700' },
+          { key: 'd90plus', label: '+90 días',     color: 'rose',    textColor: 'text-rose-700' },
         ];
         agingCfg.forEach(cfg => {
-          const amount = cxc.buckets[cfg.key] || 0;
+          const amount     = cxc.buckets[cfg.key] || 0;
           const pctOfTotal = cxc.total > 0 ? Math.round(amount / cxc.total * 100) : 0;
+          const count      = cxc.items.filter(i => i.bucket === cfg.key).length;
       %>
       <div class="bg-white rounded-xl border border-slate-200 p-4">
-        <div class="text-xl mb-1"><%= cfg.icon %></div>
-        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"><%= cfg.label %></div>
-        <div class="text-xl font-black text-slate-900">₲ <%= gsM(amount) %></div>
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2"><%= cfg.label %></div>
+        <div class="text-xl font-black <%= cfg.textColor %>">₲&nbsp;<%= gsM(amount) %></div>
         <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
           <div class="aging-bar bg-<%= cfg.color %>-400 h-1.5 rounded-full" style="width:<%= pctOfTotal %>%"></div>
         </div>
-        <div class="text-xs text-slate-400 mt-1"><%= pctOfTotal %>% del total</div>
+        <div class="flex items-center justify-between mt-1.5">
+          <span class="text-[10px] text-slate-400"><%= count %> fact.</span>
+          <span class="text-[10px] font-semibold text-slate-500"><%= pctOfTotal %>%</span>
+        </div>
       </div>
       <% }) %>
     </div>
+  </div>
 
-    <!-- CXC Table -->
+  <!-- Top overdue clients -->
+  <% const topOverdue = cxc.items.filter(i => i.daysOverdue > 0).sort((a,b) => b.residual - a.residual).slice(0, 5); %>
+  <% if (topOverdue.length > 0) { %>
+  <div class="bg-white rounded-xl border border-red-200 p-5">
+    <h3 class="text-sm font-bold text-red-700 mb-3">Top <%= topOverdue.length %> — Mayores saldos vencidos</h3>
+    <div class="space-y-2">
+      <% topOverdue.forEach((inv, i) => { %>
+      <div class="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+        <div class="flex items-center gap-3">
+          <span class="text-lg font-black text-slate-300">#<%= i+1 %></span>
+          <div>
+            <div class="text-sm font-semibold text-slate-800"><%= inv.partner %></div>
+            <div class="text-xs text-slate-400"><%= inv.name %> · Vence: <%= inv.dueDate || '—' %></div>
+          </div>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="text-sm font-black text-red-600">₲&nbsp;<%= gsM(inv.residual) %></div>
+          <div class="text-xs font-bold
+            <%= inv.bucket === 'd90plus' ? 'text-rose-600' : inv.bucket === 'd61_90' ? 'text-red-600' : inv.bucket === 'd31_60' ? 'text-orange-600' : 'text-amber-600' %>">
+            <%= inv.daysOverdue %>d vencida
+          </div>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- CXC Detail Table -->
+  <div>
     <div class="flex items-center justify-between mb-2">
-      <span class="text-sm font-semibold text-slate-700">Detalle de facturas</span>
+      <span class="text-sm font-bold text-slate-700">Detalle completo de facturas</span>
       <button onclick="exportCXCcsv()"
         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-colors">
-        ↓ Exportar CSV
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Exportar CSV
       </button>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div class="overflow-x-auto max-h-72 overflow-y-auto">
+      <div class="overflow-x-auto" style="max-height:320px;overflow-y:auto">
         <table class="w-full text-sm">
           <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
             <tr class="text-xs">
@@ -273,39 +555,38 @@
               <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Cliente</th>
               <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Vencimiento</th>
               <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Días vencida</th>
+              <th class="text-right px-4 py-2.5 font-semibold text-slate-600">Total</th>
               <th class="text-right px-4 py-2.5 font-semibold text-slate-600">Pendiente</th>
-              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Bucket</th>
             </tr>
           </thead>
           <tbody>
             <% cxc.items.forEach(inv => {
-              const isOverdue = inv.daysOverdue > 0;
-              const rowBg = inv.bucket === 'd90plus' ? 'bg-red-50' : inv.bucket === 'd61_90' ? 'bg-orange-50' : '';
+              const rowBg = inv.bucket === 'd90plus' ? 'bg-red-50/60' : inv.bucket === 'd61_90' ? 'bg-orange-50/40' : '';
             %>
             <tr class="border-b border-slate-50 hover:bg-slate-50 transition <%= rowBg %>">
               <td class="px-4 py-2 text-xs font-mono text-slate-700"><%= inv.name %></td>
               <td class="px-3 py-2 text-xs font-medium text-slate-800 max-w-xs truncate"><%= inv.partner %></td>
-              <td class="px-3 py-2 text-xs text-center <%= isOverdue ? 'text-red-600 font-semibold' : 'text-slate-500' %>"><%= inv.dueDate || '—' %></td>
+              <td class="px-3 py-2 text-xs text-center <%= inv.daysOverdue > 0 ? 'text-red-600 font-semibold' : 'text-slate-500' %>"><%= inv.dueDate || '—' %></td>
               <td class="px-3 py-2 text-center">
                 <% if (inv.daysOverdue > 0) { %>
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold
-                    <%= inv.bucket === 'd90plus' ? 'bg-rose-100 text-rose-700' : inv.bucket === 'd61_90' ? 'bg-red-100 text-red-700' : inv.bucket === 'd31_60' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700' %>">
-                    <%= inv.daysOverdue %>d
-                  </span>
-                <% } else { %>
-                  <span class="text-xs text-emerald-500">Al día</span>
-                <% } %>
+                <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-bold
+                  <%= inv.bucket === 'd90plus' ? 'bg-rose-100 text-rose-700' : inv.bucket === 'd61_90' ? 'bg-red-100 text-red-700' : inv.bucket === 'd31_60' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700' %>">
+                  <%= inv.daysOverdue %>d
+                </span>
+                <% } else { %><span class="text-xs text-emerald-500 font-semibold">Al día</span><% } %>
               </td>
+              <td class="px-4 py-2 text-right text-xs text-slate-500"><%= gs(inv.total) %></td>
               <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%= gs(inv.residual) %></td>
               <td class="px-3 py-2 text-center">
-                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
-                  <%= inv.bucket === 'current' ? 'Vigente' : 'Vencida' %>
+                <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">
+                  <%= inv.bucket === 'current' ? 'Al día' : inv.bucket.replace('d','').replace('_','-') + 'd' %>
                 </span>
               </td>
             </tr>
             <% }) %>
             <% if (cxc.items.length === 0) { %>
-            <tr><td colspan="6" class="py-8 text-center text-slate-400">Sin facturas pendientes ✅</td></tr>
+            <tr><td colspan="7" class="py-10 text-center text-slate-400">✅ Sin facturas pendientes</td></tr>
             <% } %>
           </tbody>
         </table>
@@ -313,205 +594,338 @@
     </div>
   </div>
 
-  <!-- ── Pipeline ────────────────────────────────────────────────────── -->
-  <div id="secPipeline">
-    <div class="flex items-center gap-3 mb-4">
-      <h2 class="text-xl font-extrabold text-slate-900">Pipeline Comercial</h2>
-      <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full"><%= pipeline.count %> cotizaciones · ₲ <%= gsM(pipeline.total) %></span>
-    </div>
+</div><!-- /tab-cxc -->
 
-    <!-- Pipeline summary -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      <div class="bg-white rounded-xl border border-slate-200 p-4">
-        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Total Pipeline</div>
-        <div class="text-2xl font-black text-blue-700">₲ <%= gsM(pipeline.total) %></div>
-        <div class="text-xs text-slate-400 mt-1"><%= pipeline.count %> cotizaciones</div>
-      </div>
-      <div class="bg-white rounded-xl border border-blue-200 p-4">
-        <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Enviadas</div>
-        <div class="text-2xl font-black text-blue-700">₲ <%= gsM(pipeline.totalSent) %></div>
-        <div class="text-xs text-slate-400 mt-1"><%= pipeline.countSent %> cotiz. · esperando respuesta</div>
-      </div>
-      <div class="bg-white rounded-xl border border-slate-200 p-4">
-        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Borradores</div>
-        <div class="text-2xl font-black text-slate-700">₲ <%= gsM(pipeline.totalDraft) %></div>
-        <div class="text-xs text-slate-400 mt-1"><%= pipeline.countDraft %> cotiz. · sin enviar</div>
-      </div>
-      <div class="bg-white rounded-xl border border-emerald-200 p-4">
-        <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Tasa de Cierre</div>
-        <% if (closingRate.rate !== null) { %>
-        <div class="text-2xl font-black text-emerald-700"><%= closingRate.rate %>%</div>
-        <div class="text-xs text-slate-400 mt-1"><%= closingRate.wonCount %> ganadas / <%= closingRate.totalCount %> elegibles</div>
-        <% } else { %>
-        <div class="text-2xl font-black text-slate-400">—</div>
-        <div class="text-xs text-slate-400 mt-1">Sin datos suficientes</div>
-        <% } %>
-        <div class="text-xs text-slate-400 mt-0.5">Últimos <%= closingRate.period %></div>
-      </div>
-    </div>
 
-    <!-- Pipeline Table -->
-    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-      <div class="overflow-x-auto max-h-72 overflow-y-auto">
-        <table class="w-full text-sm">
-          <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
-            <tr class="text-xs">
-              <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Cotización</th>
-              <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Cliente</th>
-              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
-              <th class="text-right px-4 py-2.5 font-semibold text-slate-600">Monto</th>
-              <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Responsable</th>
-              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Fecha</th>
-              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Vence</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% pipeline.items.forEach(o => { %>
-            <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
-              <td class="px-4 py-2 text-xs font-mono text-slate-700"><%= o.name %></td>
-              <td class="px-3 py-2 text-xs font-medium text-slate-800 max-w-xs truncate"><%= o.partner %></td>
-              <td class="px-3 py-2 text-center">
-                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold
-                  <%= o.state === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600' %>">
-                  <%= o.state === 'sent' ? 'Enviada' : 'Borrador' %>
-                </span>
-              </td>
-              <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%= gs(o.amount) %></td>
-              <td class="px-3 py-2 text-xs text-slate-500 max-w-xs truncate"><%= o.user %></td>
-              <td class="px-3 py-2 text-xs text-center text-slate-500"><%= o.date || '—' %></td>
-              <td class="px-3 py-2 text-xs text-center <%= o.validUntil && o.validUntil < new Date().toISOString().slice(0,10) ? 'text-red-500 font-semibold' : 'text-slate-500' %>">
-                <%= o.validUntil || '—' %>
-              </td>
-            </tr>
-            <% }) %>
-            <% if (pipeline.items.length === 0) { %>
-            <tr><td colspan="7" class="py-8 text-center text-slate-400">Sin cotizaciones abiertas</td></tr>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: PIPELINE
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-pipeline" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-4">
+
+  <div class="flex items-center gap-3">
+    <h2 class="text-xl font-extrabold text-slate-900">Pipeline Comercial</h2>
+    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full"><%= pipeline.count %> cotizaciones · ₲&nbsp;<%= gsM(pipeline.total) %></span>
+  </div>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Total Pipeline</div>
+      <div class="text-2xl font-black text-blue-700">₲&nbsp;<%= gsM(pipeline.total) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= pipeline.count %> cotizaciones</div>
+    </div>
+    <div class="bg-white rounded-xl border border-blue-200 p-4">
+      <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Enviadas</div>
+      <div class="text-2xl font-black text-blue-700">₲&nbsp;<%= gsM(pipeline.totalSent) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= pipeline.countSent %> cotiz. · esperando respuesta</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Borradores</div>
+      <div class="text-2xl font-black text-slate-700">₲&nbsp;<%= gsM(pipeline.totalDraft) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= pipeline.countDraft %> cotiz. · sin enviar</div>
+    </div>
+    <div class="bg-white rounded-xl border border-emerald-200 p-4">
+      <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Tasa de Cierre</div>
+      <% if (closingRate.rate !== null) { %>
+      <div class="text-2xl font-black text-emerald-700"><%= closingRate.rate %>%</div>
+      <div class="text-xs text-slate-400 mt-1"><%= closingRate.wonCount %> ganadas / <%= closingRate.totalCount %> elegibles</div>
+      <% } else { %>
+      <div class="text-2xl font-black text-slate-400">—</div>
+      <% } %>
+      <div class="text-xs text-slate-400 mt-0.5">Últimos <%= closingRate.period %></div>
     </div>
   </div>
 
-  <div class="text-center text-xs text-slate-400 pb-6">
-    Datos al <%= lastUpdate %> · Cache financiero: 1 hora · CXC: 15 min
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto" style="max-height:400px;overflow-y:auto">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+          <tr class="text-xs">
+            <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Cotización</th>
+            <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Cliente</th>
+            <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
+            <th class="text-right px-4 py-2.5 font-semibold text-slate-600">Monto</th>
+            <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Responsable</th>
+            <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Fecha</th>
+            <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Vence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pipeline.items.forEach(o => { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-4 py-2 text-xs font-mono text-slate-700"><%= o.name %></td>
+            <td class="px-3 py-2 text-xs font-medium text-slate-800 max-w-xs truncate"><%= o.partner %></td>
+            <td class="px-3 py-2 text-center">
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-bold
+                <%= o.state === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600' %>">
+                <%= o.state === 'sent' ? 'Enviada' : 'Borrador' %>
+              </span>
+            </td>
+            <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%= gs(o.amount) %></td>
+            <td class="px-3 py-2 text-xs text-slate-500 truncate max-w-xs"><%= o.user %></td>
+            <td class="px-3 py-2 text-xs text-center text-slate-500"><%= o.date || '—' %></td>
+            <td class="px-3 py-2 text-xs text-center <%= o.validUntil && o.validUntil < new Date().toISOString().slice(0,10) ? 'text-red-500 font-semibold' : 'text-slate-500' %>">
+              <%= o.validUntil || '—' %>
+            </td>
+          </tr>
+          <% }) %>
+          <% if (pipeline.items.length === 0) { %>
+          <tr><td colspan="7" class="py-8 text-center text-slate-400">Sin cotizaciones abiertas</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
   </div>
 
-</div><!-- end max-w-7xl -->
+</div><!-- /tab-pipeline -->
 
+<div class="text-center text-xs text-slate-400 py-6">
+  Torus Finanzas · Datos al <%= lastUpdate %> · Cache: 1h financiero · 15min CXC
+</div>
+
+<!-- ── Scripts ──────────────────────────────────────────────────────────── -->
 <script>
 <%
-  const chartData = JSON.stringify({
+  // Inject all data needed by charts
+  const _finData = JSON.stringify({
     labels:   fin.months.map(m => m.label),
     revenue:  fin.months.map(m => m.revenue),
     cost:     fin.months.map(m => m.cost),
     margin:   fin.months.map(m => m.marginPct),
+    ingRows: fin.eerrRows.filter(r => r.totalRevenue > 0)
+      .sort((a,b) => b.totalRevenue - a.totalRevenue)
+      .map(r => ({
+        name: r.name,
+        totalRevenue: r.totalRevenue,
+        totalCost: r.totalCost,
+        marginPct: r.marginPct,
+        months: r.months.map(m => ({ revenue: m.revenue, cost: m.cost })),
+      })),
+  });
+  const _cxcData = JSON.stringify({
+    buckets: cxc.buckets,
+    total:   cxc.total,
+    items:   cxc.items,
   });
 %>
+
 (function() {
-  const d = <%- chartData %>;
-  const fmt = n => '₲\u00A0' + new Intl.NumberFormat('es-PY', {maximumFractionDigits:0}).format(n||0);
+  const fin = <%- _finData %>;
+  const cxc = <%- _cxcData %>;
+  const fmt = n => '₲\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(n || 0);
+  const fmtM = n => {
+    const abs = Math.abs(n||0);
+    if (abs >= 1e9) return (n/1e9).toFixed(1) + ' B';
+    if (abs >= 1e6) return (n/1e6).toFixed(1) + ' M';
+    if (abs >= 1e3) return Math.round(n/1e3) + ' K';
+    return String(Math.round(n||0));
+  };
 
-  const ctx = document.getElementById('chartMonthly').getContext('2d');
-  new Chart(ctx, {
-    data: {
-      labels: d.labels,
-      datasets: [
-        {
-          type: 'bar',
-          label: 'Ingresos',
-          data: d.revenue,
-          backgroundColor: 'rgba(16,185,129,0.75)',
-          borderColor: 'rgb(16,185,129)',
-          borderWidth: 1,
-          borderRadius: 4,
-          order: 2,
+  const PALETTE = [
+    '#3B82F6','#10B981','#8B5CF6','#F59E0B','#EF4444',
+    '#06B6D4','#F97316','#EC4899','#84CC16','#6B7280'
+  ];
+
+  const chartsInited = {};
+
+  // ── Tab switching ──────────────────────────────────────────────────────────
+  window.switchTab = function(name) {
+    document.querySelectorAll('[id^="tab-"]').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    const tabEl = document.getElementById('tab-' + name);
+    if (tabEl) tabEl.classList.remove('hidden');
+    const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
+    if (btn) btn.classList.add('active');
+    if (!chartsInited[name]) { chartsInited[name] = true; initTabCharts(name); }
+  };
+
+  function initTabCharts(name) {
+    if (name === 'resumen')  { initMonthlyChart(); initDonutChart(); }
+    if (name === 'margenes') { initHBarChart(); initStackedChart(); }
+    if (name === 'cxc')      { initCxcDonut(); }
+  }
+
+  // ── Monthly chart ──────────────────────────────────────────────────────────
+  function initMonthlyChart() {
+    const ctx = document.getElementById('chartMonthly');
+    if (!ctx || !fin.labels.length) return;
+    new Chart(ctx, {
+      data: {
+        labels: fin.labels,
+        datasets: [
+          { type:'bar',  label:'Ingresos',  data: fin.revenue, backgroundColor:'rgba(16,185,129,0.75)', borderColor:'rgb(16,185,129)', borderWidth:1, borderRadius:4, order:2 },
+          { type:'bar',  label:'Costos',    data: fin.cost,    backgroundColor:'rgba(239,68,68,0.65)',  borderColor:'rgb(239,68,68)',  borderWidth:1, borderRadius:4, order:2 },
+          { type:'line', label:'Margen %',  data: fin.margin,  borderColor:'rgb(59,130,246)', backgroundColor:'rgba(59,130,246,0.08)', borderWidth:2.5, pointRadius:4, tension:0.3, yAxisID:'yPct', order:1 },
+        ],
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{
+          legend:{ position:'top', labels:{ font:{size:11}, padding:12 } },
+          tooltip:{ callbacks:{
+            label: ctx => ctx.dataset.label === 'Margen %'
+              ? ` Margen: ${ctx.raw !== null ? ctx.raw + '%' : '—'}`
+              : ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`,
+          }},
         },
-        {
-          type: 'bar',
-          label: 'Costos',
-          data: d.cost,
-          backgroundColor: 'rgba(239,68,68,0.65)',
-          borderColor: 'rgb(239,68,68)',
-          borderWidth: 1,
-          borderRadius: 4,
-          order: 2,
-        },
-        {
-          type: 'line',
-          label: 'Margen %',
-          data: d.margin,
-          borderColor: 'rgb(59,130,246)',
-          backgroundColor: 'rgba(59,130,246,0.1)',
-          borderWidth: 2,
-          pointRadius: 3,
-          tension: 0.3,
-          yAxisID: 'yPct',
-          order: 1,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { position: 'top', labels: { font: { size: 11 }, padding: 12 } },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              if (ctx.dataset.label === 'Margen %') {
-                return ctx.raw !== null ? ` Margen: ${ctx.raw}%` : ' Margen: —';
-              }
-              return ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`;
-            },
-          },
+        scales:{
+          x:{ grid:{ display:false }, ticks:{ font:{size:11} } },
+          y:{ beginAtZero:true, ticks:{ font:{size:10}, callback: v => v >= 1e6 ? '₲ '+(v/1e6).toFixed(0)+'M' : v >= 1e3 ? '₲ '+(v/1e3).toFixed(0)+'K' : '₲ '+v } },
+          yPct:{ position:'right', beginAtZero:false, grid:{ drawOnChartArea:false }, ticks:{ font:{size:10}, callback: v => v+'%' } },
         },
       },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-        y: {
-          beginAtZero: true,
-          ticks: {
-            font: { size: 10 },
-            callback: v => {
-              if (v >= 1e6) return '₲ ' + (v/1e6).toFixed(0) + 'M';
-              if (v >= 1e3) return '₲ ' + (v/1e3).toFixed(0) + 'K';
-              return '₲ ' + v;
-            },
-          },
-        },
-        yPct: {
-          position: 'right',
-          beginAtZero: false,
-          grid: { drawOnChartArea: false },
-          ticks: { font: { size: 10 }, callback: v => v + '%' },
+    });
+  }
+
+  // ── Revenue donut ──────────────────────────────────────────────────────────
+  function initDonutChart() {
+    const ctx = document.getElementById('chartDonut');
+    if (!ctx || !fin.ingRows.length) return;
+    const top = fin.ingRows.slice(0, 8);
+    const otherRev = fin.ingRows.slice(8).reduce((s,r) => s + r.totalRevenue, 0);
+    const labels = [...top.map(r => r.name.length > 28 ? r.name.slice(0,28)+'…' : r.name)];
+    const data   = [...top.map(r => r.totalRevenue)];
+    if (otherRev > 0) { labels.push('Otros'); data.push(otherRev); }
+    const colors = [...PALETTE, '#94a3b8'];
+
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, data.length), borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }] },
+      options: {
+        responsive:true, maintainAspectRatio:false, cutout:'60%',
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: c => ` ${c.label}: ${fmtM(c.raw)} (${Math.round(c.raw / data.reduce((a,b) => a+b,0)*100)}%)` } },
         },
       },
-    },
-  });
+    });
+
+    // Custom legend
+    const legendEl = document.getElementById('donutLegend');
+    if (legendEl) {
+      legendEl.innerHTML = labels.map((lbl, i) =>
+        `<div class="flex items-center justify-between gap-2">
+          <span class="flex items-center gap-1.5 truncate">
+            <span class="w-2.5 h-2.5 rounded-sm shrink-0 inline-block" style="background:${colors[i]}"></span>
+            <span class="text-[11px] text-slate-600 truncate">${lbl}</span>
+          </span>
+          <span class="text-[11px] font-semibold text-slate-700 shrink-0">${fmtM(data[i])}</span>
+        </div>`
+      ).join('');
+    }
+  }
+
+  // ── Horizontal bar (revenue vs cost per account) ───────────────────────────
+  function initHBarChart() {
+    const ctx = document.getElementById('chartHBar');
+    if (!ctx || !fin.ingRows.length) return;
+    const rows = fin.ingRows;
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: rows.map(r => r.name.length > 30 ? r.name.slice(0,30)+'…' : r.name),
+        datasets: [
+          { label:'Ingresos',      data: rows.map(r => r.totalRevenue), backgroundColor:'rgba(16,185,129,0.75)', borderRadius:3 },
+          { label:'Costo Directo', data: rows.map(r => r.totalCost),    backgroundColor:'rgba(239,68,68,0.65)',  borderRadius:3 },
+        ],
+      },
+      options: {
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ position:'top', labels:{ font:{size:11}, padding:12 } }, tooltip:{ callbacks:{ label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } } },
+        scales:{
+          x:{ ticks:{ font:{size:10}, callback: v => v >= 1e6 ? (v/1e6).toFixed(0)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v } },
+          y:{ ticks:{ font:{size:11} }, grid:{ display:false } },
+        },
+      },
+    });
+  }
+
+  // ── Stacked revenue by account by month ───────────────────────────────────
+  function initStackedChart() {
+    const ctx = document.getElementById('chartStacked');
+    if (!ctx || !fin.ingRows.length) return;
+    const top6 = fin.ingRows.slice(0, 6);
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: fin.labels,
+        datasets: top6.map((r, i) => ({
+          label: r.name.length > 25 ? r.name.slice(0,25)+'…' : r.name,
+          data:  r.months.map(m => m.revenue || null),
+          backgroundColor: PALETTE[i],
+          borderRadius: 2,
+          stack: 'revenue',
+        })),
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ mode:'index', intersect:false },
+        plugins:{ legend:{ position:'top', labels:{ font:{size:10}, padding:10 } }, tooltip:{ callbacks:{ label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } } },
+        scales:{
+          x:{ stacked:true, grid:{ display:false }, ticks:{ font:{size:11} } },
+          y:{ stacked:true, beginAtZero:true, ticks:{ font:{size:10}, callback: v => v >= 1e6 ? (v/1e6).toFixed(0)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v } },
+        },
+      },
+    });
+  }
+
+  // ── CXC aging donut ────────────────────────────────────────────────────────
+  function initCxcDonut() {
+    const ctx = document.getElementById('chartCxcDonut');
+    if (!ctx) return;
+    const labels = ['Al día', '1–30 días', '31–60 días', '61–90 días', '+90 días'];
+    const data   = [cxc.buckets.current||0, cxc.buckets.d1_30||0, cxc.buckets.d31_60||0, cxc.buckets.d61_90||0, cxc.buckets.d90plus||0];
+    const colors = ['#10B981','#F59E0B','#F97316','#EF4444','#F43F5E'];
+    const total  = data.reduce((a,b) => a+b, 0);
+
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth:2, borderColor:'#fff', hoverOffset:6 }] },
+      options: {
+        responsive:true, maintainAspectRatio:false, cutout:'60%',
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: c => ` ${c.label}: ${fmtM(c.raw)} (${total > 0 ? Math.round(c.raw/total*100) : 0}%)` } },
+        },
+      },
+    });
+
+    const legendEl = document.getElementById('cxcDonutLegend');
+    if (legendEl) {
+      legendEl.innerHTML = labels.map((lbl, i) => data[i] > 0 ? `
+        <div class="flex items-center justify-between gap-2">
+          <span class="flex items-center gap-1.5">
+            <span class="w-2.5 h-2.5 rounded-sm shrink-0 inline-block" style="background:${colors[i]}"></span>
+            <span class="text-[11px] text-slate-600">${lbl}</span>
+          </span>
+          <span class="text-[11px] font-semibold text-slate-700">${fmtM(data[i])}</span>
+        </div>` : ''
+      ).join('');
+    }
+  }
+
+  // ── CSV export ─────────────────────────────────────────────────────────────
+  window.exportCXCcsv = function() {
+    const items = <%- cxcItemsJson %>;
+    if (!items.length) { alert('Sin datos para exportar.'); return; }
+    const headers = ['Factura','Cliente','Fecha Factura','Vencimiento','Días Vencida','Total','Pendiente','Bucket'];
+    const rows = items.map(i => [i.name, i.partner, i.invoiceDate||'', i.dueDate||'', i.daysOverdue, i.total, i.residual, i.bucket]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+    const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href = url;
+    a.download = `CXC_Torus_${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+
+  // Init first tab on load
+  chartsInited['resumen'] = true;
+  initMonthlyChart();
+  initDonutChart();
+
 })();
-
-// ── CSV Export for CXC ─────────────────────────────────────────────────────────
-function exportCXCcsv() {
-  const items = <%- cxcItemsJson %>;
-  if (!items.length) { alert('Sin datos para exportar.'); return; }
-  const headers = ['Factura','Cliente','Fecha Factura','Vencimiento','Días Vencida','Total','Pendiente','Bucket'];
-  const rows = items.map(i => [
-    i.name, i.partner, i.invoiceDate || '', i.dueDate || '',
-    i.daysOverdue, i.total, i.residual, i.bucket,
-  ]);
-  const csv = [headers, ...rows]
-    .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-    .join('\r\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = `CXC_${new Date().toISOString().slice(0,10)}.csv`;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-}
 </script>
 </body>
 </html>
