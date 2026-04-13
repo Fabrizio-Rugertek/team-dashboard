@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- Blue rounded square background -->
+  <rect width="200" height="200" rx="40" fill="#2563EB"/>
+  <!-- White bold T -->
+  <text x="100" y="148" font-family="Inter, Arial, sans-serif" font-weight="900" font-size="130" fill="white" text-anchor="middle">T</text>
+</svg>
