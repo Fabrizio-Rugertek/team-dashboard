@@ -27,7 +27,7 @@ router.get('/google/callback', (req, res, next) => {
     failureMessage:  true,
   })(req, res, err => {
     if (err) return next(err);
-    const returnTo = req.session.returnTo || '/equipo';
+    const returnTo = req.session.returnTo || '/';
     delete req.session.returnTo;
     res.redirect(returnTo);
   });
