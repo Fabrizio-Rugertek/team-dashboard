@@ -17,7 +17,7 @@ module.exports = {
   ODOO_PASSWORD:        process.env.ODOO_PASSWORD,
 
   // ── Timesheet ────────────────────────────────────────────────────────────
-  TIMESHEET_DAYS_BACK:  30,
+  TIMESHEET_DAYS_BACK:  60,
   EXCESSIVE_HOURS_THRESHOLD: 12,   // hours in a single day → critical anomaly
   MECHANICAL_DESC_HOURS: 3,       // hours with a mechanical description → warning anomaly
 
