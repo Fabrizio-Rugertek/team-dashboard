@@ -95,7 +95,7 @@ async function callKw(model, method, args = [], kwargs = {}) {
 }
 
 // ── Timesheets ─────────────────────────────────────────────────────────────
-async function fetchTimesheets(daysBack = 30) {
+async function fetchTimesheets(daysBack = 90) {
   const dateFrom = new Date();
   dateFrom.setDate(dateFrom.getDate() - daysBack);
   const dateStr = dateFrom.toISOString().slice(0, 10);

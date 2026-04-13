@@ -264,4 +264,34 @@ async function fetchPipeline() {
            count: items.length, countDraft, countSent, items };
 }
 
-module.exports = { fetchFinancialData, fetchCXC, fetchPipeline };
+// ── Tasa de cierre (Win Rate) ────────────────────────────────────────────────
+async function fetchClosingRate() {
+  try {
+    const since = new Date();
+    since.setDate(since.getDate() - 90);
+    const sinceStr = since.toISOString().slice(0, 10);
+
+    const [won, eligible] = await Promise.all([
+      callKw('sale.order', 'search_read', [[
+        ['state',       '=',  'sale'],
+        ['company_id',  '=',  TORUS_COMPANY_ID],
+        ['date_order',  '>=', sinceStr],
+      ]], { fields: ['id'], limit: 500 }),
+      callKw('sale.order', 'search_read', [[
+        ['state',      'in', ['sale', 'sent', 'cancel']],
+        ['company_id', '=',  TORUS_COMPANY_ID],
+        ['date_order', '>=', sinceStr],
+      ]], { fields: ['id', 'state'], limit: 500 }),
+    ]);
+
+    const wonCount   = won.length;
+    const totalCount = eligible.length;
+    const rate = totalCount > 0 ? Math.round(wonCount / totalCount * 100) : null;
+    return { wonCount, totalCount, rate, period: '90 días' };
+  } catch (e) {
+    console.error('[Finanzas] fetchClosingRate:', e.message);
+    return { wonCount: 0, totalCount: 0, rate: null, period: '90 días' };
+  }
+}
+
+module.exports = { fetchFinancialData, fetchCXC, fetchPipeline, fetchClosingRate };

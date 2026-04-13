@@ -70,7 +70,7 @@
       <span class="text-slate-300">·</span>
       <a href="/admin/users" class="text-sm font-medium text-slate-500 hover:text-slate-700">Usuarios</a>
       <% } %>
-      <% if (activeFilters.range !== '30d' || selectedLogins.size > 0) { %>
+      <% if (activeFilters.range !== '30d' || selectedLogins.size > 0 || activeFilters.status !== 'all' || activeFilters.tag !== 'all') { %>
       <span class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
         Filtrado
         <a href="/equipo" class="text-blue-500 hover:text-blue-800 ml-1">✕</a>
@@ -79,8 +79,10 @@
     </div>
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-2 text-xs text-slate-500">
-        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse" id="refreshDot"></div>
         <span>Actualizado: <%= lastUpdate %></span>
+        <button id="refreshBtn" onclick="manualRefresh()" title="Actualizar datos desde Odoo"
+          class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors font-bold text-sm leading-none">↺</button>
       </div>
       <% if (user) { %>
       <div class="flex items-center gap-2">
@@ -272,7 +274,7 @@
     const lc = loggingControl || { overview: {}, displayDates: [], people: [] };
     const lco = lc.overview || {};
   %>
-  <section class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+  <section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Hrs semana</div>
       <div class="text-2xl font-black text-slate-900"><%= summary.weekHours %>h</div>
@@ -302,6 +304,12 @@
       <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Estimadas</div>
       <div class="text-2xl font-black <%= (meth.hoursPct||0) < 40 ? 'text-red-600' : (meth.hoursPct||0) < 70 ? 'text-amber-600' : 'text-green-600' %>"><%= meth.hoursPct||0 %>%</div>
       <div class="text-xs text-slate-400 mt-1"><%= meth.tasksWithHours||0 %> / <%= meth.totalActiveTasks||0 %> tareas</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <% const cr = summary.completionRate || 0; %>
+      <div class="text-xs font-semibold <%= cr >= 70 ? 'text-green-600' : cr >= 40 ? 'text-amber-600' : 'text-red-500' %> uppercase tracking-wide mb-1">Completadas</div>
+      <div class="text-2xl font-black <%= cr >= 70 ? 'text-green-600' : cr >= 40 ? 'text-amber-600' : 'text-red-600' %>"><%= cr %>%</div>
+      <div class="text-xs text-slate-400 mt-1"><%= summary.doneTasks || 0 %> / <%= summary.totalTasks || 0 %> tareas</div>
     </div>
   </section>
 
@@ -353,8 +361,18 @@
             <div class="text-[10px] text-slate-400 font-medium uppercase">Período</div>
           </div>
           <div class="bg-white rounded-lg p-2 border border-slate-100">
-            <div class="text-sm font-black <%= person.hoursThisWeek > 0 ? 'text-slate-900' : 'text-red-500' %>"><%= person.hoursThisWeek %>h</div>
+            <%
+              const prevH = person.hoursPrevWeek || 0;
+              const currH = person.hoursThisWeek || 0;
+              const trendPct = prevH > 0 ? Math.round((currH - prevH) / prevH * 100) : null;
+              const trendArrow = trendPct === null ? '' : trendPct > 5 ? '↑' : trendPct < -5 ? '↓' : '→';
+              const trendCls   = trendPct === null ? '' : trendPct > 5 ? 'text-green-500' : trendPct < -5 ? 'text-red-400' : 'text-slate-400';
+            %>
+            <div class="text-sm font-black <%= currH > 0 ? 'text-slate-900' : 'text-red-500' %>">
+              <%= currH %>h<% if (trendArrow) { %><span class="text-[10px] ml-0.5 <%= trendCls %>"><%= trendArrow %></span><% } %>
+            </div>
             <div class="text-[10px] text-slate-400 font-medium uppercase">Esta semana</div>
+            <% if (prevH > 0) { %><div class="text-[9px] text-slate-300">sem ant: <%= prevH %>h</div><% } %>
           </div>
           <div class="bg-white rounded-lg p-2 border border-slate-100">
             <div class="text-sm font-black <%= person.billablePct >= 60 ? 'text-green-600' : person.billablePct > 0 ? 'text-amber-600' : 'text-slate-400' %>"><%= person.billablePct %>%</div>
@@ -538,11 +556,11 @@
             %>
             <td class="py-1 px-1">
               <% if (h > 0) { %>
-              <a href="<%= odooProjectUrl %>" target="_blank" rel="noopener"
-                 class="heatmap-cell block rounded-md text-center py-1.5 font-semibold <%= heatClass(h) %>"
-                 title="<%= c.name %> en <%= col ? col.name : '' %>: <%= h %>h → Ver en Odoo">
+              <button onclick="openHeatmapDrilldown('<%= c.login %>',<%= col ? col.id : 0 %>,'<%= c.name.replace(/'/g,"\\'") %>','<%= col ? col.name.replace(/'/g,"\\'") : '' %>')"
+                 class="heatmap-cell block w-full rounded-md text-center py-1.5 font-semibold <%= heatClass(h) %>"
+                 title="<%= c.name %> · <%= col ? col.name : '' %>: <%= h %>h — clic para detalles">
                 <%= h %>h
-              </a>
+              </button>
               <% } else { %>
               <div class="rounded-md text-center py-1.5 font-semibold heatmap-0">-</div>
               <% } %>
@@ -703,12 +721,13 @@
             <td class="py-3 px-3 align-top">
               <div class="flex gap-1">
                 <% person.recentDays.forEach((day) => { %>
-                <div class="log-day rounded-md border px-1.5 py-1 text-center text-[11px] font-semibold
+                <button onclick="openLogDayModal('<%= person.login %>','<%= day.date %>','<%= person.name.replace(/'/g,"\\'") %>','<%= day.label %>')"
+                  class="log-day rounded-md border px-1.5 py-1 text-center text-[11px] font-semibold cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all
                   <%= day.isMissing ? 'bg-red-50 border-red-200 text-red-600' : day.hours>=8 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : day.hours>=4 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-amber-50 border-amber-200 text-amber-700' %>"
-                  title="<%= `${day.label}: ${day.hours}h / ${day.entries} cargas${day.lateEntries ? ' / tardías: '+day.lateEntries : ''}${day.preLogEntries ? ' / pre-logeo: '+day.preLogEntries : ''}` %>">
+                  title="<%= `${day.label}: ${day.hours}h · clic para ver detalles` %>">
                   <div><%= day.hours > 0 ? `${day.hours}h` : '0' %></div>
                   <div class="text-[10px] <%= day.lateEntries ? 'text-amber-500' : day.preLogEntries ? 'text-purple-500' : 'text-slate-300' %>"><%= day.lateEntries ? 'T' : day.preLogEntries ? 'P' : '·' %></div>
-                </div>
+                </button>
                 <% }) %>
               </div>
             </td>
@@ -739,8 +758,21 @@
 <%# ── Proyectos Tab ──────────────────────────────────────────────────────────── %>
 <div id="tab-proyectos" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
 
+  <%# View toggle %>
+  <div class="flex items-center gap-2">
+    <button id="view-btn-cards" onclick="setProyectosView('cards')"
+      class="px-3 py-1.5 rounded-lg border text-xs font-semibold bg-blue-600 text-white border-blue-600 transition-colors">
+      ▦ Tarjetas
+    </button>
+    <button id="view-btn-gantt" onclick="setProyectosView('gantt')"
+      class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-colors">
+      ▤ Gantt
+    </button>
+    <span class="text-xs text-slate-400 ml-2"><%= projectStatuses.length %> proyectos</span>
+  </div>
+
   <%# Project cards grid %>
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+  <div id="proj-cards-view" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
     <% projectStatuses.forEach(p => {
       const pctColor   = p.hoursPct && p.hoursPct > 120 ? 'red' : p.hoursPct && p.hoursPct > 90 ? 'amber' : 'green';
       const statusBadge = p.isCompleted ? { label: 'Completado', cls: 'bg-green-100 text-green-700' }
@@ -846,7 +878,44 @@
     <% } %>
   </div>
 
+  <%# Gantt view %>
+  <div id="gantt-view" class="hidden">
+    <div id="gantt-container" class="space-y-3">
+      <div class="py-16 text-center text-slate-400 text-sm">Cambiá a vista Gantt para ver el cronograma.</div>
+    </div>
+  </div>
+
 </div><!-- /tab-proyectos -->
+
+<%# ── Heatmap Drilldown Modal ──────────────────────────────────────────────────── %>
+<div id="heatmapModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50" onclick="closeHeatmapModal()"></div>
+  <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div>
+        <h3 id="hmTitle" class="font-bold text-slate-900 text-base"></h3>
+        <p id="hmSubtitle" class="text-xs text-slate-500 mt-0.5"></p>
+      </div>
+      <button onclick="closeHeatmapModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">✕</button>
+    </div>
+    <div id="hmBody" class="overflow-y-auto flex-1 p-4 text-sm"></div>
+  </div>
+</div>
+
+<%# ── Log Day Modal ────────────────────────────────────────────────────────────── %>
+<div id="logDayModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50" onclick="closeLogDayModal()"></div>
+  <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[70vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div>
+        <h3 id="ldTitle" class="font-bold text-slate-900 text-base"></h3>
+        <p id="ldSubtitle" class="text-xs text-slate-500 mt-0.5"></p>
+      </div>
+      <button onclick="closeLogDayModal()" class="text-slate-400 hover:text-slate-700 text-xl font-bold w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100">✕</button>
+    </div>
+    <div id="ldBody" class="overflow-y-auto flex-1 p-4 text-sm"></div>
+  </div>
+</div>
 
 <footer class="text-center text-xs text-slate-400 py-6 mt-4">
   Torus Dashboard Platform · <%= new Date().getFullYear() %>
@@ -1048,6 +1117,208 @@ renderBillableChart();
 // Restore tab from sessionStorage or URL hash
 const savedTab = sessionStorage.getItem('activeTab') || 'equipo';
 if (savedTab !== 'equipo') switchTab(savedTab);
+
+// ── Drilldown data ─────────────────────────────────────────────────────────────
+const tsByPP = <%- tsByPP %>;
+const logDayItems = <%- JSON.stringify(
+  (loggingControl.people || []).reduce((acc, p) => {
+    acc[p.login] = {};
+    (p.recentDays || []).forEach(d => { acc[p.login][d.date] = d.items || []; });
+    return acc;
+  }, {})
+) %>;
+const ganttProjects = <%- JSON.stringify(
+  projectStatuses.map(p => ({ id: p.id, name: p.name, tasks: p.ganttTasks || [] }))
+) %>;
+
+// ── Escape HTML helper ─────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Heatmap drilldown ──────────────────────────────────────────────────────────
+function openHeatmapDrilldown(login, projectId, personName, projectName) {
+  const key = login + ':' + projectId;
+  const entries = tsByPP[key] || [];
+  document.getElementById('hmTitle').textContent = personName + ' — ' + projectName;
+  document.getElementById('hmSubtitle').textContent = entries.length + ' registro' + (entries.length !== 1 ? 's' : '') + ' en el período';
+  const body = document.getElementById('hmBody');
+  if (entries.length === 0) {
+    body.innerHTML = '<div class="text-center text-slate-400 py-8">Sin registros para este período.</div>';
+  } else {
+    const totalH = entries.reduce((s, e) => s + (e.hours || 0), 0);
+    body.innerHTML = `
+      <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+        <span class="text-xs text-slate-500">Total: <strong class="text-slate-900">${totalH.toFixed(1)}h</strong></span>
+        <span class="text-xs text-slate-400">${entries.length} entradas</span>
+      </div>
+      <div class="space-y-0.5">
+        ${entries.map(e => `
+          <div class="flex items-start gap-3 py-1.5 border-b border-slate-50">
+            <div class="text-xs text-slate-400 w-24 shrink-0 mt-0.5">${e.date}</div>
+            <div class="flex-1 text-xs text-slate-700">${escHtml(e.desc || '(sin descripción)')}</div>
+            <div class="text-xs font-bold text-blue-700 shrink-0">${(e.hours||0).toFixed(1)}h</div>
+          </div>`).join('')}
+      </div>`;
+  }
+  document.getElementById('heatmapModal').classList.remove('hidden');
+}
+
+function closeHeatmapModal() {
+  document.getElementById('heatmapModal').classList.add('hidden');
+}
+
+// ── Log day drilldown ──────────────────────────────────────────────────────────
+function openLogDayModal(login, date, personName, dayLabel) {
+  const entries = (logDayItems[login] || {})[date] || [];
+  document.getElementById('ldTitle').textContent = personName + ' — ' + dayLabel;
+  document.getElementById('ldSubtitle').textContent = date + ' · ' + entries.length + ' entrada' + (entries.length !== 1 ? 's' : '');
+  const body = document.getElementById('ldBody');
+  if (entries.length === 0) {
+    body.innerHTML = '<div class="text-center text-slate-400 py-8">Sin registros para este día.</div>';
+  } else {
+    const totalH = entries.reduce((s, e) => s + (e.hours || 0), 0);
+    body.innerHTML = `
+      <div class="mb-3 pb-2 border-b border-slate-100 text-xs text-slate-500">
+        Total: <strong class="text-slate-900">${totalH.toFixed(1)}h</strong>
+      </div>
+      <div class="space-y-0.5">
+        ${entries.map(e => `
+          <div class="flex items-start gap-3 py-1.5 border-b border-slate-50">
+            <div class="flex-1 text-xs text-slate-700">${escHtml(e.desc || '(sin descripción)')}</div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${e.isLate    ? '<span class="text-[10px] bg-amber-100 text-amber-600 font-bold px-1 rounded">Tard.</span>' : ''}
+              ${e.isPreLog  ? '<span class="text-[10px] bg-purple-100 text-purple-600 font-bold px-1 rounded">Pre</span>' : ''}
+              <span class="text-xs font-bold text-blue-700">${(e.hours||0).toFixed(1)}h</span>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+  document.getElementById('logDayModal').classList.remove('hidden');
+}
+
+function closeLogDayModal() {
+  document.getElementById('logDayModal').classList.add('hidden');
+}
+
+// ── Proyectos view toggle ──────────────────────────────────────────────────────
+function setProyectosView(view) {
+  const cardsView = document.getElementById('proj-cards-view');
+  const ganttView = document.getElementById('gantt-view');
+  const btnCards  = document.getElementById('view-btn-cards');
+  const btnGantt  = document.getElementById('view-btn-gantt');
+  const activeClass   = 'px-3 py-1.5 rounded-lg border text-xs font-semibold bg-blue-600 text-white border-blue-600 transition-colors';
+  const inactiveClass = 'px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-colors';
+  if (view === 'gantt') {
+    cardsView.classList.add('hidden');
+    ganttView.classList.remove('hidden');
+    btnCards.className = inactiveClass;
+    btnGantt.className = activeClass;
+    renderGantt();
+  } else {
+    cardsView.classList.remove('hidden');
+    ganttView.classList.add('hidden');
+    btnCards.className = activeClass;
+    btnGantt.className = inactiveClass;
+  }
+}
+
+let ganttRendered = false;
+function renderGantt() {
+  if (ganttRendered) return;
+  ganttRendered = true;
+  const container = document.getElementById('gantt-container');
+  if (!container) return;
+
+  const projectsWithTasks = ganttProjects.filter(p => p.tasks && p.tasks.length > 0);
+  if (projectsWithTasks.length === 0) {
+    container.innerHTML = '<div class="py-16 text-center text-slate-400">Ningún proyecto tiene tareas con fechas definidas en Odoo.</div>';
+    return;
+  }
+
+  // Find global date range
+  let minMs = Infinity, maxMs = -Infinity;
+  projectsWithTasks.forEach(p => p.tasks.forEach(t => {
+    if (t.start) { const ms = new Date(t.start).getTime(); if (ms < minMs) minMs = ms; if (ms > maxMs) maxMs = ms; }
+    if (t.end)   { const ms = new Date(t.end).getTime();   if (ms > maxMs) maxMs = ms; }
+  }));
+  if (!isFinite(minMs)) {
+    container.innerHTML = '<div class="py-16 text-center text-slate-400">Sin fechas válidas.</div>';
+    return;
+  }
+  maxMs += 86400000;
+  const totalMs = maxMs - minMs;
+
+  function pctPos(ms) { return Math.max(0, Math.min(100, (ms - minMs) / totalMs * 100)); }
+
+  // Build month labels
+  const months = [];
+  let cur = new Date(minMs); cur.setDate(1);
+  while (cur.getTime() < maxMs) {
+    months.push({ label: cur.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }), pct: pctPos(cur.getTime()).toFixed(1) });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+
+  let html = '';
+  projectsWithTasks.forEach(p => {
+    const monthLabels = months.map(m =>
+      `<div class="absolute top-0 text-[9px] text-slate-400 font-medium leading-none border-l border-slate-100 pl-0.5" style="left:${m.pct}%">${m.label}</div>`
+    ).join('');
+
+    const rows = p.tasks.map(t => {
+      const s = t.start ? new Date(t.start).getTime() : null;
+      const e = t.end   ? new Date(t.end).getTime() + 86400000 : s ? s + 86400000 : null;
+      if (!s || !e) return '';
+      const left  = pctPos(s).toFixed(1);
+      const width = Math.max(0.5, pctPos(e) - pctPos(s)).toFixed(1);
+      const color = t.done ? 'bg-green-400' : 'bg-blue-500';
+      const lbl   = parseFloat(width) > 5 ? escHtml(t.name.slice(0, 30)) : '';
+      return `<div class="flex items-center mb-0.5">
+        <div class="w-44 shrink-0 text-[11px] text-slate-600 truncate pr-2" title="${escHtml(t.name)}">${escHtml(t.name)}</div>
+        <div class="flex-1 relative h-5">
+          <div class="absolute top-0.5 h-4 rounded ${color} opacity-80 flex items-center px-1 overflow-hidden"
+               style="left:${left}%;width:${width}%"
+               title="${escHtml(t.name)}: ${t.start||'?'} → ${t.end||'?'}">
+            <span class="text-[10px] text-white font-semibold truncate">${lbl}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+
+    html += `<div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="font-bold text-slate-900 text-sm mb-2">${escHtml(p.name)}<span class="text-xs font-normal text-slate-400 ml-2">${p.tasks.length} tareas</span></div>
+      <div class="flex items-center mb-2">
+        <div class="w-44 shrink-0"></div>
+        <div class="flex-1 relative h-4">${monthLabels}</div>
+      </div>
+      ${rows}
+    </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+// ── Manual refresh ─────────────────────────────────────────────────────────────
+async function manualRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  const dot = document.getElementById('refreshDot');
+  if (btn) { btn.textContent = '...'; btn.disabled = true; }
+  if (dot) { dot.classList.remove('bg-green-500'); dot.classList.add('bg-amber-400'); }
+  try {
+    const res = await fetch('/equipo/refresh', { method: 'POST' });
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      alert('Error al actualizar. Intentá de nuevo.');
+      if (btn) { btn.textContent = '↺'; btn.disabled = false; }
+      if (dot) { dot.classList.remove('bg-amber-400'); dot.classList.add('bg-green-500'); }
+    }
+  } catch(e) {
+    alert('Error de conexión.');
+    if (btn) { btn.textContent = '↺'; btn.disabled = false; }
+    if (dot) { dot.classList.remove('bg-amber-400'); dot.classList.add('bg-green-500'); }
+  }
+}
 </script>
 </body>
 </html>

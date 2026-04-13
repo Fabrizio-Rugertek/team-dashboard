@@ -257,6 +257,13 @@
     </div>
 
     <!-- CXC Table -->
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-sm font-semibold text-slate-700">Detalle de facturas</span>
+      <button onclick="exportCXCcsv()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:border-blue-300 hover:bg-blue-50 transition-colors">
+        ↓ Exportar CSV
+      </button>
+    </div>
     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div class="overflow-x-auto max-h-72 overflow-y-auto">
         <table class="w-full text-sm">
@@ -331,9 +338,15 @@
         <div class="text-xs text-slate-400 mt-1"><%= pipeline.countDraft %> cotiz. · sin enviar</div>
       </div>
       <div class="bg-white rounded-xl border border-emerald-200 p-4">
-        <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Tasa de Cierre est.</div>
-        <div class="text-2xl font-black text-emerald-700">—</div>
-        <div class="text-xs text-slate-400 mt-1">Próximamente</div>
+        <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Tasa de Cierre</div>
+        <% if (closingRate.rate !== null) { %>
+        <div class="text-2xl font-black text-emerald-700"><%= closingRate.rate %>%</div>
+        <div class="text-xs text-slate-400 mt-1"><%= closingRate.wonCount %> ganadas / <%= closingRate.totalCount %> elegibles</div>
+        <% } else { %>
+        <div class="text-2xl font-black text-slate-400">—</div>
+        <div class="text-xs text-slate-400 mt-1">Sin datos suficientes</div>
+        <% } %>
+        <div class="text-xs text-slate-400 mt-0.5">Últimos <%= closingRate.period %></div>
       </div>
     </div>
 
@@ -478,6 +491,27 @@
     },
   });
 })();
+
+// ── CSV Export for CXC ─────────────────────────────────────────────────────────
+function exportCXCcsv() {
+  const items = <%- cxcItemsJson %>;
+  if (!items.length) { alert('Sin datos para exportar.'); return; }
+  const headers = ['Factura','Cliente','Fecha Factura','Vencimiento','Días Vencida','Total','Pendiente','Bucket'];
+  const rows = items.map(i => [
+    i.name, i.partner, i.invoiceDate || '', i.dueDate || '',
+    i.daysOverdue, i.total, i.residual, i.bucket,
+  ]);
+  const csv = [headers, ...rows]
+    .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `CXC_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>

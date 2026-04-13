@@ -12,7 +12,7 @@
 
 const express = require('express');
 const router  = express.Router();
-const { getDashboardCached } = require('../src/cache');
+const { getDashboardCached, bustCache } = require('../src/cache');
 const config = require('../src/config');
 
 const VALID_RANGES   = ['7d', '30d', 'mtd', '60d', '90d', 'custom'];
@@ -77,6 +77,7 @@ router.get('/', async (req, res) => {
     const {
       summary, consultants, consultantOptions, topProjectCols, methodology,
       projectStatuses, anomalies, weeklyData, loggingControl,
+      timesheetsByPersonProject,
     } = data;
 
     const criticalCount = anomalies.filter(a => a.type === 'critical').length;
@@ -90,6 +91,7 @@ router.get('/', async (req, res) => {
         ...person,
         hoursInRange:    c.hoursInRange    || 0,
         hoursThisWeek:   c.hoursThisWeek   || 0,
+        hoursPrevWeek:   c.hoursPrevWeek   || 0,
         billableWeek:    c.billableWeek    || 0,
         nonBillableWeek: c.nonBillableWeek || 0,
         billablePct:     c.billablePct     || 0,
@@ -162,10 +164,21 @@ router.get('/', async (req, res) => {
       dateRanges:       config.DATE_RANGES,
       buildQuery,
       lastUpdate:       new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }),
+      tsByPP:           JSON.stringify(timesheetsByPersonProject || {}),
     });
   } catch (err) {
     console.error('Error loading equipo:', err.message);
     res.status(500).render('error', { message: 'Error cargando datos: ' + err.message });
+  }
+});
+
+// ── Manual cache refresh ──────────────────────────────────────────────────────
+router.post('/refresh', (req, res) => {
+  try {
+    bustCache();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
   }
 });
 

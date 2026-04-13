@@ -155,7 +155,8 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
   const complianceDates = getRecentBusinessDates(complianceDays || config.LOG_COMPLIANCE_BUSINESS_DAYS);
   const latestBusinessDate = displayDates[displayDates.length - 1] || null;
   const weekStart = startOfDay(new Date());
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const _lcDow = weekStart.getDay(); // 0=Sun … 6=Sat
+  weekStart.setDate(weekStart.getDate() - (_lcDow === 0 ? 6 : _lcDow - 1));
 
   const personLogs = new Map(
     employees
@@ -197,7 +198,7 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
     const isRound     = isRoundHourEntry(hours);
 
     if (!person.byDate.has(workDate)) {
-      person.byDate.set(workDate, { date: workDate, hours: 0, entries: 0, shortEntries: 0, roundEntries: 0, lateEntries: 0, preLogEntries: 0 });
+      person.byDate.set(workDate, { date: workDate, hours: 0, entries: 0, shortEntries: 0, roundEntries: 0, lateEntries: 0, preLogEntries: 0, items: [] });
     }
     const bucket = person.byDate.get(workDate);
     bucket.hours       += hours;
@@ -206,6 +207,7 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
     if (isRound)   bucket.roundEntries  += 1;
     if (isLate)    bucket.lateEntries   += 1;
     if (isPreLog)  bucket.preLogEntries += 1;
+    bucket.items.push({ hours: round(hours), desc: description.slice(0, 120), isLate, isPreLog });
 
     person.totalEntries  += 1;
     if (isShort)   person.shortEntries  += 1;
@@ -269,7 +271,7 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
     else if (suspiciousScore >= config.SUSPICIOUS_LOG_SCORE_WARNING || missingStreak >= 2 || missingDays >= 4) status = 'warning';
 
     const recentDays = displayDates.map(dateStr => {
-      const day = person.byDate.get(dateStr) || { date: dateStr, hours: 0, entries: 0, shortEntries: 0, roundEntries: 0, lateEntries: 0, preLogEntries: 0 };
+      const day = person.byDate.get(dateStr) || { date: dateStr, hours: 0, entries: 0, shortEntries: 0, roundEntries: 0, lateEntries: 0, preLogEntries: 0, items: [] };
       return {
         date:        dateStr,
         label:       formatBusinessLabel(dateStr),
@@ -278,6 +280,7 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
         isMissing:   day.hours === 0,
         lateEntries: day.lateEntries,
         preLogEntries: day.preLogEntries,
+        items:       day.items || [],
       };
     });
 
@@ -397,7 +400,8 @@ function computeDashboard(raw, filters = {}) {
   // ── Per-user hours aggregation ────────────────────────────────────────────
   const today     = startOfDay(new Date());
   const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay());
+  const _dow = today.getDay(); // 0=Sun … 6=Sat
+  weekStart.setDate(today.getDate() - (_dow === 0 ? 6 : _dow - 1));
   const prevWeekStart = addDays(weekStart, -7);
 
   const userHoursMap = new Map([...activeLogins].map(login => [login, {
@@ -439,6 +443,22 @@ function computeDashboard(raw, filters = {}) {
       else            ue.nonBillableWeek += h;
     }
     if (d >= prevWeekStart && d < weekStart) ue.hoursPrevWeek += h;
+  }
+
+  // ── Heatmap drilldown lookup ──────────────────────────────────────────────
+  const timesheetsByPersonProject = {};
+  for (const ts of timesheets) {
+    const ruId  = ts.user_id?.[0];
+    const login = ruId ? (userIdToLogin.get(ruId) || null) : null;
+    const pid   = ts.project_id?.[0];
+    if (!login || !pid || !activeLogins.has(login)) continue;
+    const key = `${login}:${pid}`;
+    if (!timesheetsByPersonProject[key]) timesheetsByPersonProject[key] = [];
+    timesheetsByPersonProject[key].push({
+      date:  ts.date,
+      desc:  (ts.name || '').slice(0, 120),
+      hours: round(parseFloat(ts.unit_amount || 0)),
+    });
   }
 
   // ── Anomaly detection ─────────────────────────────────────────────────────
@@ -495,8 +515,13 @@ function computeDashboard(raw, filters = {}) {
     }
   }
 
-  // Task-level anomalies
+  // Task-level anomalies — filter by consultant if active
+  const filteredTaskUserIds = hasFilter
+    ? new Set([...employees].map(e => e.userId).filter(Boolean))
+    : null;
+
   for (const task of allTasks) {
+    if (filteredTaskUserIds && task.user_id && !filteredTaskUserIds.has(task.user_id[0])) continue;
     if (isBacklog(task)) continue;
     const allocH = parseFloat(task.allocated_hours || 0);
     if (allocH > 8) {
@@ -626,6 +651,16 @@ function computeDashboard(raw, filters = {}) {
       isOnHold:       flags.isOnHold, isCompleted: flags.isCompleted,
       stageProgress:  avgProg,
       assignees: [...new Set(tasks.map(t => t.user_id ? t.user_id[1] || 'Sin asignar' : 'Sin asignar'))].slice(0, 4),
+      ganttTasks: tasks
+        .filter(t => t.date_start || t.date_end)
+        .map(t => ({
+          id:    t.id,
+          name:  (t.name || '').slice(0, 60),
+          start: t.date_start ? String(t.date_start).slice(0, 10) : null,
+          end:   t.date_end   ? String(t.date_end).slice(0, 10)   : null,
+          done:  isDone(t),
+        }))
+        .sort((a, b) => (a.start || '9999') < (b.start || '9999') ? -1 : 1),
     };
   });
 
@@ -666,8 +701,8 @@ function computeDashboard(raw, filters = {}) {
     anomalies:      anomalies.slice(0, 500),
     weeklyData,
     loggingControl,
+    timesheetsByPersonProject,
     lastUpdate:     new Date().toISOString(),
-    // Internal references (used by API routes if needed)
     _userIdToLogin: userIdToLogin,
     _loginToEmployee: loginToEmployee,
     _taskMap:       taskMap,
@@ -701,4 +736,11 @@ async function getDashboardCached(filters = {}) {
   return { ...data, projectStatuses: filterProjects(data.projectStatuses, filters) };
 }
 
-module.exports = { getDashboardCached, filterProjects };
+function bustCache() {
+  _rawCache     = null;
+  _rawCacheTime = 0;
+  _derivedCache.clear();
+  console.log('[Cache] Manual bust triggered');
+}
+
+module.exports = { getDashboardCached, filterProjects, bustCache };
