@@ -57,6 +57,12 @@ function formatBusinessLabel(dateStr) {
   return fromDateOnly(dateStr).toLocaleDateString('es-ES', { weekday: 'short', day: '2-digit' });
 }
 function datePart(value) { return String(value || '').slice(0, 10); }
+function getJobType(job) {
+  const j = (job || '').toLowerCase();
+  if (j.includes('técn') || j.includes('tecn')) return 'technical';
+  if (j.includes('funcional') || j.includes('contable')) return 'functional';
+  return 'other';
+}
 function parseCreateDate(value) {
   if (!value) return null;
   const iso = String(value).replace(' ', 'T');
@@ -85,6 +91,15 @@ function getRangeStart(range) {
     case '90d': return addDays(today, -90);
     default:    return addDays(today, -30);   // '30d'
   }
+}
+function getEffectiveDateRange(filters) {
+  const range = filters.range || '30d';
+  if (range === 'custom' && filters.from && filters.to) {
+    const start  = fromDateOnly(filters.from);
+    const toDate = addDays(fromDateOnly(filters.to), 1); // inclusive end
+    return { start, toDate, from: filters.from, to: filters.to };
+  }
+  return { start: getRangeStart(range), toDate: null };
 }
 function getRangeComplianceDays(range) {
   return { '7d': 5, '30d': 20, 'mtd': 20, '60d': 20, '90d': 20 }[range] || 20;
@@ -150,6 +165,8 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
         name:            emp.name,
         department:      emp.department || null,
         job:             emp.job || null,
+        contract_start:  emp.contract_start || null,
+        contract_end:    emp.contract_end   || null,
         byDate:          new Map(),
         totalEntries:    0,
         shortEntries:    0,
@@ -203,14 +220,24 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
   const statusOrder = { critical: 0, warning: 1, healthy: 2 };
 
   const people = [...personLogs.values()].map(person => {
-    const loggedDays = complianceDates.reduce((count, dateStr) => {
+    // Only count dates where the employee had an active contract
+    const contractStart = person.contract_start ? fromDateOnly(person.contract_start) : null;
+    const contractEnd   = person.contract_end   ? addDays(fromDateOnly(person.contract_end), 1) : null;
+    const activeDates   = complianceDates.filter(dateStr => {
+      const d = fromDateOnly(dateStr);
+      if (contractStart && d < contractStart) return false;
+      if (contractEnd   && d >= contractEnd)  return false;
+      return true;
+    });
+
+    const loggedDays = activeDates.reduce((count, dateStr) => {
       const day = person.byDate.get(dateStr);
       return count + ((day && day.hours > 0) ? 1 : 0);
     }, 0);
-    const missingDays = complianceDates.length - loggedDays;
+    const missingDays = activeDates.length - loggedDays;
     let missingStreak = 0;
-    for (let i = complianceDates.length - 1; i >= 0; i -= 1) {
-      const day = person.byDate.get(complianceDates[i]);
+    for (let i = activeDates.length - 1; i >= 0; i -= 1) {
+      const day = person.byDate.get(activeDates[i]);
       if (day && day.hours > 0) break;
       missingStreak += 1;
     }
@@ -220,7 +247,7 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
     const latePct      = person.totalEntries > 0 ? person.lateEntries    / person.totalEntries : 0;
     const preLogPct    = person.totalEntries > 0 ? person.preLogEntries  / person.totalEntries : 0;
 
-    const currentWeekDays  = complianceDates.filter(dateStr => fromDateOnly(dateStr) >= weekStart);
+    const currentWeekDays  = activeDates.filter(dateStr => fromDateOnly(dateStr) >= weekStart);
     const maxWeekDayHours  = currentWeekDays.reduce((max, dateStr) => Math.max(max, person.byDate.get(dateStr)?.hours || 0), 0);
     const concentratedWeek = person.hoursThisWeek >= 16 && maxWeekDayHours / Math.max(person.hoursThisWeek, 1) >= 0.6;
 
@@ -259,9 +286,9 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
       name:           person.name,
       department:     person.department,
       job:            person.job,
-      compliancePct:  Math.round((loggedDays / Math.max(complianceDates.length, 1)) * 100),
+      compliancePct:  Math.round((loggedDays / Math.max(activeDates.length, 1)) * 100),
       loggedDays,
-      expectedDays:   complianceDates.length,
+      expectedDays:   activeDates.length,
       missingDays,
       missingStreak,
       lastLogDate:    person.lastLogDate,
@@ -285,7 +312,7 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
   );
 
   const peopleCount   = people.length;
-  const totalExpected = peopleCount * complianceDates.length;
+  const totalExpected = people.reduce((sum, p) => sum + p.expectedDays, 0);
   const totalLogged   = people.reduce((sum, p) => sum + p.loggedDays, 0);
 
   return {
@@ -330,22 +357,26 @@ async function getRawOdooData() {
 // ── Layer 2: compute dashboard from raw data + filters ────────────────────────
 function computeDashboard(raw, filters = {}) {
   const { employees: allEmployees, timesheets: allTimesheets, projects } = raw;
-  const range           = filters.range      || '30d';
-  const filterConsultant = filters.consultant || 'all';
+  const range              = filters.range || '30d';
+  const filterConsultants  = filters.consultants instanceof Set ? filters.consultants : new Set();
+  const hasFilter          = filterConsultants.size > 0;
 
   // Consultant dropdown options (all production employees, before filtering)
   const consultantOptions = allEmployees
     .filter(e => e.login)
-    .map(e => ({ name: e.name, login: e.login }))
+    .map(e => ({ name: e.name, login: e.login, jobType: getJobType(e.job) }))
     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
 
   // Apply date range filter to timesheets
-  const rangeStart = getRangeStart(range);
-  const timesheets = allTimesheets.filter(ts => fromDateOnly(ts.date) >= rangeStart);
+  const { start: rangeStart, toDate: rangeEnd } = getEffectiveDateRange(filters);
+  const timesheets = allTimesheets.filter(ts => {
+    const d = fromDateOnly(ts.date);
+    return d >= rangeStart && (!rangeEnd || d < rangeEnd);
+  });
 
   // Apply consultant filter
-  const employees = filterConsultant !== 'all'
-    ? allEmployees.filter(e => e.login === filterConsultant)
+  const employees = hasFilter
+    ? allEmployees.filter(e => e.login && filterConsultants.has(e.login))
     : allEmployees;
 
   // ── Build maps ────────────────────────────────────────────────────────────
@@ -646,10 +677,10 @@ function computeDashboard(raw, filters = {}) {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 async function getDashboardCached(filters = {}) {
-  const raw              = await getRawOdooData();
-  const range            = filters.range      || '30d';
-  const filterConsultant = filters.consultant || 'all';
-  const cacheKey         = `${range}:${filterConsultant}`;
+  const raw       = await getRawOdooData();
+  const range     = filters.range || '30d';
+  const consultants = filters.consultants instanceof Set ? filters.consultants : new Set();
+  const cacheKey  = `${range}:${filters.from || ''}:${filters.to || ''}:${[...consultants].sort().join(',')}`;
 
   const slot = _derivedCache.get(cacheKey);
   const now  = Date.now();

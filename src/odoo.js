@@ -239,6 +239,7 @@ async function fetchActiveEmployees() {
       job:            e.job_id?.[1] || null,
       contract_state:  c.state || null,
       contract_start:  c.date_start || null,
+      contract_end:    c.date_end   || null,
     };
   });
 }
