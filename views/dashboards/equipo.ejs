@@ -526,15 +526,11 @@
             <th class="text-left py-2 px-3 font-semibold text-slate-600 min-w-36">Consultor</th>
             <th class="text-right py-2 px-3 font-bold text-slate-700 min-w-20">Total</th>
             <% cols.forEach(col => { %>
-            <th class="text-center py-2 px-2 font-medium text-slate-500 min-w-20">
-              <%# Full-name tooltip on truncated headers %>
-              <div class="has-tooltip">
-                <div class="truncate max-w-[80px] font-medium text-slate-600"><%= col.name %></div>
-                <div class="tt"><%= col.name %></div>
-              </div>
-              <div class="text-slate-400 font-normal mt-0.5">
+            <th class="text-center py-2 px-2 font-medium text-slate-500 min-w-[88px]">
+              <div class="font-semibold text-slate-700 text-[11px] leading-tight mx-auto" style="max-width:96px;white-space:normal;word-break:break-word;"><%= col.name %></div>
+              <div class="text-slate-400 font-normal mt-1">
                 <a href="https://www.torus.dev/web#id=<%= col.id %>&model=project.project" target="_blank" rel="noopener"
-                   class="hover:text-blue-500 transition-colors" title="Ver en Odoo">
+                   class="hover:text-blue-500 transition-colors text-[11px]" title="Ver en Odoo">
                   <%= col.total %>h ↗
                 </a>
               </div>
@@ -582,64 +578,138 @@
   <% } %>
 
   <%# ── Alertas Detalladas (colapsable) ──────────────────────────────────────── %>
+  <%
+    const _catLabels = {
+      sin_estimacion:     'Sin estimación',
+      horas_inhabituales: 'H. inhabituales',
+      descripcion_mecanica:'Desc. mecánica',
+      tarea_sin_proyecto: 'Sin proyecto',
+      fin_de_semana:      'Fin de semana',
+      horas_bajas:        'Horas bajas',
+      horas_altas:        'Horas altas',
+      sin_actividad:      'Sin actividad',
+      descripcion_vacia:  'Desc. vacía',
+      pre_logeo:          'Pre-logeo',
+      carga_tardia:       'Carga tardía',
+    };
+    const _consultantMap = {};
+    (consultants || []).forEach(c => { _consultantMap[c.login] = c.name; });
+    const _totalAlerts = criticalCount + warningCount + infoCount;
+  %>
   <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <details>
-      <summary class="flex items-center justify-between px-5 py-4 hover:bg-slate-50 transition-colors select-none">
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-extrabold text-slate-900">Alertas Detalladas</span>
-          <div class="flex gap-1.5">
-            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700"><%= criticalCount %> críticas</span>
-            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700"><%= warningCount %> warnings</span>
-            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700"><%= infoCount %> info</span>
+      <summary class="flex items-center justify-between px-6 py-4 hover:bg-slate-50/80 transition-colors select-none cursor-pointer">
+        <div class="flex items-center gap-4">
+          <div>
+            <h3 class="text-base font-bold text-slate-900">Alertas Detalladas</h3>
+            <p class="text-xs text-slate-400 mt-0.5"><%= _totalAlerts %> eventos en el período · haga clic para expandir</p>
+          </div>
+          <div class="flex gap-2">
+            <% if (criticalCount > 0) { %>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-600 border border-red-200 ring-1 ring-red-100">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500 inline-block animate-pulse"></span>
+              <%= criticalCount %> críticas
+            </span>
+            <% } else { %>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-400 border border-slate-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block"></span>
+              0 críticas
+            </span>
+            <% } %>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"></span>
+              <%= warningCount %> warnings
+            </span>
+            <% if (infoCount > 0) { %>
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-200">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>
+              <%= infoCount %> info
+            </span>
+            <% } %>
           </div>
         </div>
-        <svg class="chevron w-5 h-5 text-slate-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="chevron w-4 h-4 text-slate-400 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
         </svg>
       </summary>
       <div class="border-t border-slate-100">
-        <div class="flex gap-1 bg-slate-50 px-5 py-2 border-b border-slate-100" id="alertFilters">
-          <button class="alert-filter-btn px-3 py-1 rounded text-xs font-bold bg-slate-800 text-white" data-filter="all">Todas (<%= criticalCount + warningCount + infoCount %>)</button>
-          <button class="alert-filter-btn px-3 py-1 rounded text-xs font-bold text-red-700 bg-red-100 hover:bg-red-200" data-filter="critical">🚨 <%= criticalCount %></button>
-          <button class="alert-filter-btn px-3 py-1 rounded text-xs font-bold text-amber-700 bg-amber-100 hover:bg-amber-200" data-filter="warning">🟡 <%= warningCount %></button>
-          <button class="alert-filter-btn px-3 py-1 rounded text-xs font-bold text-blue-700 bg-blue-100 hover:bg-blue-200" data-filter="info">💤 <%= infoCount %></button>
+        <%# Filter tabs %>
+        <div class="flex items-center gap-1 px-6 py-3 bg-slate-50/60 border-b border-slate-100" id="alertFilters">
+          <button class="alert-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-white transition-all" data-filter="all">
+            Todas (<%= _totalAlerts %>)
+          </button>
+          <button class="alert-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-200 transition-all" data-filter="critical">
+            <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span>Críticas (<%= criticalCount %>)</span>
+          </button>
+          <button class="alert-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-200 transition-all" data-filter="warning">
+            <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>Warnings (<%= warningCount %>)</span>
+          </button>
+          <button class="alert-filter-btn px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-200 transition-all" data-filter="info">
+            <span class="inline-flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-400 inline-block"></span>Info (<%= infoCount %>)</span>
+          </button>
+          <div class="ml-auto text-xs text-slate-400 italic">
+            Nota: "warnings" incluye tareas sin estimación de horas (normal si hay muchas tareas abiertas)
+          </div>
         </div>
-        <div class="overflow-x-auto max-h-80 overflow-y-auto">
+        <%# Table %>
+        <div class="overflow-x-auto" style="max-height:380px;overflow-y:auto">
           <table class="w-full text-xs">
-            <thead class="sticky top-0 bg-slate-50 border-b border-slate-200">
+            <thead class="sticky top-0 bg-white border-b border-slate-200 z-10 shadow-sm">
               <tr>
-                <th class="text-left py-2 px-3 font-semibold text-slate-600 w-8">#</th>
-                <th class="text-left py-2 px-3 font-semibold text-slate-600 w-16">Nivel</th>
-                <th class="text-left py-2 px-3 font-semibold text-slate-600 w-24">Consultor</th>
-                <th class="text-left py-2 px-3 font-semibold text-slate-600">Mensaje</th>
-                <th class="text-left py-2 px-3 font-semibold text-slate-600 w-28">Categoría</th>
-                <th class="text-left py-2 px-3 font-semibold text-slate-600">Detalle</th>
-                <th class="text-left py-2 px-3 font-semibold text-slate-600 w-12">Odoo</th>
+                <th class="py-2.5 px-1 w-1"></th>
+                <th class="text-left py-2.5 px-3 font-semibold text-slate-400 uppercase tracking-wide text-[10px] w-28">Consultor</th>
+                <th class="text-left py-2.5 px-3 font-semibold text-slate-400 uppercase tracking-wide text-[10px]">Evento</th>
+                <th class="text-left py-2.5 px-3 font-semibold text-slate-400 uppercase tracking-wide text-[10px] w-36">Tipo</th>
+                <th class="text-left py-2.5 px-3 font-semibold text-slate-400 uppercase tracking-wide text-[10px]">Detalle</th>
+                <th class="w-10"></th>
               </tr>
             </thead>
             <tbody id="alertsTableBody">
               <% anomalies.forEach((a, i) => { %>
-              <tr class="alert-row border-b border-slate-50 hover:bg-slate-50" data-type="<%= a.type %>">
-                <td class="py-2 px-3 text-slate-400"><%= i+1 %></td>
-                <td class="py-2 px-3">
-                  <span class="inline-flex px-1.5 py-0.5 rounded text-xs font-bold <%= a.type==='critical'?'bg-red-100 text-red-700':a.type==='warning'?'bg-amber-100 text-amber-700':'bg-blue-100 text-blue-700' %>">
-                    <%= a.type==='critical'?'🚨':a.type==='warning'?'🟡':'💤' %>
-                  </span>
+              <%
+                const _isCrit = a.type === 'critical';
+                const _isInfo = a.type === 'info';
+                const _accent = _isCrit ? '#EF4444' : _isInfo ? '#60A5FA' : '#F59E0B';
+                const _rowHover = _isCrit ? 'hover:bg-red-50/40' : _isInfo ? 'hover:bg-blue-50/30' : 'hover:bg-amber-50/30';
+                const _dotCls  = _isCrit ? 'bg-red-500' : _isInfo ? 'bg-blue-400' : 'bg-amber-400';
+                const _catLbl  = _catLabels[a.category] || a.category.replace(/_/g,' ');
+                const _catCls  = _isCrit
+                  ? 'bg-red-50 text-red-600 border border-red-100'
+                  : _isInfo
+                    ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                    : 'bg-amber-50 text-amber-600 border border-amber-100';
+                const _person = _consultantMap[a.user] || (a.user||'').split('@')[0];
+              %>
+              <tr class="alert-row border-b border-slate-50 <%= _rowHover %> transition-colors"
+                  data-type="<%= a.type %>">
+                <td class="py-0 px-0">
+                  <div class="h-full w-[3px] rounded-r" style="background:<%= _accent %>;min-height:36px;"></div>
                 </td>
-                <td class="py-2 px-3 font-medium text-slate-800"><%= a.user %></td>
-                <td class="py-2 px-3 font-semibold text-slate-800"><%= a.message %></td>
-                <td class="py-2 px-3"><span class="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium"><%= a.category %></span></td>
-                <td class="py-2 px-3 text-slate-500 max-w-xs truncate" title="<%= a.detail %>"><%= a.detail %></td>
-                <td class="py-2 px-3">
+                <td class="py-2.5 px-3">
+                  <span class="font-semibold text-slate-700"><%= _person %></span>
+                </td>
+                <td class="py-2.5 px-3 text-slate-700 font-medium"><%= a.message %></td>
+                <td class="py-2.5 px-3">
+                  <span class="inline-flex px-2 py-0.5 rounded-md text-[11px] font-semibold <%= _catCls %>"><%= _catLbl %></span>
+                </td>
+                <td class="py-2.5 px-3 text-slate-500 max-w-xs truncate" title="<%= a.detail %>"><%= a.detail %></td>
+                <td class="py-2.5 pr-4 text-right">
                   <% if (a.taskId) { %>
                   <a href="https://www.torus.dev/web#id=<%= a.taskId %>&model=project.task" target="_blank" rel="noopener"
-                     class="text-blue-400 hover:text-blue-600" title="Ver tarea en Odoo">↗</a>
+                     class="inline-flex items-center justify-center w-6 h-6 rounded-md bg-slate-100 text-slate-400 hover:bg-blue-100 hover:text-blue-600 transition-colors" title="Ver tarea en Odoo">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                  </a>
                   <% } %>
                 </td>
               </tr>
               <% }) %>
               <% if (!anomalies.length) { %>
-              <tr><td colspan="7" class="py-10 text-center text-slate-400">✅ Sin anomalías detectadas</td></tr>
+              <tr><td colspan="6" class="py-12 text-center">
+                <div class="flex flex-col items-center gap-2">
+                  <svg class="w-10 h-10 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <span class="text-sm text-slate-400 font-medium">Sin anomalías detectadas</span>
+                </div>
+              </td></tr>
               <% } %>
             </tbody>
           </table>
@@ -1073,8 +1143,10 @@ function buildFilterUrl(overrides = {}) {
 function filterAlerts(type) {
   document.querySelectorAll('.alert-filter-btn').forEach(btn => {
     const isActive = btn.dataset.filter === type;
-    btn.style.background = isActive ? '#0f172a' : '';
-    btn.style.color = isActive ? '#fff' : '';
+    btn.classList.toggle('bg-slate-800', isActive);
+    btn.classList.toggle('text-white', isActive);
+    btn.classList.toggle('text-slate-500', !isActive);
+    btn.classList.toggle('hover:bg-slate-200', !isActive);
   });
   document.querySelectorAll('.alert-row').forEach(row => {
     row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
@@ -1187,8 +1259,8 @@ function openLogDayModal(login, date, personName, dayLabel) {
           <div class="flex items-start gap-3 py-1.5 border-b border-slate-50">
             <div class="flex-1 text-xs text-slate-700">${escHtml(e.desc || '(sin descripción)')}</div>
             <div class="flex items-center gap-1.5 shrink-0">
-              ${e.isLate    ? '<span class="text-[10px] bg-amber-100 text-amber-600 font-bold px-1 rounded">Tard.</span>' : ''}
-              ${e.isPreLog  ? '<span class="text-[10px] bg-purple-100 text-purple-600 font-bold px-1 rounded">Pre</span>' : ''}
+              ${e.isLate    ? '<span class="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded" title="Carga tardía: esta entrada fue registrada más de 2 días después de la fecha de trabajo">Tardío</span>' : ''}
+              ${e.isPreLog  ? '<span class="text-[10px] bg-purple-100 text-purple-600 font-bold px-1.5 py-0.5 rounded" title="Pre-logeo: entrada registrada antes de la fecha de trabajo (hora cargada anticipadamente)">Pre-log</span>' : ''}
               <span class="text-xs font-bold text-blue-700">${(e.hours||0).toFixed(1)}h</span>
             </div>
           </div>`).join('')}
