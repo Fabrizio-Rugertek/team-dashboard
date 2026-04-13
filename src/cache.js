@@ -1,5 +1,5 @@
 /**
- * Dashboard cache ? builds and returns the aggregated /equipo payload.
+ * Dashboard cache — builds and returns the aggregated /equipo payload.
  * All thresholds and static data come from src/config.js.
  */
 'use strict';
@@ -13,7 +13,7 @@ let _cacheTime = 0;
 const round = v => Math.round(v * 10) / 10;
 const formatPct = value => Math.round((value || 0) * 100);
 
-// ?? Date helpers ????????????????????????????????????????????????????????????
+// ── Date helpers ─────────────────────────────────────────────────────────────
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -89,7 +89,7 @@ function isMechanicalDescription(desc) {
     .some(token => value === token);
 }
 
-// ?? Task helpers (now use config) ???????????????????????????????????????????
+// ── Task helpers (now use config) ────────────────────────────────────────────
 function isDone(task) {
   if (!task) return false;
   const n = (task.stageName || '').toLowerCase();
@@ -104,7 +104,7 @@ function isBacklog(task) {
   return config.BACKLOG_KEYWORDS.some(k => n.includes(k));
 }
 
-// ?? Project attention flags (use config thresholds) ????????????????????????
+// ── Project attention flags (use config thresholds) ──────────────────────────
 function computeProjectFlags(p) {
   return {
     needsAttention: p.totalAlloc > 0 && p.totalLog > p.totalAlloc * (config.LOG_OVER_ALLOC_PCT / 100),
@@ -114,7 +114,7 @@ function computeProjectFlags(p) {
   };
 }
 
-// ?? Apply Odoo-style filters to project list ???????????????????????????????
+// ── Apply Odoo-style filters to project list ─────────────────────────────────
 function filterProjects(projects, { status = 'all', tag = 'all' } = {}) {
   return projects.filter(p => {
     if (status !== 'all') {
@@ -126,7 +126,7 @@ function filterProjects(projects, { status = 'all', tag = 'all' } = {}) {
     }
 
     if (tag !== 'all') {
-      if (tag === 'sin_asignar' && p.assignees?.every(a => a === 'Sin asignar')) return false;
+      if (tag === 'sin_asignar' && !p.assignees?.some(a => a === 'Sin asignar')) return false;
       if (tag === 'backlog' && p.backlogTasks === 0) return false;
       if (tag === 'sobreestimado' && p.hoursPct < 120) return false;
     }
@@ -356,7 +356,7 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
   };
 }
 
-// ?? Main cached data builder ????????????????????????????????????????????????
+// ── Main cached data builder ─────────────────────────────────────────────────
 async function getDashboardCached(filters = {}) {
   const now = Date.now();
   if (_cache && (now - _cacheTime) < config.CACHE_TTL_MS) {
