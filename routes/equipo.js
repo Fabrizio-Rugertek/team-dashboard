@@ -138,6 +138,7 @@ router.get('/', async (req, res) => {
 
     res.render('dashboards/equipo', {
       title:            'Control de Equipo - Torus Dashboard',
+      user:             req.user || null,
       summary,
       consultants,
       consultantCards,

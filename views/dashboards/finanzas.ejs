@@ -41,9 +41,13 @@
       <span class="font-bold text-slate-900 text-lg">Torus</span>
       <span class="text-slate-400 text-sm font-medium">/ Finanzas</span>
       <span class="text-slate-300">·</span>
-      <a href="/"       class="text-sm font-medium text-blue-600 hover:text-blue-800">Ver todos</a>
+      <a href="/"       class="text-sm font-medium text-blue-600 hover:text-blue-800">Inicio</a>
       <span class="text-slate-300">·</span>
       <a href="/equipo" class="text-sm font-medium text-blue-600 hover:text-blue-800">Equipo</a>
+      <% if (typeof user !== 'undefined' && user && user.role === 'admin') { %>
+      <span class="text-slate-300">·</span>
+      <a href="/admin/users" class="text-sm font-medium text-slate-500 hover:text-slate-700">Usuarios</a>
+      <% } %>
     </div>
     <div class="flex items-center gap-3">
       <select onchange="location.href='/finanzas?year='+this.value"
@@ -56,6 +60,21 @@
         <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
         <span><%= lastUpdate %></span>
       </div>
+      <% if (typeof user !== 'undefined' && user) { %>
+      <div class="flex items-center gap-2 border-l border-slate-200 pl-3">
+        <% if (user.picture) { %>
+        <img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt="">
+        <% } else { %>
+        <div class="w-7 h-7 bg-green-200 rounded-full flex items-center justify-center text-xs font-bold text-green-800">
+          <%= (user.name||user.email).slice(0,1).toUpperCase() %>
+        </div>
+        <% } %>
+        <span class="text-xs font-medium text-slate-600 hidden sm:block"><%= user.name || user.email %></span>
+        <form action="/auth/logout" method="POST" class="inline">
+          <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors">Salir</button>
+        </form>
+      </div>
+      <% } %>
     </div>
   </div>
 </nav>

@@ -1,62 +1,91 @@
 require('dotenv').config();
-const express = require('express');
-const path = require('path');
+const express  = require('express');
+const path     = require('path');
+const session  = require('express-session');
+const passport = require('./auth');
+const { requireAuth, requireRole } = require('../middleware/requireAuth');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3511;
-const ENABLE_PREWARM = process.env.ENABLE_PREWARM !== 'false';
-const PREWARM_INTERVAL_MS = Number(process.env.PREWRM_INTERVAL_MS || 30000);
+const ENABLE_PREWARM      = process.env.ENABLE_PREWARM !== 'false';
+const PREWARM_INTERVAL_MS = Number(process.env.PREWARM_INTERVAL_MS || 30000);
 
-// View engine
+// ── View engine ───────────────────────────────────────────────────────────────
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../views'));
 
-// Static files
+// ── Body parser ───────────────────────────────────────────────────────────────
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
+// ── Static files ──────────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Routes
-const equipoRoutes = require('../routes/equipo');
+// ── Session ───────────────────────────────────────────────────────────────────
+app.use(session({
+  secret:            process.env.SESSION_SECRET || 'torus-dev-secret-change-in-prod',
+  resave:            false,
+  saveUninitialized: false,
+  cookie: {
+    secure:   process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge:   7 * 24 * 60 * 60 * 1000,   // 7 days
+  },
+}));
+
+// ── Passport ──────────────────────────────────────────────────────────────────
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ── Auth routes (public) ──────────────────────────────────────────────────────
+app.use('/auth', require('../routes/auth'));
+
+// ── Protected routes ──────────────────────────────────────────────────────────
+const equipoRoutes   = require('../routes/equipo');
 const finanzasRoutes = require('../routes/finanzas');
-const apiRoutes = require('../routes/api');
+const apiRoutes      = require('../routes/api');
+const adminRoutes    = require('../routes/admin');
 
-app.use('/equipo', equipoRoutes);
-app.use('/finanzas', finanzasRoutes);
-app.use('/api', apiRoutes);
+// /equipo — consultants and above
+app.use('/equipo',  requireRole('consultant'), equipoRoutes);
 
-// Platform hub
-app.get('/', (req, res) => {
+// /finanzas — directors and above
+app.use('/finanzas', requireRole('director'), finanzasRoutes);
+
+// /api — authenticated only
+app.use('/api', requireAuth, apiRoutes);
+
+// /admin — admins only (middleware applied inside routes/admin.js too)
+app.use('/admin', adminRoutes);
+
+// ── Platform hub ──────────────────────────────────────────────────────────────
+app.get('/', requireAuth, (req, res) => {
+  const canFinanzas = ['admin', 'director'].includes(req.user.role);
   res.render('platform/hub', {
     title: 'Torus Dashboards',
+    user:  req.user,
     dashboards: [
       {
-        id: 'equipo',
-        name: 'Control de Equipo',
+        id: 'equipo', name: 'Control de Equipo',
         description: 'Horas por consultor, anomalías, estado de proyectos',
-        icon: '👥',
-        color: '#3B82F6',
-        href: '/equipo',
-        status: 'active'
+        icon: '👥', color: '#3B82F6', href: '/equipo', status: 'active',
       },
-      {
-        id: 'finanzas',
-        name: 'Finanzas',
+      ...(canFinanzas ? [{
+        id: 'finanzas', name: 'Finanzas',
         description: 'Ingresos, gastos, rentabilidad por proyecto y flujo de caja',
-        icon: '📊',
-        color: '#10B981',
-        href: '/finanzas',
-        status: 'active'
-      }
-    ]
+        icon: '📊', color: '#10B981', href: '/finanzas', status: 'active',
+      }] : []),
+    ],
   });
 });
 
-// 404
+// ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).render('platform/404');
 });
 
+// ── Prewarm ───────────────────────────────────────────────────────────────────
 let prewarmInFlight = false;
-
 async function prewarmEquipoBootstrap() {
   if (!ENABLE_PREWARM || prewarmInFlight) return;
   prewarmInFlight = true;
@@ -70,11 +99,11 @@ async function prewarmEquipoBootstrap() {
   }
 }
 
-app.listen(PORT, '0.0.0.0', function() {
+app.listen(PORT, '0.0.0.0', function () {
   console.log('[Torus Dashboard] Running on http://0.0.0.0:' + PORT);
-  console.log('[Torus Dashboard] Platform ready at http://dashboard.torus.dev');
+  console.log('[Torus Dashboard] Platform ready at https://dashboard.torus.dev');
   if (ENABLE_PREWARM) {
-    setTimeout(function() {
+    setTimeout(function () {
       prewarmEquipoBootstrap();
       setInterval(prewarmEquipoBootstrap, PREWARM_INTERVAL_MS);
     }, 1500);

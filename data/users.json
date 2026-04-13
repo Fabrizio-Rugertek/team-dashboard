@@ -1,0 +1,14 @@
+{
+  "fabrizio@rugertek.com": {
+    "name": "Fabrizio Salomón",
+    "role": "admin",
+    "addedAt": "2026-04-13T00:00:00.000Z",
+    "addedBy": "system"
+  },
+  "rodrigo@rugertek.com": {
+    "name": "Rodrigo Campos",
+    "role": "admin",
+    "addedAt": "2026-04-13T00:00:00.000Z",
+    "addedBy": "system"
+  }
+}

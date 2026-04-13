@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
 
     res.render('dashboards/finanzas', {
       title: 'Finanzas - Torus Dashboard',
+      user:  req.user || null,
       year,
       fin,
       cxc,
