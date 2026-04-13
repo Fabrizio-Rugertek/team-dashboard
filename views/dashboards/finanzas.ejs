@@ -5,256 +5,457 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><%= title %></title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>* { font-family: 'Inter', sans-serif; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .kpi-delta-up   { color: #10b981; }
+    .kpi-delta-down { color: #ef4444; }
+    .aging-bar { transition: width .4s ease; }
+  </style>
 </head>
-<body class="bg-slate-50 min-h-screen">
+<body class="bg-slate-100 min-h-screen">
 
-<nav class="bg-white border-b border-slate-200 sticky top-0 z-50">
+<%
+  // ── Helpers ────────────────────────────────────────────────────────────
+  const gs = n => '₲\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(n || 0);
+  const gsM = n => {
+    const abs = Math.abs(n || 0);
+    if (abs >= 1e9) return (n/1e9).toFixed(1) + ' B';
+    if (abs >= 1e6) return (n/1e6).toFixed(1) + ' M';
+    if (abs >= 1e3) return Math.round(n/1e3) + ' K';
+    return String(Math.round(n || 0));
+  };
+  const pct = n => (n >= 0 ? '+' : '') + n + '%';
+  const bucketLabel = { current: 'Al día', d1_30: '1–30 días', d31_60: '31–60 días', d61_90: '61–90 días', d90plus: '+90 días' };
+  const bucketColor = { current: 'emerald', d1_30: 'amber', d31_60: 'orange', d61_90: 'red', d90plus: 'rose' };
+  const stateLabel  = { draft: 'Borrador', sent: 'Enviada' };
+  const stateColor  = { draft: 'slate', sent: 'blue' };
+%>
+
+<!-- ── Navbar ──────────────────────────────────────────────────────────── -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-        <span class="text-white font-bold text-sm">T</span>
-      </div>
+      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white text-sm">T</div>
       <span class="font-bold text-slate-900 text-lg">Torus</span>
       <span class="text-slate-400 text-sm font-medium">/ Finanzas</span>
       <span class="text-slate-300">·</span>
-      <a href="/" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">Ver todos</a>
+      <a href="/"       class="text-sm font-medium text-blue-600 hover:text-blue-800">Ver todos</a>
       <span class="text-slate-300">·</span>
-      <a href="/equipo" class="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors">Equipo</a>
+      <a href="/equipo" class="text-sm font-medium text-blue-600 hover:text-blue-800">Equipo</a>
     </div>
     <div class="flex items-center gap-3">
-      <a href="/" class="text-sm text-slate-500 hover:text-slate-900 font-medium">← Volver</a>
-      <select id="yearSelect" onchange="window.location.href='/finanzas?year='+this.value" class="text-sm border rounded-lg px-3 py-1.5 bg-white">
-        <% for(var y=2024; y<=new Date().getFullYear(); y++) { %>
-          <option value="<%= y %>" <%= (year === y) ? 'selected' : '' %>><%= y %></option>
+      <select onchange="location.href='/finanzas?year='+this.value"
+              class="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white font-medium">
+        <% for (let y = 2024; y <= new Date().getFullYear(); y++) { %>
+          <option value="<%= y %>" <%= y === year ? 'selected' : '' %>><%= y %></option>
         <% } %>
       </select>
-      <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-semibold text-slate-600">F</div>
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+        <span><%= lastUpdate %></span>
+      </div>
     </div>
   </div>
 </nav>
 
-<div class="max-w-7xl mx-auto px-4 py-6">
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-  <!-- KPI Cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <p class="text-sm text-slate-500 font-medium">Ingresos <%= year %></p>
-      <p class="text-2xl font-extrabold text-slate-900 mt-1"><%= new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(kpis.totalRevenue) %></p>
-      <p class="text-xs text-slate-400 mt-1">GS sin IVA</p>
-    </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <p class="text-sm text-slate-500 font-medium">Costos <%= year %></p>
-      <p class="text-2xl font-extrabold text-slate-900 mt-1"><%= new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(kpis.totalCost) %></p>
-      <p class="text-xs text-slate-400 mt-1">GS sin IVA</p>
-    </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <p class="text-sm text-slate-500 font-medium">Margen Bruto</p>
-      <p class="text-2xl font-extrabold <%= kpis.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %> mt-1"><%= new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(kpis.margin) %></p>
-      <p class="text-xs text-slate-400 mt-1"><%= kpis.marginPct >= 0 ? '+' : '' %><%= kpis.marginPct.toFixed(1) %> margen</p>
-    </div>
-    <div class="bg-white rounded-xl border border-slate-200 p-5">
-      <p class="text-sm text-slate-500 font-medium">Ultima actualizacion</p>
-      <p class="text-lg font-bold text-slate-700 mt-2"><%= lastUpdate %></p>
-    </div>
-  </div>
+  <!-- ── KPI Cards ───────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
 
-  <!-- Monthly bar chart -->
-  <div class="bg-white rounded-xl border border-slate-200 p-5 mb-6">
-    <h2 class="text-lg font-bold text-slate-800 mb-4">Ingresos vs Costos por Mes</h2>
-    <div class="flex items-end gap-1 h-40" id="monthlyChart">
-      <% var monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-         var allValues = Object.values(revByMonth).concat(Object.values(costByMonth));
-         var maxVal = Math.max.apply(null, allValues.length ? allValues : [1]);
-         for(var i=0; i<12; i++) {
-           var ms = year + '-' + String(i+1).padStart(2,'0');
-           var rev = revByMonth[ms] || 0;
-           var cost = costByMonth[ms] || 0;
-           var hRev = maxVal > 0 ? (rev / maxVal * 100) : 0;
-           var hCost = maxVal > 0 ? (cost / maxVal * 100) : 0;
-      %>
-        <div class="flex-1 flex flex-col items-center gap-0.5">
-          <div class="w-full flex flex-col-reverse gap-0.5" style="height:160px">
-            <div class="w-full bg-emerald-400 rounded-t hover:bg-emerald-500 transition" style="height:<%= hRev %>%; min-height:2px" title="Ingreso: <%= new Intl.NumberFormat('es-PY').format(rev) %>"></div>
-            <div class="w-full bg-red-400 rounded-t hover:bg-red-500 transition" style="height:<%= hCost %>%; min-height:2px" title="Costo: <%= new Intl.NumberFormat('es-PY').format(cost) %>"></div>
-          </div>
-          <span class="text-xs text-slate-500 mt-1"><%= monthNames[i] %></span>
+    <!-- Ingresos YTD -->
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Ingresos <%= year %></div>
+      <div class="text-2xl font-black text-slate-900">₲ <%= gsM(fin.totalRevenue) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= gs(fin.totalRevenue) %></div>
+      <% if (fin.curMonth.revDelta !== null) { %>
+        <div class="text-xs mt-1 font-semibold <%= fin.curMonth.revDelta >= 0 ? 'kpi-delta-up' : 'kpi-delta-down' %>">
+          <%= fin.curMonth.revDelta >= 0 ? '▲' : '▼' %> <%= Math.abs(fin.curMonth.revDelta) %>% vs mes ant.
         </div>
       <% } %>
     </div>
-    <div class="flex items-center gap-4 mt-3 text-xs text-slate-500">
-      <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-400 rounded inline-block"></span> Ingreso</span>
-      <span class="flex items-center gap-1"><span class="w-3 h-3 bg-red-400 rounded inline-block"></span> Costo</span>
+
+    <!-- Costos YTD -->
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Costos <%= year %></div>
+      <div class="text-2xl font-black text-slate-900">₲ <%= gsM(fin.totalCost) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= gs(fin.totalCost) %></div>
+      <div class="text-xs text-slate-400 mt-1">Facturas de proveedores</div>
+    </div>
+
+    <!-- Margen Bruto -->
+    <div class="bg-white rounded-xl border-2 <%= fin.totalMargin >= 0 ? 'border-emerald-200' : 'border-red-200' %> p-4">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Margen Bruto</div>
+      <div class="text-2xl font-black <%= fin.totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
+        ₲ <%= gsM(fin.totalMargin) %>
+      </div>
+      <div class="text-xs mt-1 font-bold <%= fin.totalMargin >= 0 ? 'text-emerald-500' : 'text-red-500' %>">
+        <%= fin.totalMargin >= 0 ? '+' : '' %><%= fin.marginPct %>% margen
+      </div>
+      <div class="text-xs text-amber-600 mt-1">⚠ Sin nómina</div>
+    </div>
+
+    <!-- CXC -->
+    <div class="bg-white rounded-xl border-2 border-amber-200 p-4 cursor-pointer hover:bg-amber-50 transition" onclick="document.getElementById('secCXC').scrollIntoView({behavior:'smooth'})">
+      <div class="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">CXC Pendiente</div>
+      <div class="text-2xl font-black text-amber-700">₲ <%= gsM(cxc.total) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= cxc.count %> facturas sin cobrar</div>
+      <% const overdue = cxc.buckets.d1_30 + cxc.buckets.d31_60 + cxc.buckets.d61_90 + cxc.buckets.d90plus; %>
+      <div class="text-xs text-red-500 font-semibold mt-1">₲ <%= gsM(overdue) %> vencido</div>
+    </div>
+
+    <!-- Pipeline -->
+    <div class="bg-white rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:bg-blue-50 transition" onclick="document.getElementById('secPipeline').scrollIntoView({behavior:'smooth'})">
+      <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Pipeline</div>
+      <div class="text-2xl font-black text-blue-700">₲ <%= gsM(pipeline.total) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= pipeline.count %> cotizaciones abiertas</div>
+      <div class="text-xs text-blue-500 font-semibold mt-1">₲ <%= gsM(pipeline.totalSent) %> enviadas</div>
+    </div>
+
+  </div>
+
+  <!-- ── Gráfico mensual ─────────────────────────────────────────────── -->
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-bold text-slate-800">Ingresos vs Costos — <%= year %></h2>
+      <div class="flex items-center gap-4 text-xs text-slate-500">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-500 inline-block"></span>Ingresos</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-red-400 inline-block"></span>Costos</span>
+        <span class="flex items-center gap-1.5"><span class="w-6 h-0.5 bg-blue-500 inline-block"></span>Margen %</span>
+      </div>
+    </div>
+    <div style="height:260px">
+      <canvas id="chartMonthly"></canvas>
     </div>
   </div>
 
-  <!-- EERR Table -->
-  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden mb-6">
-    <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-      <h2 class="text-lg font-bold text-slate-800">Estado de Resultados por Centro de Costo</h2>
-      <span class="text-xs text-slate-400">Click en fila para ver detalle</span>
+  <!-- ── EERR Table ──────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Estado de Resultados por Cuenta Analítica</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Ingresos (facturas emitidas) y Costos (facturas de proveedores) taggeados por cuenta analítica</p>
+      </div>
+      <span class="text-xs text-slate-400"><%= fin.eerrRows.length %> líneas</span>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead>
-          <tr class="bg-slate-50 border-b border-slate-200">
-            <th class="text-left px-5 py-3 font-semibold text-slate-600">Centro de Costo</th>
-            <th class="text-right px-4 py-3 font-semibold text-slate-600">Total Ingreso</th>
-            <th class="text-right px-4 py-3 font-semibold text-slate-600">Total Costo</th>
-            <th class="text-right px-4 py-3 font-semibold text-slate-600">Margen</th>
-            <th class="text-right px-4 py-3 font-semibold text-slate-600">%</th>
-            <% for(var mi=0; mi<monthNames.length; mi++) { %>
-              <th class="text-right px-3 py-3 font-semibold text-slate-600"><%= monthNames[mi] %></th>
-            <% } %>
+          <tr class="bg-slate-50 border-b border-slate-200 text-xs">
+            <th class="text-left px-5 py-3 font-semibold text-slate-600 min-w-48">Cuenta Analítica</th>
+            <th class="text-right px-3 py-3 font-semibold text-emerald-700">Ingresos</th>
+            <th class="text-right px-3 py-3 font-semibold text-red-600">Costos</th>
+            <th class="text-right px-3 py-3 font-semibold text-slate-700">Margen</th>
+            <th class="text-right px-3 py-3 font-semibold text-slate-500">%</th>
+            <% fin.months.forEach(m => { %><th class="text-right px-2 py-3 font-semibold text-slate-400"><%= m.label %></th><% }) %>
           </tr>
         </thead>
-        <tbody id="eerrTable">
-          <% for(var ri=0; ri<rows.length; ri++) {
-               var row = rows[ri];
-               var safeId = row.name.replace(/[^a-zA-Z0-9]/g, '_');
-               var marginClass = row.margin >= 0 ? 'text-emerald-600' : 'text-red-500';
-               var revTotalFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(row.totalRevenue);
-               var costTotalFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(row.totalCost);
-               var marginFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(row.margin);
-               var marginPctFmt = (row.marginPct >= 0 ? '+' : '') + row.marginPct.toFixed(1);
+        <tbody>
+          <% fin.eerrRows.forEach(row => {
+            const mClass = row.margin >= 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
+            const pClass = row.marginPct >= 0 ? 'text-emerald-500' : 'text-red-500';
           %>
-            <tr class="border-b border-slate-100 hover:bg-blue-50 cursor-pointer eerr-row" data-analytic="<%= row.name %>" onclick="toggleDetail(this)">
-              <td class="px-5 py-3 font-medium text-slate-800"><%= row.name %></td>
-              <td class="text-right px-4 py-3 text-emerald-700 font-semibold"><%= revTotalFmt %></td>
-              <td class="text-right px-4 py-3 text-red-600 font-semibold"><%= costTotalFmt %></td>
-              <td class="text-right px-4 py-3 font-bold <%= marginClass %>"><%= marginFmt %></td>
-              <td class="text-right px-4 py-3 text-slate-500"><%= marginPctFmt %></td>
-              <% for(var mi=0; mi<12; mi++) {
-                   var ms = year + '-' + String(mi+1).padStart(2,'0');
-                   var cellVal = (row.months && row.months[ms] && row.months[ms].revenue > 0) ? row.months[ms].revenue : null;
-                   var cellFmt = cellVal ? new Intl.NumberFormat('es-PY', {notation:'compact'}).format(cellVal) : '';
-                   var cellClass = cellVal ? 'text-emerald-600 font-medium' : 'text-slate-300';
-              %>
-                <td class="text-right px-3 py-3 <%= cellClass %>"><%= cellFmt %></td>
-              <% } %>
-            </tr>
-            <tr class="detail-row hidden">
-              <td colspan="17" class="px-5 py-4 bg-slate-50 border-l-4 border-blue-400">
-                <div class="flex items-center justify-between mb-3">
-                  <span class="font-semibold text-slate-700">Detalle: <%= row.name %></span>
-                  <div class="flex gap-2">
-                    <button onclick="loadDetail('revenue','<%= row.name %>')" class="text-xs px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition">Ver Ingresos</button>
-                    <button onclick="loadDetail('cost','<%= row.name %>')" class="text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition">Ver Costos</button>
-                    <a href="https://www.torus.dev/web#active_id=account.analytic.account&model=account.analytic.account&view_type=list" target="_blank" class="text-xs px-3 py-1.5 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition">Ir a Odoo</a>
-                  </div>
-                </div>
-                <div id="detail_<%= safeId %>" class="text-xs text-slate-500">Click en un boton para cargar detalle</div>
-              </td>
-            </tr>
-          <% } %>
-          <!-- Totals row -->
-          <% var tRevFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totals.totalRevenue);
-             var tCostFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totals.totalCost);
-             var tMarginFmt = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totals.margin);
-             var tMarginPctFmt = (totals.marginPct >= 0 ? '+' : '') + totals.marginPct.toFixed(1);
-             var tMarginClass = totals.margin >= 0 ? 'text-emerald-600' : 'text-red-500';
-          %>
-          <tr class="bg-slate-100 border-t-2 border-slate-300 font-bold">
-            <td class="px-5 py-3 text-slate-800">TOTALES</td>
-            <td class="text-right px-4 py-3 text-emerald-700"><%= tRevFmt %></td>
-            <td class="text-right px-4 py-3 text-red-600"><%= tCostFmt %></td>
-            <td class="text-right px-4 py-3 <%= tMarginClass %>"><%= tMarginFmt %></td>
-            <td class="text-right px-4 py-3 text-slate-600"><%= tMarginPctFmt %></td>
-            <% for(var mi=0; mi<12; mi++) {
-                 var ms = year + '-' + String(mi+1).padStart(2,'0');
-                 var tVal = (totals.byMonth && totals.byMonth[ms] && totals.byMonth[ms].revenue > 0) ? totals.byMonth[ms].revenue : null;
-                 var tFmt = tVal ? new Intl.NumberFormat('es-PY', {notation:'compact'}).format(tVal) : '';
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-5 py-2.5 font-medium text-slate-800 text-xs"><%= row.name %></td>
+            <td class="text-right px-3 py-2.5 text-emerald-700 text-xs"><%= gsM(row.totalRevenue) %></td>
+            <td class="text-right px-3 py-2.5 text-red-600 text-xs"><%= gsM(row.totalCost) %></td>
+            <td class="text-right px-3 py-2.5 text-xs <%= mClass %>"><%= gsM(row.margin) %></td>
+            <td class="text-right px-3 py-2.5 text-xs <%= pClass %>"><%= row.marginPct %>%</td>
+            <% row.months.forEach(m => {
+              const hasRev = m.revenue > 0;
+              const hasCost = m.cost > 0;
+              const cellClass = hasRev ? 'text-emerald-600' : hasCost ? 'text-red-500' : 'text-slate-200';
+              const val = hasRev ? gsM(m.revenue) : hasCost ? gsM(m.cost) : '';
             %>
-              <td class="text-right px-3 py-3 text-slate-600"><%= tFmt %></td>
-            <% } %>
+            <td class="text-right px-2 py-2.5 text-xs <%= cellClass %>" title="<%= m.label %>: Rev ₲<%= m.revenue.toLocaleString() %> | Cost ₲<%= m.cost.toLocaleString() %>">
+              <%= val %>
+            </td>
+            <% }) %>
           </tr>
+          <% }) %>
+
+          <!-- Totals row -->
+          <tr class="bg-slate-50 border-t-2 border-slate-300 font-bold text-xs">
+            <td class="px-5 py-3 font-extrabold text-slate-900">TOTAL</td>
+            <td class="text-right px-3 py-3 text-emerald-700"><%= gsM(fin.totalRevenue) %></td>
+            <td class="text-right px-3 py-3 text-red-600"><%= gsM(fin.totalCost) %></td>
+            <td class="text-right px-3 py-3 <%= fin.totalMargin >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%= gsM(fin.totalMargin) %></td>
+            <td class="text-right px-3 py-3 <%= fin.totalMargin >= 0 ? 'text-emerald-500' : 'text-red-500' %>"><%= fin.marginPct %>%</td>
+            <% fin.months.forEach(m => { %>
+            <td class="text-right px-2 py-3 <%= m.revenue > 0 ? 'text-emerald-600' : 'text-slate-300' %>">
+              <%= m.revenue > 0 ? gsM(m.revenue) : '' %>
+            </td>
+            <% }) %>
+          </tr>
+
+          <% if (fin.eerrRows.length === 0) { %>
+          <tr><td colspan="17" class="py-12 text-center text-slate-400">Sin datos para <%= year %></td></tr>
+          <% } %>
         </tbody>
       </table>
     </div>
+    <% if (fin.note) { %>
+    <div class="px-5 py-3 bg-amber-50 border-t border-amber-100 text-xs text-amber-700">⚠ <%= fin.note %></div>
+    <% } %>
   </div>
 
-  <div class="text-center text-sm text-slate-400 mb-8">
-    Datos reales en <a href="https://www.torus.dev" target="_blank" class="text-blue-500 hover:underline">Odoo Torus</a> &middot; <a href="https://github.com/Fabrizio-Rugertek/team-dashboard" target="_blank" class="text-blue-500 hover:underline">Codigo en GitHub</a>
+  <!-- ── CXC ─────────────────────────────────────────────────────────── -->
+  <div id="secCXC">
+    <div class="flex items-center gap-3 mb-4">
+      <h2 class="text-xl font-extrabold text-slate-900">Cuentas por Cobrar</h2>
+      <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full"><%= cxc.count %> facturas · ₲ <%= gsM(cxc.total) %></span>
+    </div>
+
+    <!-- Aging buckets -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <%
+        const agingCfg = [
+          { key: 'current', label: 'Al día',      color: 'emerald', icon: '✅' },
+          { key: 'd1_30',   label: '1–30 días',   color: 'amber',   icon: '🟡' },
+          { key: 'd31_60',  label: '31–60 días',  color: 'orange',  icon: '🟠' },
+          { key: 'd61_90',  label: '61–90 días',  color: 'red',     icon: '🔴' },
+          { key: 'd90plus', label: '+90 días',     color: 'rose',    icon: '💀' },
+        ];
+        agingCfg.forEach(cfg => {
+          const amount = cxc.buckets[cfg.key] || 0;
+          const pctOfTotal = cxc.total > 0 ? Math.round(amount / cxc.total * 100) : 0;
+      %>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xl mb-1"><%= cfg.icon %></div>
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"><%= cfg.label %></div>
+        <div class="text-xl font-black text-slate-900">₲ <%= gsM(amount) %></div>
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+          <div class="aging-bar bg-<%= cfg.color %>-400 h-1.5 rounded-full" style="width:<%= pctOfTotal %>%"></div>
+        </div>
+        <div class="text-xs text-slate-400 mt-1"><%= pctOfTotal %>% del total</div>
+      </div>
+      <% }) %>
+    </div>
+
+    <!-- CXC Table -->
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto max-h-72 overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+            <tr class="text-xs">
+              <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Factura</th>
+              <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Cliente</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Vencimiento</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Días vencida</th>
+              <th class="text-right px-4 py-2.5 font-semibold text-slate-600">Pendiente</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cxc.items.forEach(inv => {
+              const isOverdue = inv.daysOverdue > 0;
+              const rowBg = inv.bucket === 'd90plus' ? 'bg-red-50' : inv.bucket === 'd61_90' ? 'bg-orange-50' : '';
+            %>
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition <%= rowBg %>">
+              <td class="px-4 py-2 text-xs font-mono text-slate-700"><%= inv.name %></td>
+              <td class="px-3 py-2 text-xs font-medium text-slate-800 max-w-xs truncate"><%= inv.partner %></td>
+              <td class="px-3 py-2 text-xs text-center <%= isOverdue ? 'text-red-600 font-semibold' : 'text-slate-500' %>"><%= inv.dueDate || '—' %></td>
+              <td class="px-3 py-2 text-center">
+                <% if (inv.daysOverdue > 0) { %>
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold
+                    <%= inv.bucket === 'd90plus' ? 'bg-rose-100 text-rose-700' : inv.bucket === 'd61_90' ? 'bg-red-100 text-red-700' : inv.bucket === 'd31_60' ? 'bg-orange-100 text-orange-700' : 'bg-amber-100 text-amber-700' %>">
+                    <%= inv.daysOverdue %>d
+                  </span>
+                <% } else { %>
+                  <span class="text-xs text-emerald-500">Al día</span>
+                <% } %>
+              </td>
+              <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%= gs(inv.residual) %></td>
+              <td class="px-3 py-2 text-center">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600">
+                  <%= inv.bucket === 'current' ? 'Vigente' : 'Vencida' %>
+                </span>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (cxc.items.length === 0) { %>
+            <tr><td colspan="6" class="py-8 text-center text-slate-400">Sin facturas pendientes ✅</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
-</div>
+
+  <!-- ── Pipeline ────────────────────────────────────────────────────── -->
+  <div id="secPipeline">
+    <div class="flex items-center gap-3 mb-4">
+      <h2 class="text-xl font-extrabold text-slate-900">Pipeline Comercial</h2>
+      <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full"><%= pipeline.count %> cotizaciones · ₲ <%= gsM(pipeline.total) %></span>
+    </div>
+
+    <!-- Pipeline summary -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Total Pipeline</div>
+        <div class="text-2xl font-black text-blue-700">₲ <%= gsM(pipeline.total) %></div>
+        <div class="text-xs text-slate-400 mt-1"><%= pipeline.count %> cotizaciones</div>
+      </div>
+      <div class="bg-white rounded-xl border border-blue-200 p-4">
+        <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Enviadas</div>
+        <div class="text-2xl font-black text-blue-700">₲ <%= gsM(pipeline.totalSent) %></div>
+        <div class="text-xs text-slate-400 mt-1"><%= pipeline.countSent %> cotiz. · esperando respuesta</div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Borradores</div>
+        <div class="text-2xl font-black text-slate-700">₲ <%= gsM(pipeline.totalDraft) %></div>
+        <div class="text-xs text-slate-400 mt-1"><%= pipeline.countDraft %> cotiz. · sin enviar</div>
+      </div>
+      <div class="bg-white rounded-xl border border-emerald-200 p-4">
+        <div class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Tasa de Cierre est.</div>
+        <div class="text-2xl font-black text-emerald-700">—</div>
+        <div class="text-xs text-slate-400 mt-1">Próximamente</div>
+      </div>
+    </div>
+
+    <!-- Pipeline Table -->
+    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div class="overflow-x-auto max-h-72 overflow-y-auto">
+        <table class="w-full text-sm">
+          <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+            <tr class="text-xs">
+              <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Cotización</th>
+              <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Cliente</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
+              <th class="text-right px-4 py-2.5 font-semibold text-slate-600">Monto</th>
+              <th class="text-left px-3 py-2.5 font-semibold text-slate-600">Responsable</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Fecha</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Vence</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% pipeline.items.forEach(o => { %>
+            <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+              <td class="px-4 py-2 text-xs font-mono text-slate-700"><%= o.name %></td>
+              <td class="px-3 py-2 text-xs font-medium text-slate-800 max-w-xs truncate"><%= o.partner %></td>
+              <td class="px-3 py-2 text-center">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold
+                  <%= o.state === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600' %>">
+                  <%= o.state === 'sent' ? 'Enviada' : 'Borrador' %>
+                </span>
+              </td>
+              <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%= gs(o.amount) %></td>
+              <td class="px-3 py-2 text-xs text-slate-500 max-w-xs truncate"><%= o.user %></td>
+              <td class="px-3 py-2 text-xs text-center text-slate-500"><%= o.date || '—' %></td>
+              <td class="px-3 py-2 text-xs text-center <%= o.validUntil && o.validUntil < new Date().toISOString().slice(0,10) ? 'text-red-500 font-semibold' : 'text-slate-500' %>">
+                <%= o.validUntil || '—' %>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (pipeline.items.length === 0) { %>
+            <tr><td colspan="7" class="py-8 text-center text-slate-400">Sin cotizaciones abiertas</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center text-xs text-slate-400 pb-6">
+    Datos al <%= lastUpdate %> · Cache financiero: 1 hora · CXC: 15 min
+  </div>
+
+</div><!-- end max-w-7xl -->
 
 <script>
-function toggleDetail(row) {
-  var next = row.nextElementSibling;
-  if (next && next.classList.contains('detail-row')) next.classList.toggle('hidden');
-}
+<%
+  const chartData = JSON.stringify({
+    labels:   fin.months.map(m => m.label),
+    revenue:  fin.months.map(m => m.revenue),
+    cost:     fin.months.map(m => m.cost),
+    margin:   fin.months.map(m => m.marginPct),
+  });
+%>
+(function() {
+  const d = <%- chartData %>;
+  const fmt = n => '₲\u00A0' + new Intl.NumberFormat('es-PY', {maximumFractionDigits:0}).format(n||0);
 
-var detailCache = {};
-
-async function loadDetail(type, analytic) {
-  var months = [];
-  for(var m=1; m<=12; m++) {
-    months.push('2026-' + String(m).padStart(2,'0'));
-  }
-  var monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  var key = type + '|' + analytic;
-  var containerId = 'detail_' + analytic.replace(/[^a-zA-Z0-9]/g, '_');
-  var container = document.getElementById(containerId);
-  if (!container) return;
-
-  if (detailCache[key]) {
-    container.innerHTML = detailCache[key];
-    return;
-  }
-
-  container.innerHTML = '<div class="text-center py-4 text-slate-400">Cargando datos de Odoo...</div>';
-
-  try {
-    var results = [];
-    for(var i=0; i<months.length; i++) {
-      var m = months[i];
-      var r = await fetch('/finanzas/detail?type=' + type + '&analytic=' + encodeURIComponent(analytic) + '&month=' + m);
-      results.push(await r.json());
-    }
-
-    var html = '<table class=\"w-full\"><thead><tr><th class=\"text-left text-slate-500\">Fecha</th><th class=\"text-left text-slate-500\">Doc</th><th class=\"text-left text-slate-500\">Partner</th><th class=\"text-left text-slate-500\">Descripcion</th><th class=\"text-right text-slate-500\">Monto</th><th class=\"text-right text-slate-500\">Ir a Odoo</th></tr></thead><tbody>';
-
-    var totalAmt = 0;
-    var rowCount = 0;
-    var typeColor = type === 'revenue' ? 'text-emerald-600' : 'text-red-600';
-
-    for(var i=0; i<months.length; i++) {
-      var data = results[i];
-      if (!data.lines || data.lines.length === 0) continue;
-      for(var j=0; j<data.lines.length; j++) {
-        var line = data.lines[j];
-        rowCount++;
-        totalAmt += line.amount;
-        var amtStr = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(line.amount);
-        var odooUrl = 'https://www.torus.dev/web#id=' + line.move_id + '&model=account.move&view_type=form';
-        html += '<tr class=\"border-t border-slate-100\">';
-        html += '<td class=\"py-2 pr-4 text-slate-600\">' + line.date + '</td>';
-        html += '<td class=\"py-2 pr-4 text-slate-500\">' + line.move_name + '</td>';
-        html += '<td class=\"py-2 pr-4 text-slate-600\">' + line.partner_name + '</td>';
-        html += '<td class=\"py-2 pr-4 text-slate-600\">' + line.desc + '</td>';
-        html += '<td class=\"py-2 pr-4 text-right font-semibold ' + typeColor + '\">' + amtStr + '</td>';
-        html += '<td class=\"py-2 pr-4 text-right\"><a href=\"' + odooUrl + '\" target=\"_blank\" class=\"text-blue-500 hover:underline text-xs\">Ver</a></td>';
-        html += '</tr>';
-      }
-    }
-
-    if (rowCount === 0) {
-      html += '<tr><td colspan=\"6\" class=\"py-4 text-center text-slate-400\">Sin registros</td></tr>';
-    } else {
-      var totalStr = new Intl.NumberFormat('es-PY', {minimumFractionDigits:0}).format(totalAmt);
-      html += '<tr class=\"border-t-2 border-slate-300 bg-slate-50\"><td colspan=\"4\" class=\"py-2 font-bold text-slate-700\">Total ' + rowCount + ' registros</td>';
-      html += '<td class=\"py-2 text-right font-bold ' + typeColor + '\">' + totalStr + '</td><td></td></tr>';
-    }
-
-    html += '</tbody></table>';
-    container.innerHTML = html;
-    detailCache[key] = html;
-  } catch(e) {
-    container.innerHTML = '<div class=\"text-red-500 py-2\">Error: ' + e.message + '</div>';
-  }
-}
+  const ctx = document.getElementById('chartMonthly').getContext('2d');
+  new Chart(ctx, {
+    data: {
+      labels: d.labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Ingresos',
+          data: d.revenue,
+          backgroundColor: 'rgba(16,185,129,0.75)',
+          borderColor: 'rgb(16,185,129)',
+          borderWidth: 1,
+          borderRadius: 4,
+          order: 2,
+        },
+        {
+          type: 'bar',
+          label: 'Costos',
+          data: d.cost,
+          backgroundColor: 'rgba(239,68,68,0.65)',
+          borderColor: 'rgb(239,68,68)',
+          borderWidth: 1,
+          borderRadius: 4,
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: 'Margen %',
+          data: d.margin,
+          borderColor: 'rgb(59,130,246)',
+          backgroundColor: 'rgba(59,130,246,0.1)',
+          borderWidth: 2,
+          pointRadius: 3,
+          tension: 0.3,
+          yAxisID: 'yPct',
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Margen %') {
+                return ctx.raw !== null ? ` Margen: ${ctx.raw}%` : ' Margen: —';
+              }
+              return ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            font: { size: 10 },
+            callback: v => {
+              if (v >= 1e6) return '₲ ' + (v/1e6).toFixed(0) + 'M';
+              if (v >= 1e3) return '₲ ' + (v/1e3).toFixed(0) + 'K';
+              return '₲ ' + v;
+            },
+          },
+        },
+        yPct: {
+          position: 'right',
+          beginAtZero: false,
+          grid: { drawOnChartArea: false },
+          ticks: { font: { size: 10 }, callback: v => v + '%' },
+        },
+      },
+    },
+  });
+})();
 </script>
-
 </body>
 </html>

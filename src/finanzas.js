@@ -1,308 +1,267 @@
-/**
- * Odoo data fetcher for the Finance / EERR dashboard.
- * Fetches revenue and cost data from customer invoices and vendor bills,
- * grouped by analytic account tag and month, with drill-down support.
- */
 'use strict';
 
-const xmlrpc = require('xmlrpc');
-const { URL } = require('url');
-require('dotenv').config();
+/**
+ * Odoo data layer for the Finance dashboard.
+ * Uses batched queries (2 round-trips instead of N+1) for speed.
+ */
 
-const ODOO_URL = process.env.ODOO_URL;
-const ODOO_DB = process.env.ODOO_DB;
-const ODOO_USER = process.env.ODOO_USER;
-const ODOO_PASSWORD = process.env.ODOO_PASSWORD;
-const TORUS_COMPANY_ID = 1;
+const { callKw } = require('./odoo');
 
-let _uid = null;
-let _client = null;
-let _models = null;
-let _authPromise = null;
+const TORUS_COMPANY_ID  = 1;
+const SKIP_ACCOUNT_IDS  = new Set([3908, 3914, 3923]); // IVA / tax throughput accounts
+const MONTH_LABELS      = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const CACHE_TTL_MS      = 60 * 60 * 1000; // 1 hour for financial data
 
-function getTarget(pathname) {
-  const parsed = new URL(ODOO_URL);
-  return {
-    host: parsed.hostname,
-    port: Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80)),
-    path: pathname,
-    headers: { Host: parsed.hostname }
-  };
-}
+const _finCache = { data: null, time: 0, year: null };
+const _cxcCache = { data: null, time: 0 };
 
-function getClient() {
-  if (!_client) _client = xmlrpc.createSecureClient(getTarget('/xmlrpc/2/common'));
-  return _client;
-}
+function pad(n) { return String(n).padStart(2, '0'); }
+function monthKey(dateStr) { return dateStr ? String(dateStr).slice(0, 7) : null; }
 
-function getModels() {
-  if (!_models) _models = xmlrpc.createSecureClient(getTarget('/xmlrpc/2/object'));
-  return _models;
-}
+// ── Main financial data ───────────────────────────────────────────────────
 
-async function authenticate() {
-  if (_uid) return _uid;
-  if (_authPromise) return _authPromise;
-  _authPromise = new Promise((resolve, reject) => {
-    getClient().methodCall('authenticate', [ODOO_DB, ODOO_USER, ODOO_PASSWORD, {}], (err, uid) => {
-      if (err || !uid) { reject(err || new Error('Auth failed')); return; }
-      _uid = uid;
-      resolve(uid);
-    });
+async function fetchFinancialData(year) {
+  const now = Date.now();
+  if (_finCache.data && _finCache.year === year && now - _finCache.time < CACHE_TTL_MS) {
+    return _finCache.data;
+  }
+
+  const dateFrom = `${year}-01-01`;
+  const dateTo   = `${year}-12-31`;
+
+  // 1. All posted invoices + bills for the year — one query
+  const moves = await callKw('account.move', 'search_read', [[
+    ['move_type',    'in', ['out_invoice', 'in_invoice']],
+    ['state',        '=',  'posted'],
+    ['invoice_date', '>=', dateFrom],
+    ['invoice_date', '<=', dateTo],
+    ['company_id',   '=',  TORUS_COMPANY_ID],
+  ]], {
+    fields: ['id', 'name', 'move_type', 'invoice_date', 'partner_id', 'amount_untaxed'],
+    limit: 2000,
   });
-  try { return await _authPromise; } finally { _authPromise = null; }
-}
 
-async function callKw(model, method, args, kwargs) {
-  return new Promise(async (resolve, reject) => {
-    let uid;
-    try { uid = await authenticate(); } catch(e) { reject(e); return; }
-    const params = [ODOO_DB, uid, ODOO_PASSWORD, model, method, args];
-    if (kwargs && Object.keys(kwargs).length) params.push(kwargs);
-    getModels().methodCall('execute_kw', params, (err, data) => {
-      if (err) reject(new Error(err.faultString || err.message));
-      else resolve(data);
-    });
+  if (!moves.length) return _buildEmpty(year);
+
+  const moveIds  = moves.map(m => m.id);
+  const moveById = new Map(moves.map(m => [m.id, m]));
+
+  // 2. All lines for all moves — one query
+  const allLines = await callKw('account.move.line', 'search_read', [[
+    ['move_id', 'in', moveIds],
+  ]], {
+    fields: ['move_id', 'name', 'account_id', 'credit', 'debit', 'analytic_distribution'],
+    limit: 10000,
   });
-}
 
-function getMonth(dateStr) {
-  if (!dateStr || typeof dateStr !== 'string') return null;
-  return dateStr.slice(0, 7);
-}
-
-async function getAnalyticNamesBatch(analyticIds) {
-  if (!analyticIds || analyticIds.length === 0) return {};
-  const uniqueIds = [...new Set(analyticIds.filter(Boolean))];
-  const records = await callKw('account.analytic.account', 'read', [uniqueIds], { fields: ['id', 'name'] });
-  const map = {};
-  for (const r of records) map[r.id] = r.name;
-  return map;
-}
-
-// Revenue: customer invoices with analytic tags
-async function fetchRevenueByMonth(year) {
-  const dateFrom = year + '-01-01';
-  const dateTo = year + '-12-31';
-  const SKIP_ACCOUNTS = [3908, 3914, 3923];
-
-  const moves = await callKw('account.move', 'search_read',
-    [
-      [
-        ['move_type', '=', 'out_invoice'],
-        ['state', '=', 'posted'],
-        ['invoice_date', '>=', dateFrom],
-        ['invoice_date', '<=', dateTo],
-        ['company_id', '=', TORUS_COMPANY_ID]
-      ]
-    ],
-    { fields: ['id', 'name', 'partner_id', 'invoice_date', 'amount_total'], context: { bin_size: true } }
-  );
-
-  const revenueByMonth = {};
-  const revenueByProduct = {};
-  const revenueDetail = [];
-  const pendingAnalyticIds = [];
-
-  // First pass: collect all data + pending analytic ids
-  for (const m of moves) {
-    const month = getMonth(m.invoice_date);
-    if (!month) continue;
-
-    revenueByMonth[month] = (revenueByMonth[month] || 0) + (m.amount_total || 0);
-
-    const lines = await callKw('account.move.line', 'search_read',
-      [
-        [
-          ['move_id', '=', m.id],
-          ['credit', '>', 0],
-          ['account_id', 'not in', SKIP_ACCOUNTS]
-        ]
-      ],
-      { fields: ['id', 'name', 'account_id', 'credit', 'analytic_distribution'] }
-    );
-
-    for (const l of lines) {
-      const desc = (l.name || '');
-      if (!desc || desc.length < 3) continue;
-
-      const analyticDist = l.analytic_distribution;
-      let analyticName = 'SIN TAG';
-      let analyticId = null;
-      if (analyticDist) {
-        analyticId = parseInt(Object.keys(analyticDist)[0]);
-        if (analyticId) pendingAnalyticIds.push(analyticId);
-      }
-
-      const key = month + '|' + analyticName;
-      if (!revenueByProduct[key]) {
-        revenueByProduct[key] = { analytic: analyticName, analyticId: analyticId, month: month, total: 0, count: 0, partner_ids: [] };
-      }
-      revenueByProduct[key].total += l.credit;
-      revenueByProduct[key].count += 1;
-      if (m.partner_id) revenueByProduct[key].partner_ids.push(m.partner_id[0]);
-
-      revenueDetail.push({
-        line_id: l.id,
-        date: m.invoice_date,
-        partner_id: m.partner_id ? m.partner_id[0] : null,
-        partner_name: m.partner_id ? m.partner_id[1] : '?',
-        desc: desc.slice(0, 80),
-        account_name: l.account_id ? l.account_id[1] : '?',
-        analytic: analyticName,
-        amount: l.credit,
-        move_id: m.id,
-        move_name: m.name,
-      });
+  // 3. Batch-resolve analytic account names
+  const analyticIds = new Set();
+  for (const l of allLines) {
+    if (l.analytic_distribution) {
+      for (const id of Object.keys(l.analytic_distribution)) analyticIds.add(parseInt(id));
     }
   }
-
-  // Batch resolve analytic names
-  const analyticMap = await getAnalyticNamesBatch(pendingAnalyticIds);
-
-  // Second pass: resolve analytic names using cached map
-  for (const row of Object.values(revenueByProduct)) {
-    if (row.analyticId && analyticMap[row.analyticId]) {
-      row.analytic = analyticMap[row.analyticId];
-    }
+  const analyticById = {};
+  if (analyticIds.size) {
+    const accs = await callKw('account.analytic.account', 'read', [[...analyticIds]], {
+      fields: ['id', 'name'],
+    });
+    for (const a of accs) analyticById[a.id] = a.name;
   }
 
-  // Update detail records
-  for (const row of revenueDetail) {
-    if (row.analytic !== 'SIN TAG') continue;
-    // Already resolved via map in first pass - nothing to do
-  }
-
-  // Rebuild byProduct with resolved names
-  const byProductResolved = {};
-  for (const r of Object.values(revenueByProduct)) {
-    const key = r.month + '|' + r.analytic;
-    if (!byProductResolved[key]) {
-      byProductResolved[key] = { analytic: r.analytic, month: r.month, total: 0, count: 0, partner_ids: [] };
-    }
-    byProductResolved[key].total += r.total;
-    byProductResolved[key].count += r.count;
-    byProductResolved[key].partner_ids.push(...r.partner_ids);
-  }
-
-  return {
-    byMonth: revenueByMonth,
-    byProduct: Object.values(byProductResolved),
-    detail: revenueDetail,
-  };
-}
-
-// Costs: vendor bills with analytic tags
-async function fetchCostsByMonth(year) {
-  const dateFrom = year + '-01-01';
-  const dateTo = year + '-12-31';
-
-  const moves = await callKw('account.move', 'search_read',
-    [
-      [
-        ['move_type', '=', 'in_invoice'],
-        ['state', '=', 'posted'],
-        ['invoice_date', '>=', dateFrom],
-        ['invoice_date', '<=', dateTo],
-        ['company_id', '=', TORUS_COMPANY_ID]
-      ]
-    ],
-    { fields: ['id', 'name', 'partner_id', 'invoice_date', 'amount_total'], context: { bin_size: true } }
-  );
-
+  // 4. Aggregate in memory
+  const revByMonth  = {};
   const costByMonth = {};
-  const costByAnalytic = {};
-  const costDetail = [];
-  const pendingAnalyticIds = [];
+  const byAnalytic  = {}; // name -> { revByMonth, costByMonth, totalRev, totalCost }
 
-  for (const m of moves) {
-    const month = getMonth(m.invoice_date);
+  for (const l of allLines) {
+    const move = moveById.get(l.move_id?.[0]);
+    if (!move) continue;
+    if (l.account_id && SKIP_ACCOUNT_IDS.has(l.account_id[0])) continue;
+
+    const month  = monthKey(move.invoice_date);
     if (!month) continue;
 
-    costByMonth[month] = (costByMonth[month] || 0) + (m.amount_total || 0);
+    const isRev  = move.move_type === 'out_invoice';
+    const amount = isRev ? (l.credit || 0) : (l.debit || 0);
+    if (amount <= 0) continue;
 
-    const lines = await callKw('account.move.line', 'search_read',
-      [
-        [
-          ['move_id', '=', m.id],
-          ['debit', '>', 0]
-        ]
-      ],
-      { fields: ['id', 'name', 'account_id', 'debit', 'analytic_distribution'] }
-    );
-
-    for (const l of lines) {
-      if (!l.debit || l.debit <= 0) continue;
-      const desc = (l.name || '');
-      if (!desc || desc.length < 3) continue;
-
-      const analyticDist = l.analytic_distribution;
-      let analyticName = 'SIN TAG';
-      let analyticId = null;
-      if (analyticDist) {
-        analyticId = parseInt(Object.keys(analyticDist)[0]);
-        if (analyticId) pendingAnalyticIds.push(analyticId);
-      }
-
-      const key = month + '|' + analyticName;
-      if (!costByAnalytic[key]) {
-        costByAnalytic[key] = { analytic: analyticName, analyticId: analyticId, month: month, total: 0, count: 0, partner_ids: [] };
-      }
-      costByAnalytic[key].total += l.debit;
-      costByAnalytic[key].count += 1;
-      if (m.partner_id) costByAnalytic[key].partner_ids.push(m.partner_id[0]);
-
-      costDetail.push({
-        line_id: l.id,
-        date: m.invoice_date,
-        partner_id: m.partner_id ? m.partner_id[0] : null,
-        partner_name: m.partner_id ? m.partner_id[1] : '?',
-        desc: desc.slice(0, 80),
-        account_name: l.account_id ? l.account_id[1] : '?',
-        analytic: analyticName,
-        amount: l.debit,
-        move_id: m.id,
-        move_name: m.name,
-      });
+    // Resolve analytic name
+    let analytic = 'Sin clasificar';
+    if (l.analytic_distribution) {
+      const firstId = parseInt(Object.keys(l.analytic_distribution)[0]);
+      if (analyticById[firstId]) analytic = analyticById[firstId];
     }
+
+    // Monthly totals
+    if (isRev) revByMonth[month]  = (revByMonth[month]  || 0) + amount;
+    else       costByMonth[month] = (costByMonth[month] || 0) + amount;
+
+    // By analytic
+    if (!byAnalytic[analytic]) {
+      byAnalytic[analytic] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
+    }
+    const a = byAnalytic[analytic];
+    if (isRev) { a.revByMonth[month]  = (a.revByMonth[month]  || 0) + amount; a.totalRev  += amount; }
+    else       { a.costByMonth[month] = (a.costByMonth[month] || 0) + amount; a.totalCost += amount; }
   }
 
-  // Batch resolve analytic names
-  const analyticMap = await getAnalyticNamesBatch(pendingAnalyticIds);
-
-  for (const row of Object.values(costByAnalytic)) {
-    if (row.analyticId && analyticMap[row.analyticId]) {
-      row.analytic = analyticMap[row.analyticId];
-    }
+  // 5. Build 12-month series
+  const months = [];
+  for (let m = 1; m <= 12; m++) {
+    const ms   = `${year}-${pad(m)}`;
+    const rev  = revByMonth[ms]  || 0;
+    const cost = costByMonth[ms] || 0;
+    months.push({
+      month: ms, label: MONTH_LABELS[m - 1],
+      revenue: rev, cost, margin: rev - cost,
+      marginPct: rev > 0 ? Math.round((rev - cost) / rev * 100) : null,
+    });
   }
 
-  const byAnalyticResolved = {};
-  for (const c of Object.values(costByAnalytic)) {
-    const key = c.month + '|' + c.analytic;
-    if (!byAnalyticResolved[key]) {
-      byAnalyticResolved[key] = { analytic: c.analytic, month: c.month, total: 0, count: 0, partner_ids: [] };
-    }
-    byAnalyticResolved[key].total += c.total;
-    byAnalyticResolved[key].count += c.count;
-    byAnalyticResolved[key].partner_ids.push(...c.partner_ids);
-  }
+  const totalRevenue = months.reduce((s, m) => s + m.revenue, 0);
+  const totalCost    = months.reduce((s, m) => s + m.cost,    0);
+  const totalMargin  = totalRevenue - totalCost;
+  const marginPct    = totalRevenue > 0 ? (totalMargin / totalRevenue * 100).toFixed(1) : '0.0';
 
+  // Month-over-month comparison
+  const today    = new Date();
+  const curMs    = `${year}-${pad(today.getMonth() + 1)}`;
+  const prevDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const prevMs   = `${prevDate.getFullYear()}-${pad(prevDate.getMonth() + 1)}`;
+  const curM     = months.find(m => m.month === curMs)  || { revenue: 0, cost: 0, margin: 0 };
+  const prevM    = months.find(m => m.month === prevMs) || { revenue: 0, cost: 0, margin: 0 };
+  const revDelta = prevM.revenue > 0
+    ? Math.round((curM.revenue - prevM.revenue) / prevM.revenue * 100)
+    : null;
+
+  // EERR rows sorted by revenue desc
+  const eerrRows = Object.entries(byAnalytic)
+    .map(([name, d]) => ({
+      name,
+      totalRevenue: d.totalRev,
+      totalCost:    d.totalCost,
+      margin:       d.totalRev - d.totalCost,
+      marginPct:    d.totalRev > 0 ? Math.round((d.totalRev - d.totalCost) / d.totalRev * 100) : 0,
+      months: months.map(m => ({
+        label:   m.label,
+        month:   m.month,
+        revenue: d.revByMonth[m.month]  || 0,
+        cost:    d.costByMonth[m.month] || 0,
+      })),
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  const result = {
+    year, months, totalRevenue, totalCost, totalMargin, marginPct,
+    curMonth: { ...curM, label: MONTH_LABELS[today.getMonth()], revDelta },
+    eerrRows,
+    note: 'Los costos no incluyen nómina (payslips no registrados en Odoo).',
+    generatedAt: new Date().toISOString(),
+  };
+
+  _finCache.data = result;
+  _finCache.time = Date.now();
+  _finCache.year = year;
+  console.log(`[Finanzas] year=${year} rev=${totalRevenue.toLocaleString()} cost=${totalCost.toLocaleString()} rows=${eerrRows.length}`);
+  return result;
+}
+
+function _buildEmpty(year) {
+  const months = MONTH_LABELS.map((label, i) => ({
+    month: `${year}-${pad(i + 1)}`, label,
+    revenue: 0, cost: 0, margin: 0, marginPct: null,
+  }));
   return {
-    byMonth: costByMonth,
-    byAnalytic: Object.values(byAnalyticResolved),
-    detail: costDetail,
+    year, months,
+    totalRevenue: 0, totalCost: 0, totalMargin: 0, marginPct: '0.0',
+    curMonth: { revenue: 0, cost: 0, margin: 0, revDelta: null },
+    eerrRows: [],
+    note: 'Sin datos para el año seleccionado.',
+    generatedAt: new Date().toISOString(),
   };
 }
 
-async function fetchAnalyticAccounts() {
-  return callKw('account.analytic.account', 'search_read',
-    [[['plan_id', 'in', [2, 3]]]],
-    { fields: ['id', 'name', 'plan_id'], context: { bin_size: true } }
-  );
+// ── Cuentas por Cobrar (CXC) with aging ──────────────────────────────────
+
+async function fetchCXC() {
+  const now = Date.now();
+  if (_cxcCache.data && now - _cxcCache.time < 15 * 60 * 1000) return _cxcCache.data;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const invoices = await callKw('account.move', 'search_read', [[
+    ['move_type',     '=',  'out_invoice'],
+    ['state',         '=',  'posted'],
+    ['payment_state', 'in', ['not_paid', 'partial']],
+    ['company_id',    '=',  TORUS_COMPANY_ID],
+  ]], {
+    fields: ['name', 'partner_id', 'invoice_date', 'invoice_date_due',
+             'amount_total', 'amount_residual', 'payment_state'],
+    order: 'invoice_date_due asc',
+    limit: 300,
+  });
+
+  const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 };
+  const items   = [];
+
+  for (const inv of invoices) {
+    const residual = inv.amount_residual || 0;
+    if (residual <= 0) continue;
+
+    const due = inv.invoice_date_due || null;
+    let daysOverdue = 0;
+    let bucket = 'current';
+
+    if (due && due < today) {
+      daysOverdue = Math.round((new Date(today) - new Date(due)) / 86400000);
+      if      (daysOverdue <= 30) bucket = 'd1_30';
+      else if (daysOverdue <= 60) bucket = 'd31_60';
+      else if (daysOverdue <= 90) bucket = 'd61_90';
+      else                        bucket = 'd90plus';
+    }
+
+    buckets[bucket] += residual;
+    items.push({
+      name: inv.name, partner: inv.partner_id?.[1] || '?',
+      invoiceDate: inv.invoice_date, dueDate: due,
+      total: inv.amount_total, residual, daysOverdue, bucket,
+    });
+  }
+
+  const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+  const data  = { total, buckets, items, count: items.length };
+  _cxcCache.data = data;
+  _cxcCache.time = Date.now();
+  return data;
 }
 
-module.exports = {
-  fetchRevenueByMonth,
-  fetchCostsByMonth,
-  fetchAnalyticAccounts,
-};
+// ── Pipeline comercial ────────────────────────────────────────────────────
+
+async function fetchPipeline() {
+  const orders = await callKw('sale.order', 'search_read', [[
+    ['state',      'in', ['draft', 'sent']],
+    ['company_id', '=',  TORUS_COMPANY_ID],
+  ]], {
+    fields: ['name', 'partner_id', 'state', 'amount_total', 'user_id', 'date_order', 'validity_date'],
+    order: 'amount_total desc',
+    limit: 100,
+  });
+
+  let totalDraft = 0, totalSent = 0, countDraft = 0, countSent = 0;
+  const items = orders.map(o => {
+    const amount = o.amount_total || 0;
+    if (o.state === 'draft') { totalDraft += amount; countDraft++; }
+    else                     { totalSent  += amount; countSent++;  }
+    return {
+      name: o.name, partner: o.partner_id?.[1] || '?', state: o.state,
+      amount, user: o.user_id?.[1] || '?',
+      date: o.date_order?.slice(0, 10), validUntil: o.validity_date || null,
+    };
+  });
+
+  return { total: totalDraft + totalSent, totalDraft, totalSent,
+           count: items.length, countDraft, countSent, items };
+}
+
+module.exports = { fetchFinancialData, fetchCXC, fetchPipeline };
