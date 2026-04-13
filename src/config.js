@@ -20,7 +20,7 @@ module.exports = {
   PRODUCTION_JOB_IDS:   [1, 2],
 
   // ── Timesheet ────────────────────────────────────────────────────────────
-  TIMESHEET_DAYS_BACK:  60,
+  TIMESHEET_DAYS_BACK:  90,
   EXCESSIVE_HOURS_THRESHOLD: 12,   // hours in a single day → critical anomaly
   MECHANICAL_DESC_HOURS: 3,       // hours with a mechanical description → warning anomaly
 
@@ -52,6 +52,15 @@ module.exports = {
     '2026-12-08', '2026-12-25',
     '2027-01-01', '2027-04-02', '2027-04-03',
   ]),
+
+  // ── Date range filter options ────────────────────────────────────────────
+  DATE_RANGES: [
+    { value: '7d',  label: '7 días' },
+    { value: '30d', label: '30 días' },
+    { value: 'mtd', label: 'Mes actual' },
+    { value: '60d', label: '60 días' },
+    { value: '90d', label: '90 días' },
+  ],
 
   // ── Project status filter options (Odoo-style stages) ─────────────────
   PROJECT_STATUS_FILTERS: [
