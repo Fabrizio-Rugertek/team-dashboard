@@ -14,32 +14,41 @@ const { getUser }    = require('./users');
 
 const callbackURL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3511/auth/google/callback';
 
-passport.use(new GoogleStrategy(
-  {
-    clientID:     process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL,
-  },
-  (_accessToken, _refreshToken, profile, done) => {
-    const email = profile.emails?.[0]?.value?.toLowerCase();
-    if (!email) return done(null, false, { message: 'No email in Google profile' });
+const GOOGLE_CONFIGURED = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+  && process.env.GOOGLE_CLIENT_ID !== 'PLACEHOLDER');
 
-    const user = getUser(email);
-    if (!user) {
-      console.warn(`[Auth] Unauthorized login attempt: ${email}`);
-      return done(null, false, { message: 'not_authorized' });
+if (GOOGLE_CONFIGURED) {
+  passport.use(new GoogleStrategy(
+    {
+      clientID:     process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL,
+    },
+    (_accessToken, _refreshToken, profile, done) => {
+      const email = profile.emails?.[0]?.value?.toLowerCase();
+      if (!email) return done(null, false, { message: 'No email in Google profile' });
+
+      const user = getUser(email);
+      if (!user) {
+        console.warn(`[Auth] Unauthorized login attempt: ${email}`);
+        return done(null, false, { message: 'not_authorized' });
+      }
+
+      const sessionUser = {
+        email,
+        name:    profile.displayName || user.name || email,
+        picture: profile.photos?.[0]?.value || null,
+        role:    user.role,
+      };
+      console.log(`[Auth] Login: ${email} (${user.role})`);
+      return done(null, sessionUser);
     }
+  ));
+} else {
+  console.warn('[Auth] GOOGLE_CLIENT_ID/SECRET not configured — OAuth disabled. Set env vars to enable.');
+}
 
-    const sessionUser = {
-      email,
-      name:    profile.displayName || user.name || email,
-      picture: profile.photos?.[0]?.value || null,
-      role:    user.role,
-    };
-    console.log(`[Auth] Login: ${email} (${user.role})`);
-    return done(null, sessionUser);
-  }
-));
+passport.GOOGLE_CONFIGURED = GOOGLE_CONFIGURED;
 
 passport.serializeUser((user, done) => done(null, user.email));
 

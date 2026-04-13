@@ -26,6 +26,14 @@
     </div>
     <% } %>
 
+    <%# OAuth not configured warning %>
+    <% if (!oauthConfigured) { %>
+    <div class="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-700">
+      <strong>OAuth no configurado.</strong> Configurá <code>GOOGLE_CLIENT_ID</code> y <code>GOOGLE_CLIENT_SECRET</code> en el servidor.
+      <br><a href="/auth/dev-login" class="underline font-semibold mt-1 inline-block">Entrar en modo dev (sin OAuth)</a>
+    </div>
+    <% } %>
+
     <%# Google sign-in card %>
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
       <a href="/auth/google"
