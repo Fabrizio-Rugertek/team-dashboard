@@ -59,8 +59,8 @@ function formatBusinessLabel(dateStr) {
 function datePart(value) { return String(value || '').slice(0, 10); }
 function getJobType(job) {
   const j = (job || '').toLowerCase();
-  if (j.includes('técn') || j.includes('tecn')) return 'technical';
-  if (j.includes('funcional') || j.includes('contable')) return 'functional';
+  if (j.includes('técn') || j.includes('tecn') || j.includes('technical')) return 'technical';
+  if (j.includes('funcional') || j.includes('contable') || j.includes('functional')) return 'functional';
   return 'other';
 }
 function parseCreateDate(value) {
