@@ -16,6 +16,9 @@ module.exports = {
   ODOO_USER:            process.env.ODOO_USER,
   ODOO_PASSWORD:        process.env.ODOO_PASSWORD,
 
+  // Job IDs for production consultants (Funcional=1, Técnico=2)
+  PRODUCTION_JOB_IDS:   [1, 2],
+
   // ── Timesheet ────────────────────────────────────────────────────────────
   TIMESHEET_DAYS_BACK:  60,
   EXCESSIVE_HOURS_THRESHOLD: 12,   // hours in a single day → critical anomaly

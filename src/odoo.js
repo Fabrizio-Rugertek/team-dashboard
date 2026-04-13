@@ -120,7 +120,8 @@ async function fetchProjectsWithTasks() {
           'id', 'name', 'project_id', 'stage_id', 'user_ids', 'allocated_hours',
           'effective_hours', 'planned_date_begin', 'date_end', 'date_deadline',
           'write_date', 'create_date', 'date_last_stage_update', 'description',
-          'sale_line_id', 'parent_id', 'x_studio_sprint', 'x_studio_fecha_de_sprint'
+          'sale_line_id', 'parent_id', 'x_studio_sprint', 'x_studio_fecha_de_sprint',
+          'x_studio_story_points',
         ],
         context: { bin_size: true }
       }
@@ -157,6 +158,7 @@ async function fetchProjectsWithTasks() {
         parent_id:      t.parent_id,
         sprint_id:      t.x_studio_sprint,
         sprint_start:   t.x_studio_fecha_de_sprint,
+        story_points:   t.x_studio_story_points || null,
       });
     }
   }
@@ -196,7 +198,8 @@ async function fetchActiveEmployees() {
   let employees = [];
   try {
     employees = await callKw('hr.employee', 'search_read', [[
-      ['id', 'in', empIds]
+      ['id', 'in', empIds],
+      ['job_id', 'in', [1, 2]],  // Consultores Funcionales (1) y Técnicos (2) only
     ]], { fields: ['id', 'name', 'user_id', 'department_id', 'job_id', 'active'] }) || [];
   } catch (e) {
     console.error('[Odoo] fetchActiveEmployees (employees):', e.message);

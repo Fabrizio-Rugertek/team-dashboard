@@ -155,6 +155,7 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
         shortEntries: 0,
         roundEntries: 0,
         lateEntries: 0,
+        preLogEntries: 0,
         entriesThisWeek: 0,
         hoursThisWeek: 0,
         lastLogDate: null,
@@ -174,6 +175,7 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
     const description = (ts.name || '').trim();
     const lateDays = createDate ? diffDays(createDate, workDay) : 0;
     const isLate = lateDays > config.LATE_LOG_DAYS_THRESHOLD;
+    const isPreLog = lateDays < -1;  // logged before the work date happened
     const isShort = isMechanicalDescription(description);
     const isRound = isRoundHourEntry(hours);
 
@@ -185,6 +187,7 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
         shortEntries: 0,
         roundEntries: 0,
         lateEntries: 0,
+        preLogEntries: 0,
       });
     }
 
@@ -194,11 +197,13 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
     if (isShort) bucket.shortEntries += 1;
     if (isRound) bucket.roundEntries += 1;
     if (isLate) bucket.lateEntries += 1;
+    if (isPreLog) bucket.preLogEntries += 1;
 
     person.totalEntries += 1;
     if (isShort) person.shortEntries += 1;
     if (isRound) person.roundEntries += 1;
     if (isLate) person.lateEntries += 1;
+    if (isPreLog) person.preLogEntries += 1;
 
     if (workDay >= weekStart) {
       person.entriesThisWeek += 1;
@@ -229,6 +234,7 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
     const shortDescPct = person.totalEntries > 0 ? person.shortEntries / person.totalEntries : 0;
     const roundPct = person.totalEntries > 0 ? person.roundEntries / person.totalEntries : 0;
     const latePct = person.totalEntries > 0 ? person.lateEntries / person.totalEntries : 0;
+    const preLogPct = person.totalEntries > 0 ? person.preLogEntries / person.totalEntries : 0;
 
     const currentWeekDays = complianceDates.filter(dateStr => fromDateOnly(dateStr) >= weekStart);
     const maxWeekDayHours = currentWeekDays.reduce((max, dateStr) => {
@@ -255,6 +261,10 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
     if (latePct >= 0.4 && person.totalEntries >= 4) {
       suspiciousScore += 20;
       flags.push(`Carga tardia alta (${formatPct(latePct)}%)`);
+    }
+    if (preLogPct >= 0.15 && person.totalEntries >= 4) {
+      suspiciousScore += 25;
+      flags.push(`Pre-logeo detectado (${formatPct(preLogPct)}%)`);
     }
     if (shortDescPct >= 0.45 && person.totalEntries >= 4) {
       suspiciousScore += 20;
@@ -319,6 +329,7 @@ function buildLoggingControl({ employees, userHoursMap, userIdToLogin, timesheet
         shortDescPct: formatPct(shortDescPct),
         roundPct: formatPct(roundPct),
         latePct: formatPct(latePct),
+        preLogPct: formatPct(preLogPct),
       },
       recentDays,
     };
@@ -505,6 +516,23 @@ async function getDashboardCached(filters = {}) {
         category: 'descripcion_mecanica',
       });
     }
+
+    // Pre-logging: entry was created more than 1 day BEFORE the work date
+    const createDate2 = parseCreateDate(ts.create_date);
+    if (createDate2) {
+      const workDay2 = fromDateOnly(ts.date);
+      const lateDays2 = diffDays(createDate2, workDay2);
+      if (lateDays2 < -1) {
+        anomalies.push({
+          type: 'warning',
+          icon: '??',
+          user: login,
+          message: `Pre-logeo: trabajo del ${ts.date} cargado ${Math.abs(lateDays2)} dias antes`,
+          detail: `Creado: ${ts.create_date?.slice(0, 10)} | ${hours.toFixed(1)}h - ${desc || '(sin desc)'}`.slice(0, 90),
+          category: 'pre_logeo',
+        });
+      }
+    }
   }
 
   const weekLogins = new Set(
@@ -667,6 +695,51 @@ async function getDashboardCached(filters = {}) {
     };
   });
 
+  // ── Methodology compliance ───────────────────────────────────────────────
+  const activeTasks = allTasks.filter(t => !isBacklog(t));
+  const totalActiveTasks = activeTasks.length;
+  const tasksWithSP = activeTasks.filter(t => t.story_points).length;
+  const tasksWithSprint = activeTasks.filter(t => t.sprint_id?.[0]).length;
+  const tasksWithHours = activeTasks.filter(t => parseFloat(t.allocated_hours || 0) > 0).length;
+  const tasksWithHoursAndNoSP = activeTasks.filter(
+    t => parseFloat(t.effective_hours || 0) > 0 && !t.story_points
+  ).length;
+
+  const methodology = {
+    totalActiveTasks,
+    tasksWithSP,
+    spPct: totalActiveTasks > 0 ? Math.round(tasksWithSP / totalActiveTasks * 100) : 0,
+    tasksWithSprint,
+    sprintPct: totalActiveTasks > 0 ? Math.round(tasksWithSprint / totalActiveTasks * 100) : 0,
+    tasksWithHours,
+    hoursPct: totalActiveTasks > 0 ? Math.round(tasksWithHours / totalActiveTasks * 100) : 0,
+    tasksWithHoursAndNoSP,  // worked on but no story points — the main gap
+  };
+
+  // ── Hours per project matrix ─────────────────────────────────────────────
+  // Resolve project names and build per-consultant project hour lists
+  const projectNameMap = new Map(projects.map(p => [p.id, p.name.length > 24 ? p.name.slice(0, 24) + '…' : p.name]));
+
+  // Aggregate total hours per project across all consultants (for column ordering)
+  const projectTotals = {};
+  for (const u of userHoursMap.values()) {
+    for (const [pidStr, hrs] of Object.entries(u.projects)) {
+      const pid = parseInt(pidStr);
+      projectTotals[pid] = (projectTotals[pid] || 0) + hrs;
+    }
+  }
+  // Top 8 projects by hours
+  const topProjectIds = Object.entries(projectTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([pid]) => parseInt(pid));
+
+  const topProjectCols = topProjectIds.map(pid => ({
+    id: pid,
+    name: projectNameMap.get(pid) || `P${pid}`,
+    total: round(projectTotals[pid] || 0),
+  }));
+
   const consultants = [...userHoursMap.values()]
     .map(u => ({
       name: u.name,
@@ -681,8 +754,9 @@ async function getDashboardCached(filters = {}) {
       entries: u.entries,
       projectCount: Object.keys(u.projects).length,
       hasHours: u.hoursThisWeek > 0 || u.hoursThisMonth > 0,
+      projectHours: topProjectIds.map(pid => round(u.projects[pid] || 0)),
     }))
-    .sort((a, b) => b.hoursThisWeek - a.hoursThisWeek);
+    .sort((a, b) => b.hoursThisMonth - a.hoursThisMonth);
 
   const weekTotal = [...userHoursMap.values()].reduce((sum, u) => sum + u.hoursThisWeek, 0);
   const monthTotal = [...userHoursMap.values()].reduce((sum, u) => sum + u.hoursThisMonth, 0);
@@ -704,6 +778,8 @@ async function getDashboardCached(filters = {}) {
       completionRate: allTasks.length > 0 ? Math.round((allDone / allTasks.length) * 100) : 0,
     },
     consultants,
+    topProjectCols,
+    methodology,
     projectStatuses,
     anomalies: anomalies.slice(0, 500),
     weeklyData,
