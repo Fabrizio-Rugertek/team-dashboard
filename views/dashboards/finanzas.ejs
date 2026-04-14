@@ -39,6 +39,46 @@
   const totalEgCost  = egRows.reduce((s,r) => s + r.totalCost, 0);
   const overdue = (cxc.buckets.d1_30||0) + (cxc.buckets.d31_60||0) + (cxc.buckets.d61_90||0) + (cxc.buckets.d90plus||0);
 
+  // ── YoY deltas ─────────────────────────────────────────────────────────────
+  const yoyRevDelta  = yoy.prevRevenue  > 0 ? Math.round((fin.totalRevenue  - yoy.prevRevenue)  / yoy.prevRevenue  * 100) : null;
+  const yoyMgnDelta  = yoy.prevMargin   > 0 ? Math.round((totalIngMgn       - yoy.prevMargin)   / Math.abs(yoy.prevMargin) * 100) : null;
+  const yoyClientDelta = yoy.prevClientCount > 0 ? clients.clientCount - yoy.prevClientCount : null;
+
+  // ── Service line profitability (from ingRows filtered by [TAG] pattern) ────
+  const svcLines  = ingRows.filter(r => /^\[/.test(r.name));
+  const projRows  = ingRows.filter(r => /^S\d{4,5}\s*[-\u2013]/.test(r.name));
+  const otherRows = ingRows.filter(r => !/^\[/.test(r.name) && !/^S\d{4,5}\s*[-\u2013]/.test(r.name));
+  const totalSvcRev  = svcLines.reduce((s,r) => s + r.totalRevenue, 0);
+  const totalProjRev = projRows.reduce((s,r) => s + r.totalRevenue, 0);
+
+  // ── Cash flow projection (30/60/90 days) ──────────────────────────────────
+  const cashInflow  = { d30: 0, d60: 0, d90: 0, total: cxc.total };
+  const cashOutflow = { d30: 0, d60: 0, d90: 0, total: cxp.total };
+  for (const inv of cxc.items) {
+    if (inv.bucket === 'current' || inv.bucket === 'd1_30') cashInflow.d30 += inv.residual;
+    if (inv.bucket === 'current' || inv.bucket === 'd1_30' || inv.bucket === 'd31_60') cashInflow.d60 += inv.residual;
+    cashInflow.d90 += inv.residual;
+  }
+  for (const inv of cxp.items) {
+    if (inv.bucket === 'current' || inv.bucket === 'd1_30') cashOutflow.d30 += inv.residual;
+    if (inv.bucket === 'current' || inv.bucket === 'd1_30' || inv.bucket === 'd31_60') cashOutflow.d60 += inv.residual;
+    cashOutflow.d90 += inv.residual;
+  }
+
+  // ── Auto-insights ─────────────────────────────────────────────────────────
+  const insights = [];
+  if (yoyRevDelta !== null) insights.push({ type: yoyRevDelta >= 0 ? 'good' : 'bad', text: `Ingresos ${yoyRevDelta >= 0 ? 'crecieron' : 'cayeron'} ${Math.abs(yoyRevDelta)}% vs ${year - 1}` });
+  if (clients.clients.length > 0) {
+    const top = clients.clients[0];
+    insights.push({ type: 'info', text: `${top.name} es el cliente #1 con ${top.revPct}% de los ingresos totales` });
+    if (clients.top3Pct > 70) insights.push({ type: 'warn', text: `Concentración alta: top 3 clientes = ${clients.top3Pct}% del revenue. Riesgo de dependencia.` });
+  }
+  if (overdue > cxc.total * 0.3) insights.push({ type: 'bad', text: `${Math.round(overdue/cxc.total*100)}% del CXC está vencido (${gsM(overdue)}). Gestión de cobros urgente.` });
+  if (crm.staleCount > 0) insights.push({ type: 'warn', text: `${crm.staleCount} oportunidades CRM sin movimiento en +30 días.` });
+  if (totalIngMgnPct >= 50) insights.push({ type: 'good', text: `Margen de contribución saludable: ${totalIngMgnPct}%` });
+  else if (totalIngMgnPct < 25) insights.push({ type: 'bad', text: `Margen de contribución bajo: ${totalIngMgnPct}%. Revisar estructura de costos.` });
+  if (closingRate.rate !== null && closingRate.rate < 30) insights.push({ type: 'warn', text: `Tasa de cierre baja: ${closingRate.rate}% en últimos 90 días.` });
+
   // ── EERR grouping by account name pattern ──────────────────────────────────
   const _TYPE_LABELS = { AUG:'Augmentation', DEDICATED:'Dedicado', CDEV:'Dev a Medida', HOURLY:'Por Hora', WEB:'Web/eCommerce', INF:'Infraestructura', MAINT:'Mantenimiento', HUNTER:'Hunter', DISC:'Descubrimiento' };
   function _classifyAccount(name) {
@@ -161,14 +201,18 @@
 <!-- ── KPI Cards (always visible) ────────────────────────────────────────── -->
 <div class="bg-white border-b border-slate-200">
   <div class="max-w-7xl mx-auto px-4 py-4">
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
 
       <!-- Ingresos YTD -->
-      <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
+      <div class="xl:col-span-1 bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Ingresos <%= year %></div>
-        <div class="text-2xl font-black text-slate-900">Gs.&nbsp;<%= gsM(fin.totalRevenue) %></div>
-        <% if (fin.curMonth.revDelta !== null) { %>
-        <div class="text-xs mt-1 font-semibold <%= fin.curMonth.revDelta >= 0 ? 'kpi-delta-up' : 'kpi-delta-down' %>">
+        <div class="text-xl font-black text-slate-900">Gs.&nbsp;<%= gsM(fin.totalRevenue) %></div>
+        <% if (yoyRevDelta !== null) { %>
+        <div class="text-[11px] mt-1 font-bold <%= yoyRevDelta >= 0 ? 'kpi-delta-up' : 'kpi-delta-down' %>">
+          <%= yoyRevDelta >= 0 ? '▲' : '▼' %> <%= Math.abs(yoyRevDelta) %>% vs <%= year-1 %>
+        </div>
+        <% } else if (fin.curMonth.revDelta !== null) { %>
+        <div class="text-[11px] mt-1 font-semibold <%= fin.curMonth.revDelta >= 0 ? 'kpi-delta-up' : 'kpi-delta-down' %>">
           <%= fin.curMonth.revDelta >= 0 ? '▲' : '▼' %> <%= Math.abs(fin.curMonth.revDelta) %>% vs mes ant.
         </div>
         <% } %>
@@ -177,42 +221,63 @@
       <!-- Costos directos -->
       <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Costos Directos</div>
-        <div class="text-2xl font-black text-slate-900">Gs.&nbsp;<%= gsM(totalIngCost) %></div>
-        <div class="text-xs text-slate-400 mt-1">Sobre ingresos registrados</div>
+        <div class="text-xl font-black text-slate-900">Gs.&nbsp;<%= gsM(totalIngCost) %></div>
+        <div class="text-[11px] text-slate-400 mt-1"><%= totalIngRev > 0 ? Math.round(totalIngCost/totalIngRev*100) : 0 %>% de ingresos</div>
       </div>
 
       <!-- Margen de contribución -->
-      <div class="bg-slate-50 rounded-xl border-2 <%= totalIngMgn >= 0 ? 'border-emerald-200' : 'border-red-200' %> p-4">
-        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Margen Contribución</div>
-        <div class="text-2xl font-black <%= totalIngMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
-          Gs.&nbsp;<%= gsM(totalIngMgn) %>
+      <div class="bg-slate-50 rounded-xl border-2 <%= totalIngMgn >= 0 ? 'border-emerald-300' : 'border-red-300' %> p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Margen</div>
+        <div class="text-xl font-black <%= totalIngMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
+          <%= totalIngMgnPct %>%
         </div>
-        <div class="text-xs mt-1 font-bold <%= totalIngMgn >= 0 ? 'text-emerald-500' : 'text-red-500' %>">
-          <%= totalIngMgn >= 0 ? '+' : '' %><%= totalIngMgnPct %>% · <span class="text-amber-500">⚠ sin nómina</span>
-        </div>
+        <div class="text-[11px] mt-1 font-semibold text-slate-500">Gs.&nbsp;<%= gsM(totalIngMgn) %></div>
       </div>
 
       <!-- Egresos indirectos -->
       <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Egresos Indirectos</div>
-        <div class="text-2xl font-black text-red-500">Gs.&nbsp;<%= gsM(totalEgCost) %></div>
-        <div class="text-xs text-slate-400 mt-1"><%= egRows.length %> cuentas sin ingreso</div>
+        <div class="text-xl font-black text-red-500">Gs.&nbsp;<%= gsM(totalEgCost) %></div>
+        <div class="text-[11px] text-slate-400 mt-1"><%= egRows.length %> cuentas</div>
+      </div>
+
+      <!-- Clientes activos -->
+      <div class="bg-slate-50 rounded-xl border border-slate-200 p-4 cursor-pointer hover:bg-slate-100 transition"
+           onclick="switchTab('clientes')">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Clientes</div>
+        <div class="text-xl font-black text-slate-900"><%= clients.clientCount %></div>
+        <% if (yoyClientDelta !== null) { %>
+        <div class="text-[11px] mt-1 font-bold <%= yoyClientDelta >= 0 ? 'kpi-delta-up' : 'kpi-delta-down' %>">
+          <%= yoyClientDelta >= 0 ? '+' : '' %><%= yoyClientDelta %> vs <%= year-1 %>
+        </div>
+        <% } else { %>
+        <div class="text-[11px] text-slate-400 mt-1">activos en <%= year %></div>
+        <% } %>
       </div>
 
       <!-- CXC -->
       <div class="bg-slate-50 rounded-xl border-2 border-amber-200 p-4 cursor-pointer hover:bg-amber-50 transition"
            onclick="switchTab('cxc')">
-        <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">CXC Pendiente</div>
-        <div class="text-2xl font-black text-amber-700">Gs.&nbsp;<%= gsM(cxc.total) %></div>
-        <div class="text-xs text-red-500 font-semibold mt-1">Gs.&nbsp;<%= gsM(overdue) %> vencido</div>
+        <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">CXC — Por Cobrar</div>
+        <div class="text-xl font-black text-amber-700">Gs.&nbsp;<%= gsM(cxc.total) %></div>
+        <div class="text-[11px] text-red-500 font-semibold mt-1">Gs.&nbsp;<%= gsM(overdue) %> vencido</div>
       </div>
 
-      <!-- Pipeline -->
+      <!-- CXP -->
+      <div class="bg-slate-50 rounded-xl border-2 border-orange-200 p-4 cursor-pointer hover:bg-orange-50 transition"
+           onclick="switchTab('cashflow')">
+        <% const cxpOverdue = (cxp.buckets.d1_30||0)+(cxp.buckets.d31_60||0)+(cxp.buckets.d61_90||0)+(cxp.buckets.d90plus||0); %>
+        <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">CXP — Por Pagar</div>
+        <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cxp.total) %></div>
+        <div class="text-[11px] text-orange-500 font-semibold mt-1"><%= cxp.count %> facturas prov.</div>
+      </div>
+
+      <!-- Pipeline CRM -->
       <div class="bg-slate-50 rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:bg-blue-50 transition"
            onclick="switchTab('pipeline')">
-        <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Pipeline</div>
-        <div class="text-2xl font-black text-blue-700">Gs.&nbsp;<%= gsM(pipeline.total) %></div>
-        <div class="text-xs text-blue-500 font-semibold mt-1"><%= closingRate.rate !== null ? closingRate.rate + '% cierre' : pipeline.count + ' cotizaciones' %></div>
+        <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Pipeline CRM</div>
+        <div class="text-xl font-black text-blue-700">Gs.&nbsp;<%= gsM(crm.totalWeighted || pipeline.total) %></div>
+        <div class="text-[11px] text-blue-500 font-semibold mt-1"><%= crm.count || pipeline.count %> oport. · <%= closingRate.rate !== null ? closingRate.rate + '% cierre' : '' %></div>
       </div>
 
     </div>
@@ -223,11 +288,14 @@
 <div class="bg-white border-b border-slate-200 sticky top-[57px] z-40">
   <div class="max-w-7xl mx-auto px-4 overflow-x-auto">
     <div class="flex items-center gap-0 min-w-max">
-      <button class="tab-btn active text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="resumen" onclick="switchTab('resumen')">Resumen</button>
-      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="eerr"     onclick="switchTab('eerr')">EERR</button>
-      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="margenes" onclick="switchTab('margenes')">Márgenes</button>
-      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="cxc"      onclick="switchTab('cxc')">CXC</button>
-      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="pipeline" onclick="switchTab('pipeline')">Pipeline</button>
+      <button class="tab-btn active text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="resumen"   onclick="switchTab('resumen')">Resumen</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap"        data-tab="clientes"  onclick="switchTab('clientes')">Clientes</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap"        data-tab="productos" onclick="switchTab('productos')">Productos</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap"        data-tab="eerr"      onclick="switchTab('eerr')">EERR</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap"        data-tab="margenes"  onclick="switchTab('margenes')">Márgenes</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap"        data-tab="cxc"       onclick="switchTab('cxc')">CXC</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap"        data-tab="cashflow"  onclick="switchTab('cashflow')">Cash Flow</button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap"        data-tab="pipeline"  onclick="switchTab('pipeline')">Pipeline</button>
     </div>
   </div>
 </div>
@@ -236,6 +304,30 @@
      TAB: RESUMEN
 ═══════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-resumen" class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- Auto-insights -->
+  <% if (insights.length > 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Insights automáticos</div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <% insights.forEach(function(ins) {
+        const cfg = {
+          good: { bg: 'bg-emerald-50 border-emerald-200', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', ic: 'text-emerald-500', tx: 'text-emerald-800' },
+          bad:  { bg: 'bg-red-50 border-red-200',         icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z', ic: 'text-red-500', tx: 'text-red-800' },
+          warn: { bg: 'bg-amber-50 border-amber-200',     icon: 'M12 9v2m0 4h.01m-6.938 4h13.876c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', ic: 'text-amber-500', tx: 'text-amber-800' },
+          info: { bg: 'bg-blue-50 border-blue-200',       icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', ic: 'text-blue-500', tx: 'text-blue-800' },
+        }[ins.type] || { bg:'bg-slate-50 border-slate-200', ic:'text-slate-400', tx:'text-slate-700', icon:'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' };
+      %>
+      <div class="flex items-start gap-2 rounded-lg border px-3 py-2 <%= cfg.bg %>">
+        <svg class="w-4 h-4 mt-0.5 shrink-0 <%= cfg.ic %>" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<%= cfg.icon %>"/>
+        </svg>
+        <span class="text-xs font-medium <%= cfg.tx %>"><%= ins.text %></span>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
 
   <!-- Monthly chart + Revenue donut side by side -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -795,6 +887,430 @@
 
 </div><!-- /tab-pipeline -->
 
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: CLIENTES
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-clientes" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <div>
+      <h2 class="text-xl font-extrabold text-slate-900">Rentabilidad por Cliente</h2>
+      <p class="text-xs text-slate-400 mt-0.5">Ingresos facturados a cada cliente · <%= year %></p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full"><%= clients.clientCount %> clientes activos</span>
+      <% if (clients.top3Pct > 0) { %>
+      <span class="<%= clients.top3Pct > 70 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700' %> text-xs font-bold px-3 py-1.5 rounded-full">
+        Top 3 = <%= clients.top3Pct %>% del revenue
+      </span>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Client charts row -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Revenue donut by client -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="text-sm font-bold text-slate-800 mb-1">Concentración de Ingresos</h3>
+      <p class="text-xs text-slate-400 mb-4">Top clientes por revenue · <%= year %></p>
+      <div style="height:200px"><canvas id="chartClientDonut"></canvas></div>
+      <div id="clientDonutLegend" class="mt-3 space-y-1 text-xs"></div>
+    </div>
+
+    <!-- Revenue bar ranking (top 10) -->
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="text-sm font-bold text-slate-800 mb-1">Ranking de Clientes por Revenue</h3>
+      <p class="text-xs text-slate-400 mb-4">Top 10 · barras horizontales</p>
+      <div style="height:<%= Math.max(220, Math.min(clients.clients.length, 10) * 36) %>px">
+        <canvas id="chartClientBar"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Client CXC heatmap — DSO + outstanding -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="bg-white rounded-xl border border-red-200 p-4">
+      <h3 class="text-sm font-bold text-red-700 mb-3">Top deudores</h3>
+      <div class="space-y-2">
+        <% const topDebtors = clients.clients.filter(c => c.unpaid > 0).sort((a,b) => b.unpaid - a.unpaid).slice(0,5); %>
+        <% topDebtors.forEach(function(c, i) { %>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-xs font-black text-slate-300">#<%= i+1 %></span>
+            <span class="text-xs font-semibold text-slate-700 truncate"><%= c.name %></span>
+          </div>
+          <div class="text-right shrink-0 ml-2">
+            <div class="text-xs font-bold text-red-600">Gs.&nbsp;<%= gsM(c.unpaid) %></div>
+            <div class="text-[10px] text-slate-400">DSO <%= c.dso %>d</div>
+          </div>
+        </div>
+        <% }) %>
+        <% if (topDebtors.length === 0) { %><p class="text-xs text-slate-400">Sin saldo pendiente</p><% } %>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-emerald-200 p-4">
+      <h3 class="text-sm font-bold text-emerald-700 mb-3">Top clientes por revenue</h3>
+      <div class="space-y-2">
+        <% clients.clients.slice(0,5).forEach(function(c, i) { %>
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="text-xs font-black text-slate-300">#<%= i+1 %></span>
+            <span class="text-xs font-semibold text-slate-700 truncate"><%= c.name %></span>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="text-xs font-bold text-emerald-700">Gs.&nbsp;<%= gsM(c.revenue) %></div>
+            <div class="text-[10px] text-slate-400"><%= c.revPct %>%</div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <h3 class="text-sm font-bold text-slate-700 mb-3">Frecuencia de facturación</h3>
+      <div class="space-y-2">
+        <% clients.clients.slice(0,5).forEach(function(c) { %>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-semibold text-slate-700 truncate"><%= c.name %></span>
+          <div class="text-right shrink-0">
+            <span class="text-xs font-bold text-slate-700"><%= c.invoiceCount %></span>
+            <span class="text-[10px] text-slate-400"> fact.</span>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full client table -->
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="bg-slate-50 border-b border-slate-200">
+          <tr>
+            <th class="text-left px-5 py-3 font-bold text-slate-600">#</th>
+            <th class="text-left px-4 py-3 font-bold text-slate-600">Cliente</th>
+            <th class="text-right px-4 py-3 font-bold text-emerald-700">Revenue</th>
+            <th class="text-right px-4 py-3 font-bold text-slate-500">% Total</th>
+            <th class="text-right px-4 py-3 font-bold text-slate-500">Facturas</th>
+            <th class="text-right px-4 py-3 font-bold text-amber-600">Pendiente</th>
+            <th class="text-right px-4 py-3 font-bold text-blue-600">DSO (días)</th>
+            <th class="text-left px-4 py-3 font-bold text-slate-500">Rev. mensual</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% clients.clients.forEach(function(c, i) { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-5 py-2.5 text-slate-400 font-bold"><%= i+1 %></td>
+            <td class="px-4 py-2.5 font-semibold text-slate-800"><%= c.name %></td>
+            <td class="px-4 py-2.5 text-right font-bold text-emerald-700">Gs.&nbsp;<%= gsM(c.revenue) %></td>
+            <td class="px-4 py-2.5 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="w-12 bg-slate-100 rounded-full h-1.5">
+                  <div class="h-1.5 rounded-full bg-emerald-400" style="width:<%= c.revPct %>%"></div>
+                </div>
+                <span class="font-semibold text-slate-600"><%= c.revPct %>%</span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5 text-right text-slate-600"><%= c.invoiceCount %></td>
+            <td class="px-4 py-2.5 text-right font-semibold <%= c.unpaid > 0 ? 'text-amber-600' : 'text-slate-300' %>">
+              <%= c.unpaid > 0 ? 'Gs.\u00A0' + gsM(c.unpaid) : '—' %>
+            </td>
+            <td class="px-4 py-2.5 text-right">
+              <% if (c.dso > 0) { %>
+              <span class="font-bold <%= c.dso > 60 ? 'text-red-600' : c.dso > 30 ? 'text-amber-600' : 'text-emerald-600' %>"><%= c.dso %>d</span>
+              <% } else { %><span class="text-slate-300">—</span><% } %>
+            </td>
+            <td class="px-4 py-2.5">
+              <%
+                const mKeys = Object.keys(c.monthlyRev||{}).sort().slice(-6);
+                const mMax  = Math.max(...mKeys.map(k => c.monthlyRev[k]), 1);
+              %>
+              <div class="flex items-end gap-0.5 h-5">
+                <% mKeys.forEach(function(k) { const h = Math.round((c.monthlyRev[k]/mMax)*16); %>
+                <div class="w-2 rounded-sm bg-emerald-400 opacity-70" style="height:<%= h %>px" title="<%= k %>: Gs. <%= gsM(c.monthlyRev[k]) %>"></div>
+                <% }) %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+          <% if (clients.clients.length === 0) { %>
+          <tr><td colspan="8" class="py-10 text-center text-slate-400">Sin datos de clientes para <%= year %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /tab-clientes -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: PRODUCTOS (Líneas de Servicio)
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-productos" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <div>
+    <h2 class="text-xl font-extrabold text-slate-900">Rentabilidad por Línea de Servicio</h2>
+    <p class="text-xs text-slate-400 mt-0.5">Cuentas analíticas con tag [TIPO] · <%= year %></p>
+  </div>
+
+  <!-- KPI row productos -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Líneas de Servicio</div>
+      <div class="text-2xl font-black text-slate-900"><%= svcLines.length %></div>
+      <div class="text-xs text-slate-400 mt-1">Gs.&nbsp;<%= gsM(totalSvcRev) %></div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Proyectos</div>
+      <div class="text-2xl font-black text-slate-900"><%= projRows.length %></div>
+      <div class="text-xs text-slate-400 mt-1">Gs.&nbsp;<%= gsM(totalProjRev) %></div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Mejor producto</div>
+      <% const bestSvc = svcLines[0]; %>
+      <div class="text-base font-black text-slate-900 truncate"><%= bestSvc ? bestSvc.name.replace(/[\[\]]/g,'') : '—' %></div>
+      <div class="text-xs text-emerald-600 font-bold mt-1"><%= bestSvc ? 'Gs.\u00A0'+gsM(bestSvc.totalRevenue) : '' %></div>
+    </div>
+    <div class="bg-white rounded-xl border border-emerald-200 p-4">
+      <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Mejor margen</div>
+      <% const bestMgn = [...svcLines].sort((a,b) => b.marginPct - a.marginPct)[0]; %>
+      <div class="text-base font-black text-emerald-700 truncate"><%= bestMgn ? bestMgn.name.replace(/[\[\]]/g,'') : '—' %></div>
+      <div class="text-xs text-emerald-600 font-bold mt-1"><%= bestMgn ? bestMgn.marginPct + '%' : '' %></div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Donut mix de productos -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="text-sm font-bold text-slate-800 mb-1">Mix de Ingresos por Producto</h3>
+      <p class="text-xs text-slate-400 mb-4">Participación de cada línea de servicio</p>
+      <div style="height:220px"><canvas id="chartProductDonut"></canvas></div>
+      <div id="productDonutLegend" class="mt-3 space-y-1 text-xs"></div>
+    </div>
+    <!-- Bar revenue vs margin per product -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="text-sm font-bold text-slate-800 mb-1">Revenue vs Margen por Producto</h3>
+      <p class="text-xs text-slate-400 mb-4">Ingresos y porcentaje de margen</p>
+      <div style="height:220px"><canvas id="chartProductBar"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Tabla servicios -->
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-50 border-b border-slate-200 px-5 py-2.5 text-xs font-extrabold text-slate-700 uppercase tracking-wide">
+      Líneas de Servicio — Detalle
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="border-b border-slate-100">
+          <tr>
+            <th class="text-left px-5 py-3 font-bold text-slate-600">Producto / Servicio</th>
+            <th class="text-right px-4 py-3 font-bold text-emerald-700">Ingresos</th>
+            <th class="text-right px-4 py-3 font-bold text-red-600">Costo</th>
+            <th class="text-right px-4 py-3 font-bold text-slate-700">Margen</th>
+            <th class="text-right px-4 py-3 font-bold text-slate-500">Margen %</th>
+            <th class="text-left px-4 py-3 font-bold text-slate-400">Evolución mensual</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% (svcLines.length > 0 ? svcLines : ingRows).forEach(function(row) { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-5 py-2.5 font-semibold text-slate-800"><%= row.name %></td>
+            <td class="px-4 py-2.5 text-right text-emerald-700 font-bold">Gs.&nbsp;<%= gsM(row.totalRevenue) %></td>
+            <td class="px-4 py-2.5 text-right text-red-600"><%= row.totalCost > 0 ? 'Gs.\u00A0'+gsM(row.totalCost) : '—' %></td>
+            <td class="px-4 py-2.5 text-right font-bold <%= row.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %>">Gs.&nbsp;<%= gsM(row.margin) %></td>
+            <td class="px-4 py-2.5 text-right">
+              <span class="inline-block px-2 py-0.5 rounded font-bold text-[11px]
+                <%= row.marginPct >= 50 ? 'bg-emerald-100 text-emerald-700' : row.marginPct >= 25 ? 'bg-blue-100 text-blue-700' : row.marginPct >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
+                <%= row.marginPct %>%
+              </span>
+            </td>
+            <td class="px-4 py-2.5">
+              <%
+                const rMx = Math.max(...row.months.map(m => m.revenue), 1);
+              %>
+              <div class="flex items-end gap-0.5 h-5">
+                <% row.months.forEach(function(m) { const bh = m.revenue > 0 ? Math.round(m.revenue/rMx*16) : 1; %>
+                <div class="w-2 rounded-sm <%= m.revenue > 0 ? 'bg-emerald-400' : 'bg-slate-100' %> opacity-80" style="height:<%= bh %>px" title="<%= m.label %>: Gs. <%= gsM(m.revenue) %>"></div>
+                <% }) %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+          <% if (ingRows.length === 0) { %>
+          <tr><td colspan="6" class="py-10 text-center text-slate-400">Sin datos de productos para <%= year %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <% if (projRows.length > 0) { %>
+  <!-- Tabla proyectos -->
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-50 border-b border-slate-200 px-5 py-2.5 text-xs font-extrabold text-slate-700 uppercase tracking-wide">
+      Proyectos por Cuenta Analítica (<%= projRows.length %>)
+    </div>
+    <div class="overflow-x-auto" style="max-height:320px;overflow-y:auto">
+      <table class="w-full text-xs">
+        <thead class="sticky top-0 bg-slate-50 border-b border-slate-100">
+          <tr>
+            <th class="text-left px-5 py-2.5 font-bold text-slate-600">Proyecto</th>
+            <th class="text-right px-4 py-2.5 font-bold text-emerald-700">Revenue</th>
+            <th class="text-right px-4 py-2.5 font-bold text-red-600">Costo</th>
+            <th class="text-right px-4 py-2.5 font-bold text-slate-500">Margen %</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% projRows.forEach(function(row) { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-5 py-2 font-medium text-slate-700 max-w-xs truncate" title="<%= row.name %>"><%= row.name %></td>
+            <td class="px-4 py-2 text-right text-emerald-700 font-semibold">Gs.&nbsp;<%= gsM(row.totalRevenue) %></td>
+            <td class="px-4 py-2 text-right text-red-600"><%= row.totalCost > 0 ? 'Gs.\u00A0'+gsM(row.totalCost) : '—' %></td>
+            <td class="px-4 py-2 text-right">
+              <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold
+                <%= row.marginPct >= 50 ? 'bg-emerald-100 text-emerald-700' : row.marginPct >= 25 ? 'bg-blue-100 text-blue-700' : row.marginPct >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
+                <%= row.marginPct %>%
+              </span>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+</div><!-- /tab-productos -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: CASH FLOW
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-cashflow" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <div class="flex items-center gap-3 flex-wrap">
+    <h2 class="text-xl font-extrabold text-slate-900">Cash Flow</h2>
+    <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-full">
+      Net en 90d: <span class="<%= cashInflow.d90 - cashOutflow.d90 >= 0 ? 'text-emerald-600' : 'text-red-600' %>">
+        Gs.&nbsp;<%= gsM(cashInflow.d90 - cashOutflow.d90) %>
+      </span>
+    </span>
+  </div>
+
+  <!-- Cash flow KPIs -->
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
+      <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Entradas esperadas 30d</div>
+      <div class="text-xl font-black text-emerald-700">Gs.&nbsp;<%= gsM(cashInflow.d30) %></div>
+      <div class="text-[11px] text-emerald-600 mt-1">CXC al día + 1–30d</div>
+    </div>
+    <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
+      <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Entradas esperadas 60d</div>
+      <div class="text-xl font-black text-emerald-700">Gs.&nbsp;<%= gsM(cashInflow.d60) %></div>
+    </div>
+    <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
+      <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Total CXC</div>
+      <div class="text-xl font-black text-emerald-700">Gs.&nbsp;<%= gsM(cashInflow.total) %></div>
+      <div class="text-[11px] text-slate-400 mt-1"><%= cxc.count %> facturas</div>
+    </div>
+    <div class="bg-orange-50 rounded-xl border border-orange-200 p-4">
+      <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Salidas esperadas 30d</div>
+      <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cashOutflow.d30) %></div>
+      <div class="text-[11px] text-orange-600 mt-1">CXP al día + 1–30d</div>
+    </div>
+    <div class="bg-orange-50 rounded-xl border border-orange-200 p-4">
+      <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Salidas esperadas 60d</div>
+      <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cashOutflow.d60) %></div>
+    </div>
+    <div class="bg-orange-50 rounded-xl border border-orange-200 p-4">
+      <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Total CXP</div>
+      <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cashOutflow.total) %></div>
+      <div class="text-[11px] text-slate-400 mt-1"><%= cxp.count %> facturas prov.</div>
+    </div>
+  </div>
+
+  <!-- Net projection bars -->
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <h3 class="text-sm font-bold text-slate-800 mb-4">Proyección Neta de Caja — 30 · 60 · 90 días</h3>
+    <div class="grid grid-cols-3 gap-4">
+      <% [[30, cashInflow.d30, cashOutflow.d30], [60, cashInflow.d60, cashOutflow.d60], [90, cashInflow.d90, cashOutflow.d90]].forEach(function(row) {
+        const days = row[0], inf = row[1], out = row[2], net = inf - out;
+      %>
+      <div class="bg-slate-50 rounded-xl p-4 text-center">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">En <%= days %> días</div>
+        <div class="text-2xl font-black <%= net >= 0 ? 'text-emerald-600' : 'text-red-600' %>">
+          Gs.&nbsp;<%= gsM(net) %>
+        </div>
+        <div class="mt-3 space-y-1 text-xs">
+          <div class="flex justify-between text-emerald-600"><span>Entradas</span><span class="font-semibold">Gs.&nbsp;<%= gsM(inf) %></span></div>
+          <div class="flex justify-between text-orange-600"><span>Salidas</span><span class="font-semibold">Gs.&nbsp;<%= gsM(out) %></span></div>
+          <div class="border-t border-slate-200 pt-1 flex justify-between font-bold <%= net >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
+            <span>Neto</span><span>Gs.&nbsp;<%= gsM(net) %></span>
+          </div>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- CXP detail table -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <div class="bg-white rounded-xl border border-orange-200 overflow-hidden">
+      <div class="bg-orange-50 border-b border-orange-200 px-5 py-2.5">
+        <h3 class="text-sm font-bold text-orange-800">Cuentas por Pagar — Detalle</h3>
+        <p class="text-xs text-orange-600 mt-0.5"><%= cxp.count %> facturas · Gs.&nbsp;<%= gsM(cxp.total) %></p>
+      </div>
+      <div class="overflow-x-auto" style="max-height:300px;overflow-y:auto">
+        <table class="w-full text-xs">
+          <thead class="sticky top-0 bg-orange-50 border-b border-orange-100">
+            <tr>
+              <th class="text-left px-4 py-2.5 font-semibold text-slate-600">Proveedor</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Vcto.</th>
+              <th class="text-right px-4 py-2.5 font-semibold text-slate-600">Pendiente</th>
+              <th class="text-center px-3 py-2.5 font-semibold text-slate-600">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% cxp.items.slice(0, 50).forEach(function(inv) { %>
+            <tr class="border-b border-slate-50 hover:bg-orange-50/30 transition">
+              <td class="px-4 py-2 font-medium text-slate-700 truncate max-w-[140px]" title="<%= inv.partner %>"><%= inv.partner %></td>
+              <td class="px-3 py-2 text-center text-slate-500"><%= inv.dueDate || '—' %></td>
+              <td class="px-4 py-2 text-right font-bold <%= inv.daysOverdue > 0 ? 'text-red-600' : 'text-orange-600' %>">Gs.&nbsp;<%= gsM(inv.residual) %></td>
+              <td class="px-3 py-2 text-center">
+                <% if (inv.daysOverdue > 0) { %>
+                <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700"><%= inv.daysOverdue %>d</span>
+                <% } else { %>
+                <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">Al día</span>
+                <% } %>
+              </td>
+            </tr>
+            <% }) %>
+            <% if (cxp.items.length === 0) { %>
+            <tr><td colspan="4" class="py-8 text-center text-slate-400">Sin facturas de proveedores pendientes</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CXP aging buckets -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <h3 class="text-sm font-bold text-slate-800 mb-4">Aging Proveedores</h3>
+      <div style="height:200px"><canvas id="chartCxpDonut"></canvas></div>
+      <div id="cxpDonutLegend" class="mt-3 space-y-1.5 text-xs"></div>
+    </div>
+  </div>
+
+</div><!-- /tab-cashflow -->
+
 <div class="text-center text-xs text-slate-400 py-6">
   Torus Finanzas · Datos al <%= lastUpdate %> · Cache: 1h financiero · 15min CXC
 </div>
@@ -802,7 +1318,6 @@
 <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
 <script>
 <%
-  // Inject all data needed by charts
   const _finData = JSON.stringify({
     labels:   fin.months.map(m => m.label),
     revenue:  fin.months.map(m => m.revenue),
@@ -810,24 +1325,32 @@
     margin:   fin.months.map(m => m.marginPct),
     ingRows: fin.eerrRows.filter(r => r.totalRevenue > 0)
       .sort((a,b) => b.totalRevenue - a.totalRevenue)
-      .map(r => ({
-        name: r.name,
-        totalRevenue: r.totalRevenue,
-        totalCost: r.totalCost,
-        marginPct: r.marginPct,
-        months: r.months.map(m => ({ revenue: m.revenue, cost: m.cost })),
-      })),
+      .map(r => ({ name: r.name, totalRevenue: r.totalRevenue, totalCost: r.totalCost, marginPct: r.marginPct,
+                   months: r.months.map(m => ({ revenue: m.revenue, cost: m.cost })) })),
   });
-  const _cxcData = JSON.stringify({
-    buckets: cxc.buckets,
-    total:   cxc.total,
-    items:   cxc.items,
+  const _cxcData  = JSON.stringify({ buckets: cxc.buckets, total: cxc.total, items: cxc.items });
+  const _cxpData  = JSON.stringify({ buckets: cxp.buckets, total: cxp.total });
+  const _clientData = JSON.stringify(clients.clients.slice(0, 20).map(c => ({
+    name: c.name.length > 28 ? c.name.slice(0,28)+'…' : c.name,
+    revenue: c.revenue, revPct: c.revPct, unpaid: c.unpaid, dso: c.dso,
+  })));
+  const _svcData = JSON.stringify(
+    fin.eerrRows.filter(r => r.totalRevenue > 0 && /^\[/.test(r.name))
+      .map(r => ({ name: r.name.replace(/[\[\]]/g,''), revenue: r.totalRevenue, marginPct: r.marginPct }))
+  );
+  const _yoyData = JSON.stringify({
+    labels: yoy.prevMonths.map(m => m.label),
+    revenue: yoy.prevMonths.map(m => m.revenue),
   });
 %>
 
 (function() {
-  const fin = <%- _finData %>;
-  const cxc = <%- _cxcData %>;
+  const fin     = <%- _finData %>;
+  const cxc     = <%- _cxcData %>;
+  const cxpData = <%- _cxpData %>;
+  const clientData = <%- _clientData %>;
+  const svcData = <%- _svcData %>;
+  const yoyData = <%- _yoyData %>;
   const fmt = n => 'Gs.\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(n || 0);
   const fmtM = n => {
     const abs = Math.abs(n||0);
@@ -877,9 +1400,135 @@
   };
 
   function initTabCharts(name) {
-    if (name === 'resumen')  { initMonthlyChart(); initDonutChart(); }
-    if (name === 'margenes') { initHBarChart(); initStackedChart(); }
-    if (name === 'cxc')      { initCxcDonut(); }
+    if (name === 'resumen')   { initMonthlyChart(); initDonutChart(); }
+    if (name === 'margenes')  { initHBarChart(); initStackedChart(); }
+    if (name === 'cxc')       { initCxcDonut(); }
+    if (name === 'clientes')  { initClientDonut(); initClientBar(); }
+    if (name === 'productos') { initProductDonut(); initProductBar(); }
+    if (name === 'cashflow')  { initCxpDonut(); }
+  }
+
+  // ── Client charts ──────────────────────────────────────────────────────────
+  function initClientDonut() {
+    const ctx = document.getElementById('chartClientDonut');
+    if (!ctx || !clientData.length) return;
+    const top = clientData.slice(0, 8);
+    const otherRev = clientData.slice(8).reduce((s, c) => s + c.revenue, 0);
+    const labels = [...top.map(c => c.name)];
+    const data   = [...top.map(c => c.revenue)];
+    if (otherRev > 0) { labels.push('Otros'); data.push(otherRev); }
+    const colors = [...PALETTE, '#94a3b8'];
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors.slice(0,data.length), borderWidth:2, borderColor:'#fff', hoverOffset:6 }] },
+      options: {
+        responsive:true, maintainAspectRatio:false, cutout:'60%',
+        plugins: {
+          legend: { display:false },
+          tooltip: { callbacks: { label: c => ` ${c.label}: ${fmtM(c.raw)} (${c.dataset.data.reduce((a,b)=>a+b,0)>0?Math.round(c.raw/c.dataset.data.reduce((a,b)=>a+b,0)*100):0}%)` } },
+        },
+      },
+    });
+    const legendEl = document.getElementById('clientDonutLegend');
+    if (legendEl) legendEl.innerHTML = labels.map((lbl,i) =>
+      `<div class="flex items-center justify-between gap-2">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm shrink-0 inline-block" style="background:${colors[i]}"></span><span class="text-[11px] text-slate-600 truncate">${lbl}</span></span>
+        <span class="text-[11px] font-semibold text-slate-700 shrink-0">${fmtM(data[i])}</span>
+      </div>`
+    ).join('');
+  }
+
+  function initClientBar() {
+    const ctx = document.getElementById('chartClientBar');
+    if (!ctx || !clientData.length) return;
+    const top = clientData.slice(0, 10);
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: top.map(c => c.name),
+        datasets: [
+          { label: 'Revenue', data: top.map(c => c.revenue), backgroundColor: 'rgba(16,185,129,0.75)', borderRadius:4 },
+          { label: 'Pendiente', data: top.map(c => c.unpaid), backgroundColor: 'rgba(245,158,11,0.6)', borderRadius:4 },
+        ],
+      },
+      options: {
+        indexAxis: 'y', responsive:true, maintainAspectRatio:false,
+        interaction: { mode:'index', intersect:false },
+        plugins: { legend:{ position:'top', labels:{ font:{size:11}, padding:10 } }, tooltip:{ callbacks:{ label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } } },
+        scales: { x:{ ticks:{ font:{size:10}, callback: v => fmtM(v) } }, y:{ ticks:{ font:{size:11} }, grid:{ display:false } } },
+      },
+    });
+  }
+
+  // ── Product charts ─────────────────────────────────────────────────────────
+  function initProductDonut() {
+    const ctx = document.getElementById('chartProductDonut');
+    if (!ctx || !svcData.length) return;
+    const labels = svcData.map(s => s.name);
+    const data   = svcData.map(s => s.revenue);
+    const colors = PALETTE.slice(0, data.length);
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth:2, borderColor:'#fff', hoverOffset:6 }] },
+      options: {
+        responsive:true, maintainAspectRatio:false, cutout:'55%',
+        plugins: { legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${fmtM(c.raw)}` } } },
+      },
+    });
+    const legendEl = document.getElementById('productDonutLegend');
+    if (legendEl) legendEl.innerHTML = labels.map((lbl,i) =>
+      `<div class="flex items-center justify-between gap-2">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm shrink-0 inline-block" style="background:${colors[i]}"></span><span class="text-[11px] text-slate-600 truncate">${lbl}</span></span>
+        <span class="text-[11px] font-semibold text-slate-700 shrink-0">${fmtM(data[i])}</span>
+      </div>`
+    ).join('');
+  }
+
+  function initProductBar() {
+    const ctx = document.getElementById('chartProductBar');
+    if (!ctx || !svcData.length) return;
+    new Chart(ctx, {
+      data: {
+        labels: svcData.map(s => s.name),
+        datasets: [
+          { type:'bar',  label:'Revenue',  data: svcData.map(s => s.revenue),    backgroundColor: PALETTE.map((c,i) => PALETTE[i]+'BB'), borderRadius:4, yAxisID:'y', order:2 },
+          { type:'line', label:'Margen %', data: svcData.map(s => s.marginPct),  borderColor:'#1e293b', backgroundColor:'transparent', borderWidth:2.5, pointRadius:5, yAxisID:'yPct', order:1 },
+        ],
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins: { legend:{ position:'top', labels:{ font:{size:11} } }, tooltip:{ callbacks:{ label: c => c.dataset.yAxisID==='yPct' ? ` Margen: ${c.raw}%` : ` Revenue: ${fmt(c.raw)}` } } },
+        scales: {
+          y:    { beginAtZero:true, ticks:{ callback: v => fmtM(v), font:{size:10} } },
+          yPct: { position:'right', beginAtZero:false, grid:{ drawOnChartArea:false }, ticks:{ callback: v => v+'%', font:{size:10} } },
+          x:    { ticks:{ font:{size:10} }, grid:{ display:false } },
+        },
+      },
+    });
+  }
+
+  // ── CXP aging donut ────────────────────────────────────────────────────────
+  function initCxpDonut() {
+    const ctx = document.getElementById('chartCxpDonut');
+    if (!ctx) return;
+    const labels = ['Al día', '1–30 días', '31–60 días', '61–90 días', '+90 días'];
+    const data   = [cxpData.buckets.current||0, cxpData.buckets.d1_30||0, cxpData.buckets.d31_60||0, cxpData.buckets.d61_90||0, cxpData.buckets.d90plus||0];
+    const colors = ['#10B981','#F59E0B','#F97316','#EF4444','#F43F5E'];
+    const total  = data.reduce((a,b) => a+b, 0);
+    new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth:2, borderColor:'#fff', hoverOffset:6 }] },
+      options: {
+        responsive:true, maintainAspectRatio:false, cutout:'60%',
+        plugins: { legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${fmtM(c.raw)} (${total>0?Math.round(c.raw/total*100):0}%)` } } },
+      },
+    });
+    const legendEl = document.getElementById('cxpDonutLegend');
+    if (legendEl) legendEl.innerHTML = labels.map((lbl,i) => data[i]>0 ? `
+      <div class="flex items-center justify-between gap-2">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm shrink-0 inline-block" style="background:${colors[i]}"></span><span class="text-[11px] text-slate-600">${lbl}</span></span>
+        <span class="text-[11px] font-semibold text-slate-700">${fmtM(data[i])}</span>
+      </div>` : '').join('');
   }
 
   // ── Monthly chart ──────────────────────────────────────────────────────────

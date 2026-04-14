@@ -294,4 +294,199 @@ async function fetchClosingRate() {
   }
 }
 
-module.exports = { fetchFinancialData, fetchCXC, fetchPipeline, fetchClosingRate };
+// ── Cuentas por Pagar (CXP) ──────────────────────────────────────────────
+const _cxpCache = { data: null, time: 0 };
+
+async function fetchCXP() {
+  const now = Date.now();
+  if (_cxpCache.data && now - _cxpCache.time < 15 * 60 * 1000) return _cxpCache.data;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const invoices = await callKw('account.move', 'search_read', [[
+    ['move_type',     '=',  'in_invoice'],
+    ['state',         '=',  'posted'],
+    ['payment_state', 'in', ['not_paid', 'partial']],
+    ['company_id',    '=',  TORUS_COMPANY_ID],
+  ]], {
+    fields: ['name', 'partner_id', 'invoice_date', 'invoice_date_due',
+             'amount_total', 'amount_residual'],
+    order: 'invoice_date_due asc',
+    limit: 300,
+  });
+
+  const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 };
+  const items   = [];
+
+  for (const inv of invoices) {
+    const residual = inv.amount_residual || 0;
+    if (residual <= 0) continue;
+    const due = inv.invoice_date_due || null;
+    let daysOverdue = 0, bucket = 'current';
+    if (due && due < today) {
+      daysOverdue = Math.round((new Date(today) - new Date(due)) / 86400000);
+      if      (daysOverdue <= 30) bucket = 'd1_30';
+      else if (daysOverdue <= 60) bucket = 'd31_60';
+      else if (daysOverdue <= 90) bucket = 'd61_90';
+      else                        bucket = 'd90plus';
+    }
+    buckets[bucket] += residual;
+    items.push({
+      name: inv.name, partner: inv.partner_id?.[1] || '?',
+      invoiceDate: inv.invoice_date, dueDate: due,
+      total: inv.amount_total, residual, daysOverdue, bucket,
+    });
+  }
+
+  const total = Object.values(buckets).reduce((a, b) => a + b, 0);
+  const data  = { total, buckets, items, count: items.length };
+  _cxpCache.data = data; _cxpCache.time = Date.now();
+  return data;
+}
+
+// ── Rentabilidad por cliente ──────────────────────────────────────────────
+const _clientCache = { data: null, time: 0, key: null };
+
+async function fetchClientProfitability(year, opts = {}) {
+  const dateFrom = opts.from || `${year}-01-01`;
+  const dateTo   = opts.to   || `${year}-12-31`;
+  const cacheKey = `${year}_${dateFrom}_${dateTo}`;
+  const now = Date.now();
+  if (_clientCache.data && _clientCache.key === cacheKey && now - _clientCache.time < CACHE_TTL_MS) {
+    return _clientCache.data;
+  }
+
+  const moves = await callKw('account.move', 'search_read', [[
+    ['move_type',    '=',  'out_invoice'],
+    ['state',        '=',  'posted'],
+    ['invoice_date', '>=', dateFrom],
+    ['invoice_date', '<=', dateTo],
+    ['company_id',   '=',  TORUS_COMPANY_ID],
+  ]], {
+    fields: ['id', 'name', 'partner_id', 'amount_untaxed', 'amount_residual', 'payment_state', 'invoice_date'],
+    limit: 2000,
+  });
+
+  const byPartner = {};
+  for (const m of moves) {
+    const pid  = m.partner_id?.[0];
+    const name = m.partner_id?.[1] || 'Sin cliente';
+    if (!pid) continue;
+    if (!byPartner[pid]) byPartner[pid] = { id: pid, name, revenue: 0, paid: 0, unpaid: 0, invoiceCount: 0, monthlyRev: {} };
+    const rev = m.amount_untaxed || 0;
+    byPartner[pid].revenue      += rev;
+    byPartner[pid].invoiceCount += 1;
+    const monthKey = (m.invoice_date || '').slice(0, 7);
+    if (monthKey) byPartner[pid].monthlyRev[monthKey] = (byPartner[pid].monthlyRev[monthKey] || 0) + rev;
+    if (m.payment_state === 'paid' || m.payment_state === 'in_payment') {
+      byPartner[pid].paid += rev;
+    } else {
+      byPartner[pid].unpaid += m.amount_residual || 0;
+    }
+  }
+
+  const totalRevenue = Object.values(byPartner).reduce((s, p) => s + p.revenue, 0);
+
+  const clients = Object.values(byPartner)
+    .map(p => ({
+      id: p.id, name: p.name,
+      revenue:      Math.round(p.revenue),
+      unpaid:       Math.round(p.unpaid),
+      invoiceCount: p.invoiceCount,
+      revPct:       totalRevenue > 0 ? Math.round(p.revenue / totalRevenue * 100) : 0,
+      dso:          p.revenue > 0 ? Math.round(p.unpaid / (p.revenue / 365)) : 0,
+      monthlyRev:   p.monthlyRev,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Concentration: top-3 share
+  const top3Rev = clients.slice(0, 3).reduce((s, c) => s + c.revenue, 0);
+  const top3Pct = totalRevenue > 0 ? Math.round(top3Rev / totalRevenue * 100) : 0;
+
+  const result = { year, clients, totalRevenue: Math.round(totalRevenue), clientCount: clients.length, top3Pct };
+  _clientCache.data = result; _clientCache.time = Date.now(); _clientCache.key = cacheKey;
+  console.log(`[Finanzas] clients year=${year} count=${clients.length} rev=${totalRevenue.toLocaleString()}`);
+  return result;
+}
+
+// ── Comparativa Año Anterior (YoY) ───────────────────────────────────────
+async function fetchYoY(currentYear) {
+  try {
+    const prev = await fetchFinancialData(currentYear - 1);
+    const prevClients = await fetchClientProfitability(currentYear - 1);
+    return {
+      prevRevenue:    prev.totalRevenue,
+      prevCost:       prev.totalCost,
+      prevMargin:     prev.totalMargin,
+      prevClientCount: prevClients.clientCount,
+      prevMonths:     prev.months,
+    };
+  } catch (e) {
+    console.error('[Finanzas] fetchYoY:', e.message);
+    return { prevRevenue: 0, prevCost: 0, prevMargin: 0, prevClientCount: 0, prevMonths: [] };
+  }
+}
+
+// ── Pipeline por etapa CRM ────────────────────────────────────────────────
+const _crmCache = { data: null, time: 0 };
+
+async function fetchCRMPipeline() {
+  const now = Date.now();
+  if (_crmCache.data && now - _crmCache.time < 15 * 60 * 1000) return _crmCache.data;
+
+  try {
+    const leads = await callKw('crm.lead', 'search_read', [[
+      ['type',       '=',  'opportunity'],
+      ['active',     '=',  true],
+      ['company_id', '=',  TORUS_COMPANY_ID],
+    ]], {
+      fields: ['name', 'partner_id', 'stage_id', 'expected_revenue', 'probability',
+               'user_id', 'date_deadline', 'create_date', 'planned_revenue'],
+      limit: 200,
+    });
+
+    const byStage = {};
+    let totalExpected = 0;
+    const today = new Date().toISOString().slice(0, 10);
+
+    const items = leads.map(l => {
+      const expected = l.expected_revenue || l.planned_revenue || 0;
+      const weighted = Math.round(expected * (l.probability || 0) / 100);
+      const stageName = l.stage_id?.[1] || 'Sin etapa';
+      const agedays = l.create_date ? Math.floor((new Date(today) - new Date(l.create_date.slice(0,10))) / 86400000) : 0;
+      const stale = agedays > 30;
+
+      if (!byStage[stageName]) byStage[stageName] = { name: stageName, count: 0, total: 0, weighted: 0 };
+      byStage[stageName].count    += 1;
+      byStage[stageName].total    += expected;
+      byStage[stageName].weighted += weighted;
+      totalExpected += expected;
+
+      return {
+        name: l.name, partner: l.partner_id?.[1] || '?', stage: stageName,
+        expected, probability: l.probability || 0, weighted,
+        user: l.user_id?.[1] || '?',
+        deadline: l.date_deadline || null,
+        agedays, stale,
+      };
+    }).sort((a, b) => b.expected - a.expected);
+
+    const totalWeighted = items.reduce((s, l) => s + l.weighted, 0);
+    const staleCount    = items.filter(l => l.stale).length;
+    const stages        = Object.values(byStage);
+
+    const result = { items, byStage: stages, total: Math.round(totalExpected),
+                     totalWeighted: Math.round(totalWeighted), count: items.length, staleCount };
+    _crmCache.data = result; _crmCache.time = Date.now();
+    return result;
+  } catch (e) {
+    console.error('[Finanzas] fetchCRMPipeline:', e.message);
+    return { items: [], byStage: [], total: 0, totalWeighted: 0, count: 0, staleCount: 0 };
+  }
+}
+
+module.exports = {
+  fetchFinancialData, fetchCXC, fetchCXP,
+  fetchPipeline, fetchClosingRate, fetchCRMPipeline,
+  fetchClientProfitability, fetchYoY,
+};

@@ -119,6 +119,20 @@
       📁 Proyectos
       <span class="ml-1.5 text-xs font-bold text-slate-400"><%= projectStatuses.length %></span>
     </button>
+    <button onclick="switchTab('capacidad')" id="tab-btn-capacidad"
+            class="tab-btn px-5 py-2.5 text-sm font-semibold transition-all">
+      ⚡ Capacidad
+    </button>
+    <button onclick="switchTab('sprints')" id="tab-btn-sprints"
+            class="tab-btn px-5 py-2.5 text-sm font-semibold transition-all">
+      🏃 Sprints
+      <% if (sprintOverview && sprintOverview.length > 0) { %><span class="ml-1.5 text-xs font-bold text-slate-400"><%= sprintOverview.length %></span><% } %>
+    </button>
+    <button onclick="switchTab('alertas')" id="tab-btn-alertas"
+            class="tab-btn px-5 py-2.5 text-sm font-semibold transition-all">
+      🚨 Alertas
+      <% const critAlerts = (projectAlerts || []).filter(a => a.severity === 'critical').length; if (critAlerts > 0) { %><span class="ml-1.5 text-xs font-bold bg-red-500 text-white rounded-full px-1.5 py-0.5"><%= critAlerts %></span><% } %>
+    </button>
   </div>
   <%# Filter row %>
   <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
@@ -973,6 +987,283 @@
 
 </div><!-- /tab-proyectos -->
 
+<%# ── Capacidad Tab ──────────────────────────────────────────────────────────── %>
+<div id="tab-capacidad" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <%
+    const capData = capacityData || [];
+    const capOverloaded = capData.filter(c => c.status === 'overloaded').length;
+    const capBusy       = capData.filter(c => c.status === 'busy').length;
+    const capAvailable  = capData.filter(c => c.status === 'available').length;
+    const capFree       = capData.filter(c => c.status === 'free').length;
+    const totalAllocH   = capData.reduce((s, c) => s + (c.allocated || 0), 0);
+    const totalAvailH   = capData.length > 0 ? (capData[0].hoursAvailable * capData.length) : 0;
+    const teamUtilPct   = totalAvailH > 0 ? Math.round(totalAllocH / totalAvailH * 100) : 0;
+  %>
+
+  <%# KPI bar %>
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 col-span-2">
+      <div class="text-xs text-slate-500 mb-1">Utilización del equipo</div>
+      <div class="flex items-end gap-2 mb-2">
+        <div class="text-3xl font-black <%= teamUtilPct >= 90 ? 'text-red-600' : teamUtilPct >= 70 ? 'text-amber-500' : 'text-emerald-600' %>"><%= teamUtilPct %>%</div>
+        <div class="text-xs text-slate-400 mb-1"><%= totalAllocH.toFixed(0) %>h asignadas / <%= totalAvailH.toFixed(0) %>h disponibles</div>
+      </div>
+      <div class="w-full bg-slate-100 rounded-full h-2">
+        <div class="h-2 rounded-full transition-all <%= teamUtilPct >= 90 ? 'bg-red-500' : teamUtilPct >= 70 ? 'bg-amber-400' : 'bg-emerald-500' %>"
+             style="width:<%= Math.min(teamUtilPct, 100) %>%"></div>
+      </div>
+    </div>
+    <div class="bg-red-50 rounded-xl border border-red-100 p-4 text-center">
+      <div class="text-2xl font-black text-red-600"><%= capOverloaded %></div>
+      <div class="text-xs text-red-500 font-semibold mt-1">Sobrecargados</div>
+      <div class="text-[10px] text-slate-400 mt-0.5">&ge;100% utilización</div>
+    </div>
+    <div class="bg-amber-50 rounded-xl border border-amber-100 p-4 text-center">
+      <div class="text-2xl font-black text-amber-600"><%= capBusy %></div>
+      <div class="text-xs text-amber-500 font-semibold mt-1">Ocupados</div>
+      <div class="text-[10px] text-slate-400 mt-0.5">70–99% utilización</div>
+    </div>
+    <div class="bg-blue-50 rounded-xl border border-blue-100 p-4 text-center">
+      <div class="text-2xl font-black text-blue-600"><%= capAvailable %></div>
+      <div class="text-xs text-blue-500 font-semibold mt-1">Disponibles</div>
+      <div class="text-[10px] text-slate-400 mt-0.5">30–69% utilización</div>
+    </div>
+    <div class="bg-emerald-50 rounded-xl border border-emerald-100 p-4 text-center">
+      <div class="text-2xl font-black text-emerald-600"><%= capFree %></div>
+      <div class="text-xs text-emerald-500 font-semibold mt-1">Libres</div>
+      <div class="text-[10px] text-slate-400 mt-0.5">&lt;30% utilización</div>
+    </div>
+  </div>
+
+  <%# Capacity chart %>
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="text-sm font-bold text-slate-700 mb-4">Carga por consultor — horas restantes este mes</div>
+    <div style="height:240px"><canvas id="chartCapacity"></canvas></div>
+  </div>
+
+  <%# Capacity table %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+      <span class="text-sm font-bold text-slate-700">Detalle por consultor</span>
+      <span class="text-xs text-slate-400">Horas asignadas en tareas abiertas vs. días hábiles restantes</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="bg-slate-50 text-slate-500">
+            <th class="text-left px-4 py-2 font-semibold">Consultor</th>
+            <th class="text-right px-4 py-2 font-semibold">Asignadas</th>
+            <th class="text-right px-4 py-2 font-semibold">Disponibles</th>
+            <th class="text-right px-4 py-2 font-semibold">Utilización</th>
+            <th class="px-4 py-2 font-semibold">Barra</th>
+            <th class="text-center px-4 py-2 font-semibold">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% capData.forEach(c => {
+            const statusMap = {
+              overloaded: { label: 'Sobrecargado', cls: 'bg-red-100 text-red-700' },
+              busy:       { label: 'Ocupado',       cls: 'bg-amber-100 text-amber-700' },
+              available:  { label: 'Disponible',    cls: 'bg-blue-100 text-blue-700' },
+              free:       { label: 'Libre',          cls: 'bg-emerald-100 text-emerald-700' },
+            };
+            const sb = statusMap[c.status] || statusMap.free;
+            const barColor = c.status === 'overloaded' ? 'bg-red-500'
+                           : c.status === 'busy'       ? 'bg-amber-400'
+                           : c.status === 'available'  ? 'bg-blue-400' : 'bg-emerald-400';
+          %>
+          <tr class="border-t border-slate-50 hover:bg-slate-50 transition-colors">
+            <td class="px-4 py-2.5 font-semibold text-slate-900"><%= c.name %></td>
+            <td class="px-4 py-2.5 text-right font-bold text-slate-800"><%= (c.allocated || 0).toFixed(1) %>h</td>
+            <td class="px-4 py-2.5 text-right text-slate-500"><%= (c.hoursAvailable || 0).toFixed(0) %>h</td>
+            <td class="px-4 py-2.5 text-right font-bold <%= c.utilPct >= 100 ? 'text-red-600' : c.utilPct >= 70 ? 'text-amber-600' : 'text-emerald-600' %>"><%= c.utilPct %>%</td>
+            <td class="px-4 py-2.5 w-36">
+              <div class="w-full bg-slate-100 rounded-full h-2">
+                <div class="h-2 rounded-full transition-all <%= barColor %>" style="width:<%= Math.min(c.utilPct, 100) %>%"></div>
+              </div>
+            </td>
+            <td class="px-4 py-2.5 text-center">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold <%= sb.cls %>"><%= sb.label %></span>
+            </td>
+          </tr>
+          <% }) %>
+          <% if (!capData.length) { %>
+          <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Sin datos de capacidad disponibles.</td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /tab-capacidad -->
+
+<%# ── Sprints Tab ──────────────────────────────────────────────────────────── %>
+<div id="tab-sprints" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <%
+    const spData = sprintOverview || [];
+    const totalSprintTasks = spData.reduce((s, sp) => s + sp.openTasks + sp.doneTasks, 0);
+    const totalSprintDone  = spData.reduce((s, sp) => s + sp.doneTasks, 0);
+    const globalDonePct    = totalSprintTasks > 0 ? Math.round(totalSprintDone / totalSprintTasks * 100) : 0;
+  %>
+
+  <%# Header KPIs %>
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-2xl font-black text-blue-600"><%= spData.length %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Sprints activos</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-2xl font-black text-slate-800"><%= totalSprintTasks %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Tareas totales</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-2xl font-black text-emerald-600"><%= totalSprintDone %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Completadas</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-2xl font-black <%= globalDonePct >= 75 ? 'text-emerald-600' : globalDonePct >= 40 ? 'text-amber-500' : 'text-red-500' %>"><%= globalDonePct %>%</div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Avance global</div>
+    </div>
+  </div>
+
+  <% if (!spData.length) { %>
+  <div class="bg-white rounded-xl border border-slate-200 py-16 text-center text-slate-400">
+    No se encontraron sprints activos. Asegurate de tener sprints definidos en Odoo.
+  </div>
+  <% } else { %>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <% spData.forEach(sp => { %>
+    <div class="bg-white rounded-xl border-2 border-slate-200 p-5 hover:shadow-md transition-shadow">
+
+      <%# Sprint header %>
+      <div class="flex items-start justify-between gap-2 mb-3">
+        <div>
+          <div class="font-bold text-slate-900 text-sm"><%= sp.name %></div>
+          <div class="flex flex-wrap gap-1 mt-1">
+            <% (sp.projects || []).slice(0, 3).forEach(pname => { %>
+            <span class="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5 font-medium"><%= pname %></span>
+            <% }) %>
+            <% if ((sp.projects || []).length > 3) { %>
+            <span class="text-[10px] text-slate-400">+<%= sp.projects.length - 3 %> más</span>
+            <% } %>
+          </div>
+        </div>
+        <div class="text-right shrink-0">
+          <div class="text-xl font-black <%= sp.donePct >= 75 ? 'text-emerald-600' : sp.donePct >= 40 ? 'text-amber-500' : 'text-red-500' %>"><%= sp.donePct %>%</div>
+          <div class="text-[10px] text-slate-400"><%= sp.doneTasks %>/<%= sp.openTasks + sp.doneTasks %> tareas</div>
+        </div>
+      </div>
+
+      <%# Progress bar %>
+      <div class="w-full bg-slate-100 rounded-full h-2.5 mb-3">
+        <div class="h-2.5 rounded-full transition-all <%= sp.donePct >= 75 ? 'bg-emerald-500' : sp.donePct >= 40 ? 'bg-amber-400' : 'bg-red-400' %>"
+             style="width:<%= sp.donePct %>%"></div>
+      </div>
+
+      <%# Stats row %>
+      <div class="grid grid-cols-3 gap-2 mb-3">
+        <div class="bg-slate-50 rounded-lg p-2 text-center">
+          <div class="text-sm font-bold text-slate-800"><%= sp.openTasks %></div>
+          <div class="text-[10px] text-slate-400">Abiertas</div>
+        </div>
+        <div class="bg-emerald-50 rounded-lg p-2 text-center">
+          <div class="text-sm font-bold text-emerald-700"><%= sp.doneTasks %></div>
+          <div class="text-[10px] text-emerald-500">Cerradas</div>
+        </div>
+        <div class="bg-blue-50 rounded-lg p-2 text-center">
+          <div class="text-sm font-bold text-blue-700"><%= (sp.totalAlloc || 0).toFixed(0) %>h</div>
+          <div class="text-[10px] text-blue-400">Asignadas</div>
+        </div>
+      </div>
+
+      <%# Recent tasks preview %>
+      <% if (sp.tasks && sp.tasks.length > 0) { %>
+      <div class="border-t border-slate-50 pt-2 space-y-1">
+        <% sp.tasks.slice(0, 4).forEach(t => { %>
+        <div class="flex items-center gap-2 text-xs">
+          <span class="shrink-0 w-4 h-4 rounded-full border flex items-center justify-center
+                       <%= t.done ? 'bg-emerald-100 border-emerald-300' : 'border-slate-300 bg-white' %>">
+            <% if (t.done) { %><svg class="w-2.5 h-2.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path d="M16.707 5.293a1 1 0 010 1.414L9 14.414l-3.707-3.707a1 1 0 011.414-1.414L9 11.586l6.293-6.293a1 1 0 011.414 0z"/></svg><% } %>
+          </span>
+          <span class="flex-1 truncate text-slate-600 <%= t.done ? 'line-through text-slate-400' : '' %>"><%= t.name %></span>
+          <% if (t.assignee) { %><span class="shrink-0 text-[10px] text-slate-400"><%= t.assignee.split(' ')[0] %></span><% } %>
+        </div>
+        <% }) %>
+        <% if (sp.tasks.length > 4) { %>
+        <div class="text-[10px] text-slate-400 pt-1">+<%= sp.tasks.length - 4 %> tareas más...</div>
+        <% } %>
+      </div>
+      <% } %>
+    </div>
+    <% }) %>
+  </div>
+  <% } %>
+
+</div><!-- /tab-sprints -->
+
+<%# ── Alertas Tab ──────────────────────────────────────────────────────────── %>
+<div id="tab-alertas" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <%
+    const alertData = projectAlerts || [];
+    const critCount = alertData.filter(a => a.severity === 'critical').length;
+    const warnCount = alertData.filter(a => a.severity === 'warning').length;
+    const infoAlertCount = alertData.filter(a => a.severity === 'info').length;
+  %>
+
+  <%# Header stats %>
+  <div class="grid grid-cols-3 gap-3">
+    <div class="bg-red-50 rounded-xl border border-red-200 p-4 text-center">
+      <div class="text-3xl font-black text-red-600"><%= critCount %></div>
+      <div class="text-xs text-red-500 font-semibold mt-1">Críticas</div>
+    </div>
+    <div class="bg-amber-50 rounded-xl border border-amber-200 p-4 text-center">
+      <div class="text-3xl font-black text-amber-600"><%= warnCount %></div>
+      <div class="text-xs text-amber-500 font-semibold mt-1">Advertencias</div>
+    </div>
+    <div class="bg-blue-50 rounded-xl border border-blue-200 p-4 text-center">
+      <div class="text-3xl font-black text-blue-600"><%= infoAlertCount %></div>
+      <div class="text-xs text-blue-500 font-semibold mt-1">Informativas</div>
+    </div>
+  </div>
+
+  <% if (!alertData.length) { %>
+  <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-8 text-center">
+    <div class="text-4xl mb-3">✅</div>
+    <div class="font-bold text-emerald-700 text-lg">Sin alertas activas</div>
+    <div class="text-sm text-emerald-600 mt-1">Todos los proyectos están dentro de los umbrales normales.</div>
+  </div>
+  <% } else { %>
+  <div class="space-y-3">
+    <% alertData.forEach(a => {
+      const isC = a.severity === 'critical';
+      const isW = a.severity === 'warning';
+      const borderCls = isC ? 'border-red-300 bg-red-50' : isW ? 'border-amber-300 bg-amber-50' : 'border-blue-200 bg-blue-50';
+      const badgeCls  = isC ? 'bg-red-500 text-white' : isW ? 'bg-amber-400 text-white' : 'bg-blue-400 text-white';
+      const badgeLbl  = isC ? 'CRÍTICO' : isW ? 'AVISO' : 'INFO';
+      const textCls   = isC ? 'text-red-800' : isW ? 'text-amber-800' : 'text-blue-800';
+      const subCls    = isC ? 'text-red-600' : isW ? 'text-amber-600' : 'text-blue-600';
+    %>
+    <div class="bg-white rounded-xl border-2 <%= borderCls %> p-4 flex items-start gap-4">
+      <span class="shrink-0 mt-0.5 px-2 py-0.5 rounded text-[10px] font-black <%= badgeCls %>"><%= badgeLbl %></span>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold text-sm <%= textCls %> truncate"><%= a.project %></div>
+        <div class="text-sm <%= subCls %> mt-0.5"><%= a.message %></div>
+        <% if (a.detail) { %><div class="text-xs text-slate-500 mt-1"><%= a.detail %></div><% } %>
+      </div>
+      <a href="https://www.torus.dev/web#id=<%= a.projectId %>&model=project.project" target="_blank" rel="noopener"
+         class="shrink-0 text-[10px] font-semibold text-slate-400 hover:text-blue-600 border border-slate-200 hover:border-blue-300 rounded px-2 py-1 transition-colors">
+        Ver →
+      </a>
+    </div>
+    <% }) %>
+  </div>
+  <% } %>
+
+</div><!-- /tab-alertas -->
+
 <%# ── Heatmap Drilldown Modal ──────────────────────────────────────────────────── %>
 <div id="heatmapModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
   <div class="absolute inset-0 bg-black/50" onclick="closeHeatmapModal()"></div>
@@ -1212,16 +1503,90 @@ document.addEventListener('click', e => {
 });
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
+const ALL_TABS = ['equipo', 'proyectos', 'capacidad', 'sprints', 'alertas'];
+let capacityChartRendered = false;
+
 function switchTab(tab) {
-  ['equipo', 'proyectos'].forEach(t => {
+  ALL_TABS.forEach(t => {
     document.getElementById(`tab-${t}`)?.classList.toggle('hidden', t !== tab);
     document.getElementById(`tab-btn-${t}`)?.classList.toggle('active', t === tab);
     // Toggle context filters in sticky bar
     const ctx = document.getElementById(`ctx-${t}`);
     if (ctx) ctx.style.display = (t === tab) ? 'flex' : 'none';
   });
+  // Lazy-render capacity chart on first open
+  if (tab === 'capacidad' && !capacityChartRendered) {
+    capacityChartRendered = true;
+    renderCapacityChart();
+  }
   // Persist tab choice in sessionStorage
   sessionStorage.setItem('activeTab', tab);
+}
+
+// ── Capacity Chart ────────────────────────────────────────────────────────────
+function renderCapacityChart() {
+  const ctx = document.getElementById('chartCapacity');
+  if (!ctx) return;
+  const capData = <%- JSON.stringify((capacityData || []).map(c => ({
+    name: c.name.split(' ')[0],
+    allocated: +(c.allocated || 0).toFixed(1),
+    available: +(c.hoursAvailable || 0).toFixed(0),
+    utilPct: c.utilPct || 0,
+    status: c.status,
+  }))) %>;
+  if (!capData.length) return;
+  const labels    = capData.map(c => c.name);
+  const allocated = capData.map(c => c.allocated);
+  const available = capData.map(c => Math.max(0, c.available - c.allocated));
+  const bgColors  = capData.map(c =>
+    c.status === 'overloaded' ? 'rgba(239,68,68,0.85)'
+    : c.status === 'busy'     ? 'rgba(245,158,11,0.85)'
+    : c.status === 'available'? 'rgba(59,130,246,0.85)'
+    :                           'rgba(16,185,129,0.85)'
+  );
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Horas asignadas',
+          data: allocated,
+          backgroundColor: bgColors,
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+        {
+          label: 'Disponibles restantes',
+          data: available,
+          backgroundColor: 'rgba(226,232,240,0.6)',
+          borderRadius: 4,
+          borderSkipped: false,
+        },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx2 => `${ctx2.dataset.label}: ${ctx2.parsed.x.toFixed(1)}h`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { font: { size: 11 }, callback: v => v + 'h' },
+        },
+        y: { stacked: true, ticks: { font: { size: 11 } } },
+      },
+    },
+  });
 }
 
 function applyProjectFilter(url) {
@@ -1234,7 +1599,8 @@ renderWeeklyChart();
 renderBillableChart();
 
 // Restore tab from sessionStorage or URL hash
-const savedTab = sessionStorage.getItem('activeTab') || 'equipo';
+const savedTab = ALL_TABS.includes(sessionStorage.getItem('activeTab'))
+  ? sessionStorage.getItem('activeTab') : 'equipo';
 if (savedTab !== 'equipo') switchTab(savedTab);
 
 // ── Drilldown data ─────────────────────────────────────────────────────────────

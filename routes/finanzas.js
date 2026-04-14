@@ -2,7 +2,11 @@
 
 const express = require('express');
 const router  = express.Router();
-const { fetchFinancialData, fetchCXC, fetchPipeline, fetchClosingRate } = require('../src/finanzas');
+const {
+  fetchFinancialData, fetchCXC, fetchCXP,
+  fetchPipeline, fetchClosingRate, fetchCRMPipeline,
+  fetchClientProfitability, fetchYoY,
+} = require('../src/finanzas');
 
 router.get('/', async (req, res) => {
   try {
@@ -19,11 +23,15 @@ router.get('/', async (req, res) => {
     const year = (from ? parseInt(from.slice(0, 4)) : baseYear);
     const activeFilters = { year, from: from || null, to: to || null, period: period || null };
 
-    const [fin, cxc, pipeline, closingRate] = await Promise.all([
+    const [fin, cxc, cxp, pipeline, closingRate, crm, clients, yoy] = await Promise.all([
       fetchFinancialData(year, { from, to }),
       fetchCXC(),
+      fetchCXP(),
       fetchPipeline(),
       fetchClosingRate(),
+      fetchCRMPipeline(),
+      fetchClientProfitability(year, { from, to }),
+      fetchYoY(year),
     ]);
 
     res.render('dashboards/finanzas', {
@@ -33,8 +41,12 @@ router.get('/', async (req, res) => {
       activeFilters,
       fin,
       cxc,
+      cxp,
       pipeline,
       closingRate,
+      crm,
+      clients,
+      yoy,
       cxcItemsJson: JSON.stringify(cxc.items || []),
       lastUpdate: new Date().toLocaleString('es-PY', { dateStyle: 'medium', timeStyle: 'short' }),
     });

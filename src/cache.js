@@ -683,6 +683,97 @@ function computeDashboard(raw, filters = {}) {
     };
   });
 
+  // ── Capacity planning per consultant ─────────────────────────────────────
+  // Allocated remaining hours from open tasks, vs working hours available this month
+  const capacityData = (() => {
+    const todayDate = new Date();
+    const monthEnd  = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+    const remainingWorkDays = Math.max(1, Array.from({ length: monthEnd.getDate() - todayDate.getDate() + 1 }, (_, i) => {
+      const d = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() + i);
+      return isBusinessDay(d) ? 1 : 0;
+    }).reduce((a, b) => a + b, 0));
+    const hoursAvailable = remainingWorkDays * 8; // 8h/day per consultant
+
+    const allocByLogin = {};
+    for (const p of projects) {
+      for (const t of (p.tasks || [])) {
+        if (isDone(t) || isBacklog(t)) continue;
+        const remaining = Math.max(0, parseFloat(t.allocated_hours || 0) - parseFloat(t.effective_hours || 0));
+        if (remaining <= 0) continue;
+        const assigneeId = t.user_id?.[0];
+        const login = assigneeId ? (userIdToLogin.get(assigneeId) || null) : null;
+        if (!login) continue;
+        allocByLogin[login] = (allocByLogin[login] || 0) + remaining;
+      }
+    }
+
+    return employees.filter(e => e.login).map(e => {
+      const allocated  = round(allocByLogin[e.login] || 0);
+      const utilPct    = hoursAvailable > 0 ? Math.round(allocated / hoursAvailable * 100) : 0;
+      const status     = utilPct >= 100 ? 'overloaded' : utilPct >= 70 ? 'busy' : utilPct >= 30 ? 'available' : 'free';
+      return { login: e.login, name: e.name, allocated, hoursAvailable: round(hoursAvailable), utilPct, status };
+    }).sort((a, b) => b.utilPct - a.utilPct);
+  })();
+
+  // ── Sprint overview (all open sprints across projects) ────────────────────
+  const sprintOverview = (() => {
+    const sprintMap = {};
+    for (const p of projects) {
+      for (const t of (p.tasks || [])) {
+        const sprintName = t.sprint_id?.[1];
+        if (!sprintName) continue;
+        if (!sprintMap[sprintName]) sprintMap[sprintName] = { name: sprintName, projects: new Set(), openTasks: 0, doneTasks: 0, totalAlloc: 0, tasks: [] };
+        const s = sprintMap[sprintName];
+        s.projects.add(p.name);
+        if (isDone(t)) s.doneTasks++; else s.openTasks++;
+        s.totalAlloc += parseFloat(t.allocated_hours || 0);
+        if (!isDone(t)) s.tasks.push({ name: (t.name||'').slice(0,60), project: p.name, assignee: t.user_id?.[1]||null, alloc: round(t.allocated_hours||0), end: t.date_end ? String(t.date_end).slice(0,10) : null });
+      }
+    }
+    return Object.values(sprintMap)
+      .map(s => ({
+        name:       s.name,
+        projects:   [...s.projects],
+        openTasks:  s.openTasks,
+        doneTasks:  s.doneTasks,
+        totalTasks: s.openTasks + s.doneTasks,
+        donePct:    (s.openTasks + s.doneTasks) > 0 ? Math.round(s.doneTasks / (s.openTasks + s.doneTasks) * 100) : 0,
+        totalAlloc: round(s.totalAlloc),
+        tasks:      s.tasks.slice(0, 50),
+      }))
+      .filter(s => s.totalTasks > 0)
+      .sort((a, b) => a.donePct - b.donePct); // least complete first
+  })();
+
+  // ── Project alerts (80% hours, stalled, overdue tasks) ───────────────────
+  const projectAlerts = projectStatuses
+    .filter(p => !p.isInternal && !p.isCompleted)
+    .flatMap(p => {
+      const alerts = [];
+      if (p.totalAlloc > 0 && p.hoursPct >= 80 && p.hoursPct < 120) {
+        alerts.push({ projectId: p.id, project: p.name, type: 'hours80', severity: 'warning',
+          message: `${p.hoursPct}% del presupuesto de horas consumido (${p.totalLog}h / ${p.totalAlloc}h)` });
+      }
+      if (p.totalAlloc > 0 && p.hoursPct >= 120) {
+        alerts.push({ projectId: p.id, project: p.name, type: 'hoursOver', severity: 'critical',
+          message: `Presupuesto de horas EXCEDIDO: ${p.hoursPct}% (${p.totalLog}h / ${p.totalAlloc}h)` });
+      }
+      if (p.daysSinceUpdate >= config.DAYS_SINCE_UPDATE_CRITICAL && p.openTasks > 0) {
+        alerts.push({ projectId: p.id, project: p.name, type: 'stalled', severity: 'critical',
+          message: `Sin actividad en ${p.daysSinceUpdate} días hábiles con ${p.openTasks} tareas abiertas` });
+      } else if (p.daysSinceUpdate >= config.DAYS_SINCE_UPDATE_WARNING && p.openTasks > 0) {
+        alerts.push({ projectId: p.id, project: p.name, type: 'stalled', severity: 'warning',
+          message: `Sin actividad en ${p.daysSinceUpdate} días` });
+      }
+      const overdueGantt = p.ganttTasks.filter(t => !t.done && t.end && t.end < toDateOnly(today));
+      if (overdueGantt.length > 0) {
+        alerts.push({ projectId: p.id, project: p.name, type: 'overdueTasks', severity: 'warning',
+          message: `${overdueGantt.length} tarea(s) con fecha vencida sin cerrar` });
+      }
+      return alerts;
+    })
+    .sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1));
+
   // ── Logging control ───────────────────────────────────────────────────────
   const loggingControl = buildLoggingControl({
     employees,
@@ -720,6 +811,9 @@ function computeDashboard(raw, filters = {}) {
     anomalies:      anomalies.slice(0, 500),
     weeklyData,
     loggingControl,
+    capacityData,
+    sprintOverview,
+    projectAlerts,
     timesheetsByPersonProject,
     lastUpdate:     new Date().toISOString(),
     _userIdToLogin: userIdToLogin,
