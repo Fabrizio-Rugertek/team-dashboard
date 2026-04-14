@@ -22,14 +22,19 @@
 <body class="bg-slate-100 min-h-screen">
 
 <%
-  const gs  = n => 'Gs.\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(n || 0);
+  // Plain text formatters (for title attrs, insights text, chart tooltips)
+  const gs  = n => 'Gs.\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(Math.abs(n || 0));
   const gsM = n => {
     const abs = Math.abs(n || 0);
-    if (abs >= 1e9) return (n/1e9).toFixed(1) + ' B';
-    if (abs >= 1e6) return (n/1e6).toFixed(1) + ' M';
-    if (abs >= 1e3) return Math.round(n/1e3) + ' K';
-    return String(Math.round(n || 0));
+    if (abs >= 1e9) return (abs/1e9).toFixed(1) + ' B';
+    if (abs >= 1e6) return (abs/1e6).toFixed(1) + ' M';
+    if (abs >= 1e3) return Math.round(abs/1e3) + ' K';
+    return String(Math.round(abs));
   };
+  // HTML span wrappers — JS toggle reads data-pyg and converts to USD on the fly
+  const amt  = n => `<span class="c-amt" data-pyg="${Math.round(n||0)}">Gs.\u00A0${gsM(Math.round(n||0))}</span>`;
+  const amtG = n => `<span class="c-amt" data-pyg="${Math.round(n||0)}">${gs(Math.round(n||0))}</span>`;
+  const amtC = n => `<span class="c-amt c-amt-compact" data-pyg="${Math.round(n||0)}">${gsM(Math.round(n||0))}</span>`; // compact, no prefix
   const ingRows = fin.eerrRows.filter(r => r.totalRevenue > 0).sort((a,b) => b.totalRevenue - a.totalRevenue);
   const egRows  = fin.eerrRows.filter(r => r.totalRevenue === 0 && r.totalCost > 0).sort((a,b) => b.totalCost - a.totalCost);
   const totalIngRev  = ingRows.reduce((s,r) => s + r.totalRevenue, 0);
@@ -175,6 +180,17 @@
           </form>
         </div>
       </div>
+      <!-- Currency toggle -->
+      <div class="flex items-center gap-0.5 rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+        <button id="cur-btn-pyg" onclick="switchCurrency('pyg')"
+                class="px-2.5 py-1 rounded-md text-[11px] font-bold transition-all bg-white text-slate-700 shadow-sm border border-slate-200">
+          Gs.
+        </button>
+        <button id="cur-btn-usd" onclick="switchCurrency('usd')"
+                class="px-2.5 py-1 rounded-md text-[11px] font-bold transition-all text-slate-400 hover:text-slate-600">
+          USD
+        </button>
+      </div>
       <div class="flex items-center gap-1.5 text-xs text-slate-400 border-l border-slate-200 pl-3">
         <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
         <span><%= lastUpdate %></span>
@@ -206,7 +222,7 @@
       <!-- Ingresos YTD -->
       <div class="xl:col-span-1 bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Ingresos <%= year %></div>
-        <div class="text-xl font-black text-slate-900">Gs.&nbsp;<%= gsM(fin.totalRevenue) %></div>
+        <div class="text-xl font-black text-slate-900"><%- amt(fin.totalRevenue) %></div>
         <% if (yoyRevDelta !== null) { %>
         <div class="text-[11px] mt-1 font-bold <%= yoyRevDelta >= 0 ? 'kpi-delta-up' : 'kpi-delta-down' %>">
           <%= yoyRevDelta >= 0 ? '▲' : '▼' %> <%= Math.abs(yoyRevDelta) %>% vs <%= year-1 %>
@@ -221,7 +237,7 @@
       <!-- Costos directos -->
       <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Costos Directos</div>
-        <div class="text-xl font-black text-slate-900">Gs.&nbsp;<%= gsM(totalIngCost) %></div>
+        <div class="text-xl font-black text-slate-900"><%- amt(totalIngCost) %></div>
         <div class="text-[11px] text-slate-400 mt-1"><%= totalIngRev > 0 ? Math.round(totalIngCost/totalIngRev*100) : 0 %>% de ingresos</div>
       </div>
 
@@ -231,13 +247,13 @@
         <div class="text-xl font-black <%= totalIngMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
           <%= totalIngMgnPct %>%
         </div>
-        <div class="text-[11px] mt-1 font-semibold text-slate-500">Gs.&nbsp;<%= gsM(totalIngMgn) %></div>
+        <div class="text-[11px] mt-1 font-semibold text-slate-500"><%- amt(totalIngMgn) %></div>
       </div>
 
       <!-- Egresos indirectos -->
       <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Egresos Indirectos</div>
-        <div class="text-xl font-black text-red-500">Gs.&nbsp;<%= gsM(totalEgCost) %></div>
+        <div class="text-xl font-black text-red-500"><%- amt(totalEgCost) %></div>
         <div class="text-[11px] text-slate-400 mt-1"><%= egRows.length %> cuentas</div>
       </div>
 
@@ -259,8 +275,8 @@
       <div class="bg-slate-50 rounded-xl border-2 border-amber-200 p-4 cursor-pointer hover:bg-amber-50 transition"
            onclick="switchTab('cxc')">
         <div class="text-[10px] font-bold text-amber-600 uppercase tracking-wide mb-1">CXC — Por Cobrar</div>
-        <div class="text-xl font-black text-amber-700">Gs.&nbsp;<%= gsM(cxc.total) %></div>
-        <div class="text-[11px] text-red-500 font-semibold mt-1">Gs.&nbsp;<%= gsM(overdue) %> vencido</div>
+        <div class="text-xl font-black text-amber-700"><%- amt(cxc.total) %></div>
+        <div class="text-[11px] text-red-500 font-semibold mt-1"><%- amt(overdue) %> vencido</div>
       </div>
 
       <!-- CXP -->
@@ -268,7 +284,7 @@
            onclick="switchTab('cashflow')">
         <% const cxpOverdue = (cxp.buckets.d1_30||0)+(cxp.buckets.d31_60||0)+(cxp.buckets.d61_90||0)+(cxp.buckets.d90plus||0); %>
         <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">CXP — Por Pagar</div>
-        <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cxp.total) %></div>
+        <div class="text-xl font-black text-orange-700"><%- amt(cxp.total) %></div>
         <div class="text-[11px] text-orange-500 font-semibold mt-1"><%= cxp.count %> facturas prov.</div>
       </div>
 
@@ -276,7 +292,7 @@
       <div class="bg-slate-50 rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:bg-blue-50 transition"
            onclick="switchTab('pipeline')">
         <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Pipeline CRM</div>
-        <div class="text-xl font-black text-blue-700">Gs.&nbsp;<%= gsM(crm.totalWeighted || pipeline.total) %></div>
+        <div class="text-xl font-black text-blue-700"><%- amt(crm.totalWeighted || pipeline.total) %></div>
         <div class="text-[11px] text-blue-500 font-semibold mt-1"><%= crm.count || pipeline.count %> oport. · <%= closingRate.rate !== null ? closingRate.rate + '% cierre' : '' %></div>
       </div>
 
@@ -467,14 +483,14 @@
                 <span class="text-[10px] font-normal text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded"><%= rows.length %></span>
               </div>
             </td>
-            <td class="text-right px-3 py-2 text-emerald-700 font-bold text-xs"><%= gsM(gRev) %></td>
-            <td class="text-right px-3 py-2 text-red-600 text-xs"><%= gCost > 0 ? gsM(gCost) : '—' %></td>
-            <td class="text-right px-3 py-2 text-xs font-bold <%= gMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%= gsM(gMgn) %></td>
+            <td class="text-right px-3 py-2 text-emerald-700 font-bold text-xs"><%-  amtC(gRev) %></td>
+            <td class="text-right px-3 py-2 text-red-600 text-xs"><%-  gCost > 0 ? amtC(gCost) : '—' %></td>
+            <td class="text-right px-3 py-2 text-xs font-bold <%= gMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%-  amtC(gMgn) %></td>
             <td class="text-right px-3 py-2 text-xs font-bold <%= gPct >= 0 ? 'text-emerald-500' : 'text-red-500' %>"><%= gPct %>%</td>
             <% fin.months.forEach(function(m) {
               const monthRev  = rows.reduce((s,r) => s + (r.months.find(x=>x.month===m.month)||{}).revenue||0, 0);
               const monthCost = rows.reduce((s,r) => s + (r.months.find(x=>x.month===m.month)||{}).cost||0, 0);
-            %><td class="text-right px-2 py-2 text-xs <%= monthRev > 0 ? 'text-emerald-600' : 'text-slate-300' %>"><%= monthRev > 0 ? gsM(monthRev) : '' %></td><% }) %>
+            %><td class="text-right px-2 py-2 text-xs <%= monthRev > 0 ? 'text-emerald-600' : 'text-slate-300' %>"><%-  monthRev > 0 ? amtC(monthRev) : '' %></td><% }) %>
           </tr>
           <%# Individual account rows (hidden by default) %>
           <% rows.forEach(function(row) {
@@ -483,15 +499,15 @@
           %>
           <tr class="<%= gId %>-row hidden border-b border-slate-50 hover:bg-slate-50 transition">
             <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs"><%= row.name %></td>
-            <td class="text-right px-3 py-2 text-emerald-700 text-xs"><%= gsM(row.totalRevenue) %></td>
-            <td class="text-right px-3 py-2 text-red-600 text-xs"><%= row.totalCost > 0 ? gsM(row.totalCost) : '—' %></td>
-            <td class="text-right px-3 py-2 text-xs <%= mClass %>"><%= gsM(row.margin) %></td>
+            <td class="text-right px-3 py-2 text-emerald-700 text-xs"><%-  amtC(row.totalRevenue) %></td>
+            <td class="text-right px-3 py-2 text-red-600 text-xs"><%-  row.totalCost > 0 ? amtC(row.totalCost) : '—' %></td>
+            <td class="text-right px-3 py-2 text-xs <%= mClass %>"><%-  amtC(row.margin) %></td>
             <td class="text-right px-3 py-2 text-xs <%= pClass %>"><%= row.marginPct %>%</td>
             <% row.months.forEach(function(m) {
               const hasRev = m.revenue > 0; const hasCost = m.cost > 0;
               const cellVal = hasRev ? gsM(m.revenue) : hasCost ? '('+gsM(m.cost)+')' : '';
               const cellCls = hasRev ? 'text-emerald-600' : hasCost ? 'text-red-500' : 'text-slate-200';
-            %><td class="text-right px-2 py-2 text-xs <%= cellCls %>" title="<%= m.label %>: Ing <%= gs(m.revenue) %> | Costo <%= gs(m.cost) %>"><%= cellVal %></td><% }) %>
+            %><td class="text-right px-2 py-2 text-xs <%= cellCls %>" title="<%= m.label %>: Ing <%-  amtG(m.revenue) %> | Costo <%-  amtG(m.cost) %>"><%= cellVal %></td><% }) %>
           </tr>
           <% }) %>
           <% }) %>
@@ -499,11 +515,11 @@
           <!-- Subtotal Ingresos -->
           <tr class="bg-emerald-50 border-y-2 border-emerald-300 font-bold text-xs">
             <td class="px-5 py-2.5 font-extrabold text-emerald-900 sticky left-0 bg-emerald-50 z-10">SUBTOTAL INGRESOS</td>
-            <td class="text-right px-3 py-2.5 text-emerald-700 font-extrabold"><%= gsM(totalIngRev) %></td>
-            <td class="text-right px-3 py-2.5 text-red-600 font-extrabold"><%= gsM(totalIngCost) %></td>
-            <td class="text-right px-3 py-2.5 <%= totalIngMgn >= 0 ? 'text-emerald-700' : 'text-red-600' %> font-extrabold"><%= gsM(totalIngMgn) %></td>
+            <td class="text-right px-3 py-2.5 text-emerald-700 font-extrabold"><%-  amtC(totalIngRev) %></td>
+            <td class="text-right px-3 py-2.5 text-red-600 font-extrabold"><%-  amtC(totalIngCost) %></td>
+            <td class="text-right px-3 py-2.5 <%= totalIngMgn >= 0 ? 'text-emerald-700' : 'text-red-600' %> font-extrabold"><%-  amtC(totalIngMgn) %></td>
             <td class="text-right px-3 py-2.5 <%= totalIngMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %> font-extrabold"><%= totalIngMgnPct %>%</td>
-            <% fin.months.forEach(function(m) { %><td class="text-right px-2 py-2.5 <%= m.revenue > 0 ? 'text-emerald-600' : 'text-slate-300' %>"><%= m.revenue > 0 ? gsM(m.revenue) : '—' %></td><% }) %>
+            <% fin.months.forEach(function(m) { %><td class="text-right px-2 py-2.5 <%= m.revenue > 0 ? 'text-emerald-600' : 'text-slate-300' %>"><%-  m.revenue > 0 ? amtC(m.revenue) : '—' %></td><% }) %>
           </tr>
 
           <% if (egRows.length > 0) { %>
@@ -530,21 +546,21 @@
               </div>
             </td>
             <td class="text-right px-3 py-2 text-slate-300 text-xs">—</td>
-            <td class="text-right px-3 py-2 text-red-600 font-bold text-xs"><%= gsM(gCost) %></td>
-            <td class="text-right px-3 py-2 text-red-500 font-bold text-xs">(<%= gsM(gCost) %>)</td>
+            <td class="text-right px-3 py-2 text-red-600 font-bold text-xs"><%-  amtC(gCost) %></td>
+            <td class="text-right px-3 py-2 text-red-500 font-bold text-xs">(<%-  amtC(gCost) %>)</td>
             <td class="text-right px-3 py-2 text-red-400 text-xs">—</td>
             <% fin.months.forEach(function(m) {
               const mCost = rows.reduce((s,r) => s + (r.months.find(x=>x.month===m.month)||{}).cost||0, 0);
-            %><td class="text-right px-2 py-2 text-xs <%= mCost > 0 ? 'text-red-500' : 'text-slate-200' %>"><%= mCost > 0 ? '('+gsM(mCost)+')' : '' %></td><% }) %>
+            %><td class="text-right px-2 py-2 text-xs <%= mCost > 0 ? 'text-red-500' : 'text-slate-200' %>"><%-  mCost > 0 ? '('+amtC(mCost)+')' : '' %></td><% }) %>
           </tr>
           <% rows.forEach(function(row) { %>
           <tr class="<%= gId %>-row hidden border-b border-slate-50 hover:bg-slate-50 transition">
             <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs"><%= row.name %></td>
             <td class="text-right px-3 py-2 text-slate-300 text-xs">—</td>
-            <td class="text-right px-3 py-2 text-red-600 text-xs"><%= gsM(row.totalCost) %></td>
-            <td class="text-right px-3 py-2 text-red-500 font-bold text-xs">(<%= gsM(row.totalCost) %>)</td>
+            <td class="text-right px-3 py-2 text-red-600 text-xs"><%-  amtC(row.totalCost) %></td>
+            <td class="text-right px-3 py-2 text-red-500 font-bold text-xs">(<%-  amtC(row.totalCost) %>)</td>
             <td class="text-right px-3 py-2 text-red-400 text-xs">—</td>
-            <% row.months.forEach(function(m) { %><td class="text-right px-2 py-2 text-xs <%= m.cost > 0 ? 'text-red-500' : 'text-slate-200' %>"><%= m.cost > 0 ? '('+gsM(m.cost)+')' : '' %></td><% }) %>
+            <% row.months.forEach(function(m) { %><td class="text-right px-2 py-2 text-xs <%= m.cost > 0 ? 'text-red-500' : 'text-slate-200' %>"><%-  m.cost > 0 ? '('+amtC(m.cost)+')' : '' %></td><% }) %>
           </tr>
           <% }) %>
           <% }) %>
@@ -553,8 +569,8 @@
           <tr class="bg-red-50 border-y-2 border-red-300 font-bold text-xs">
             <td class="px-5 py-2.5 font-extrabold text-red-900 sticky left-0 bg-red-50 z-10">SUBTOTAL EGRESOS INDIRECTOS</td>
             <td class="text-right px-3 py-2.5 text-slate-300">—</td>
-            <td class="text-right px-3 py-2.5 text-red-700 font-extrabold"><%= gsM(totalEgCost) %></td>
-            <td class="text-right px-3 py-2.5 text-red-700 font-extrabold">(<%= gsM(totalEgCost) %>)</td>
+            <td class="text-right px-3 py-2.5 text-red-700 font-extrabold"><%-  amtC(totalEgCost) %></td>
+            <td class="text-right px-3 py-2.5 text-red-700 font-extrabold">(<%-  amtC(totalEgCost) %>)</td>
             <td colspan="<%= 1 + fin.months.length %>"></td>
           </tr>
           <% } %>
@@ -562,17 +578,17 @@
           <!-- Grand total -->
           <tr class="bg-slate-900 text-white font-bold text-xs">
             <td class="px-5 py-3 font-extrabold sticky left-0 bg-slate-900 z-10">RESULTADO NETO PARCIAL</td>
-            <td class="text-right px-3 py-3 text-emerald-400 font-extrabold"><%= gsM(totalIngRev) %></td>
-            <td class="text-right px-3 py-3 text-red-400 font-extrabold"><%= gsM(totalIngCost + totalEgCost) %></td>
+            <td class="text-right px-3 py-3 text-emerald-400 font-extrabold"><%-  amtC(totalIngRev) %></td>
+            <td class="text-right px-3 py-3 text-red-400 font-extrabold"><%-  amtC(totalIngCost + totalEgCost) %></td>
             <td class="text-right px-3 py-3 <%= totalIngMgn - totalEgCost >= 0 ? 'text-emerald-400' : 'text-red-400' %> font-extrabold">
-              <%= gsM(totalIngMgn - totalEgCost) %>
+              <%-  amtC(totalIngMgn - totalEgCost) %>
             </td>
             <td class="text-right px-3 py-3 <%= totalIngMgn - totalEgCost >= 0 ? 'text-emerald-300' : 'text-red-300' %> font-extrabold">
               <%= totalIngRev > 0 ? Math.round((totalIngMgn - totalEgCost) / totalIngRev * 100) : 0 %>%
             </td>
             <% fin.months.forEach(function(m) { %>
             <td class="text-right px-2 py-3 <%= m.revenue > 0 ? 'text-emerald-300' : 'text-slate-500' %>">
-              <%= m.revenue > 0 ? gsM(m.revenue - m.cost) : '' %>
+              <%-  m.revenue > 0 ? amtC(m.revenue - m.cost) : '' %>
             </td>
             <% }) %>
           </tr>
@@ -623,7 +639,7 @@
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs font-medium text-slate-700 truncate max-w-[200px]" title="<%= row.name %>"><%= row.name %></span>
             <div class="flex items-center gap-3 shrink-0 ml-2">
-              <span class="text-xs text-slate-400"><%= gsM(row.totalRevenue) %></span>
+              <span class="text-xs text-slate-400"><%-  amtC(row.totalRevenue) %></span>
               <span class="text-xs font-bold <%= row.marginPct >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%= row.marginPct %>%</span>
             </div>
           </div>
@@ -664,11 +680,11 @@
   <div class="flex items-center gap-3 flex-wrap">
     <h2 class="text-xl font-extrabold text-slate-900">Cuentas por Cobrar</h2>
     <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full">
-      <%= cxc.count %> facturas · Gs.&nbsp;<%= gsM(cxc.total) %>
+      <%= cxc.count %> facturas · <%- amt(cxc.total) %>
     </span>
     <% if (overdue > 0) { %>
     <span class="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">
-      Gs.&nbsp;<%= gsM(overdue) %> vencido
+      <%- amt(overdue) %> vencido
     </span>
     <% } %>
     <% if (dso !== null) { %>
@@ -704,7 +720,7 @@
       %>
       <div class="bg-white rounded-xl border border-slate-200 p-4">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2"><%= cfg.label %></div>
-        <div class="text-xl font-black <%= cfg.textColor %>">Gs.&nbsp;<%= gsM(amount) %></div>
+        <div class="text-xl font-black <%= cfg.textColor %>"><%- amt(amount) %></div>
         <div class="w-full bg-slate-100 rounded-full h-1.5 mt-2">
           <div class="aging-bar bg-<%= cfg.color %>-400 h-1.5 rounded-full" style="width:<%= pctOfTotal %>%"></div>
         </div>
@@ -733,7 +749,7 @@
           </div>
         </div>
         <div class="text-right shrink-0">
-          <div class="text-sm font-black text-red-600">Gs.&nbsp;<%= gsM(inv.residual) %></div>
+          <div class="text-sm font-black text-red-600"><%- amt(inv.residual) %></div>
           <div class="text-xs font-bold
             <%= inv.bucket === 'd90plus' ? 'text-rose-600' : inv.bucket === 'd61_90' ? 'text-red-600' : inv.bucket === 'd31_60' ? 'text-orange-600' : 'text-amber-600' %>">
             <%= inv.daysOverdue %>d vencida
@@ -785,8 +801,8 @@
                 </span>
                 <% } else { %><span class="text-xs text-emerald-500 font-semibold">Al día</span><% } %>
               </td>
-              <td class="px-4 py-2 text-right text-xs text-slate-500"><%= gs(inv.total) %></td>
-              <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%= gs(inv.residual) %></td>
+              <td class="px-4 py-2 text-right text-xs text-slate-500"><%-  amtG(inv.total) %></td>
+              <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%-  amtG(inv.residual) %></td>
               <td class="px-3 py-2 text-center">
                 <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">
                   <%= inv.bucket === 'current' ? 'Al día' : inv.bucket.replace('d','').replace('_','-') + 'd' %>
@@ -813,23 +829,23 @@
 
   <div class="flex items-center gap-3">
     <h2 class="text-xl font-extrabold text-slate-900">Pipeline Comercial</h2>
-    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full"><%= pipeline.count %> cotizaciones · Gs.&nbsp;<%= gsM(pipeline.total) %></span>
+    <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full"><%= pipeline.count %> cotizaciones · <%- amt(pipeline.total) %></span>
   </div>
 
   <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Total Pipeline</div>
-      <div class="text-2xl font-black text-blue-700">Gs.&nbsp;<%= gsM(pipeline.total) %></div>
+      <div class="text-2xl font-black text-blue-700"><%- amt(pipeline.total) %></div>
       <div class="text-xs text-slate-400 mt-1"><%= pipeline.count %> cotizaciones</div>
     </div>
     <div class="bg-white rounded-xl border border-blue-200 p-4">
       <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Enviadas</div>
-      <div class="text-2xl font-black text-blue-700">Gs.&nbsp;<%= gsM(pipeline.totalSent) %></div>
+      <div class="text-2xl font-black text-blue-700"><%- amt(pipeline.totalSent) %></div>
       <div class="text-xs text-slate-400 mt-1"><%= pipeline.countSent %> cotiz. · esperando respuesta</div>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Borradores</div>
-      <div class="text-2xl font-black text-slate-700">Gs.&nbsp;<%= gsM(pipeline.totalDraft) %></div>
+      <div class="text-2xl font-black text-slate-700"><%- amt(pipeline.totalDraft) %></div>
       <div class="text-xs text-slate-400 mt-1"><%= pipeline.countDraft %> cotiz. · sin enviar</div>
     </div>
     <div class="bg-white rounded-xl border border-emerald-200 p-4">
@@ -869,7 +885,7 @@
                 <%= o.state === 'sent' ? 'Enviada' : 'Borrador' %>
               </span>
             </td>
-            <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%= gs(o.amount) %></td>
+            <td class="px-4 py-2 text-right text-xs font-bold text-slate-900"><%-  amtG(o.amount) %></td>
             <td class="px-3 py-2 text-xs text-slate-500 truncate max-w-xs"><%= o.user %></td>
             <td class="px-3 py-2 text-xs text-center text-slate-500"><%= o.date || '—' %></td>
             <td class="px-3 py-2 text-xs text-center <%= o.validUntil && o.validUntil < new Date().toISOString().slice(0,10) ? 'text-red-500 font-semibold' : 'text-slate-500' %>">
@@ -942,7 +958,7 @@
             <span class="text-xs font-semibold text-slate-700 truncate"><%= c.name %></span>
           </div>
           <div class="text-right shrink-0 ml-2">
-            <div class="text-xs font-bold text-red-600">Gs.&nbsp;<%= gsM(c.unpaid) %></div>
+            <div class="text-xs font-bold text-red-600"><%- amt(c.unpaid) %></div>
             <div class="text-[10px] text-slate-400">DSO <%= c.dso %>d</div>
           </div>
         </div>
@@ -961,7 +977,7 @@
             <span class="text-xs font-semibold text-slate-700 truncate"><%= c.name %></span>
           </div>
           <div class="text-right shrink-0">
-            <div class="text-xs font-bold text-emerald-700">Gs.&nbsp;<%= gsM(c.revenue) %></div>
+            <div class="text-xs font-bold text-emerald-700"><%- amt(c.revenue) %></div>
             <div class="text-[10px] text-slate-400"><%= c.revPct %>%</div>
           </div>
         </div>
@@ -1006,7 +1022,7 @@
           <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
             <td class="px-5 py-2.5 text-slate-400 font-bold"><%= i+1 %></td>
             <td class="px-4 py-2.5 font-semibold text-slate-800"><%= c.name %></td>
-            <td class="px-4 py-2.5 text-right font-bold text-emerald-700">Gs.&nbsp;<%= gsM(c.revenue) %></td>
+            <td class="px-4 py-2.5 text-right font-bold text-emerald-700"><%- amt(c.revenue) %></td>
             <td class="px-4 py-2.5 text-right">
               <div class="flex items-center justify-end gap-2">
                 <div class="w-12 bg-slate-100 rounded-full h-1.5">
@@ -1017,7 +1033,7 @@
             </td>
             <td class="px-4 py-2.5 text-right text-slate-600"><%= c.invoiceCount %></td>
             <td class="px-4 py-2.5 text-right font-semibold <%= c.unpaid > 0 ? 'text-amber-600' : 'text-slate-300' %>">
-              <%= c.unpaid > 0 ? 'Gs.\u00A0' + gsM(c.unpaid) : '—' %>
+              <%-  c.unpaid > 0 ? 'Gs.\u00A0' + amtC(c.unpaid) : '—' %>
             </td>
             <td class="px-4 py-2.5 text-right">
               <% if (c.dso > 0) { %>
@@ -1031,7 +1047,7 @@
               %>
               <div class="flex items-end gap-0.5 h-5">
                 <% mKeys.forEach(function(k) { const h = Math.round((c.monthlyRev[k]/mMax)*16); %>
-                <div class="w-2 rounded-sm bg-emerald-400 opacity-70" style="height:<%= h %>px" title="<%= k %>: Gs. <%= gsM(c.monthlyRev[k]) %>"></div>
+                <div class="w-2 rounded-sm bg-emerald-400 opacity-70" style="height:<%= h %>px" title="<%= k %>: Gs. <%-  amtC(c.monthlyRev[k]) %>"></div>
                 <% }) %>
               </div>
             </td>
@@ -1063,18 +1079,18 @@
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Líneas de Servicio</div>
       <div class="text-2xl font-black text-slate-900"><%= svcLines.length %></div>
-      <div class="text-xs text-slate-400 mt-1">Gs.&nbsp;<%= gsM(totalSvcRev) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%- amt(totalSvcRev) %></div>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Proyectos</div>
       <div class="text-2xl font-black text-slate-900"><%= projRows.length %></div>
-      <div class="text-xs text-slate-400 mt-1">Gs.&nbsp;<%= gsM(totalProjRev) %></div>
+      <div class="text-xs text-slate-400 mt-1"><%- amt(totalProjRev) %></div>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Mejor producto</div>
       <% const bestSvc = svcLines[0]; %>
       <div class="text-base font-black text-slate-900 truncate"><%= bestSvc ? bestSvc.name.replace(/[\[\]]/g,'') : '—' %></div>
-      <div class="text-xs text-emerald-600 font-bold mt-1"><%= bestSvc ? 'Gs.\u00A0'+gsM(bestSvc.totalRevenue) : '' %></div>
+      <div class="text-xs text-emerald-600 font-bold mt-1"><%-  bestSvc ? 'Gs.\u00A0'+amtC(bestSvc.totalRevenue) : '' %></div>
     </div>
     <div class="bg-white rounded-xl border border-emerald-200 p-4">
       <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Mejor margen</div>
@@ -1122,9 +1138,9 @@
           <% (svcLines.length > 0 ? svcLines : ingRows).forEach(function(row) { %>
           <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
             <td class="px-5 py-2.5 font-semibold text-slate-800"><%= row.name %></td>
-            <td class="px-4 py-2.5 text-right text-emerald-700 font-bold">Gs.&nbsp;<%= gsM(row.totalRevenue) %></td>
-            <td class="px-4 py-2.5 text-right text-red-600"><%= row.totalCost > 0 ? 'Gs.\u00A0'+gsM(row.totalCost) : '—' %></td>
-            <td class="px-4 py-2.5 text-right font-bold <%= row.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %>">Gs.&nbsp;<%= gsM(row.margin) %></td>
+            <td class="px-4 py-2.5 text-right text-emerald-700 font-bold"><%- amt(row.totalRevenue) %></td>
+            <td class="px-4 py-2.5 text-right text-red-600"><%-  row.totalCost > 0 ? 'Gs.\u00A0'+amtC(row.totalCost) : '—' %></td>
+            <td class="px-4 py-2.5 text-right font-bold <%= row.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%- amt(row.margin) %></td>
             <td class="px-4 py-2.5 text-right">
               <span class="inline-block px-2 py-0.5 rounded font-bold text-[11px]
                 <%= row.marginPct >= 50 ? 'bg-emerald-100 text-emerald-700' : row.marginPct >= 25 ? 'bg-blue-100 text-blue-700' : row.marginPct >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
@@ -1137,7 +1153,7 @@
               %>
               <div class="flex items-end gap-0.5 h-5">
                 <% row.months.forEach(function(m) { const bh = m.revenue > 0 ? Math.round(m.revenue/rMx*16) : 1; %>
-                <div class="w-2 rounded-sm <%= m.revenue > 0 ? 'bg-emerald-400' : 'bg-slate-100' %> opacity-80" style="height:<%= bh %>px" title="<%= m.label %>: Gs. <%= gsM(m.revenue) %>"></div>
+                <div class="w-2 rounded-sm <%= m.revenue > 0 ? 'bg-emerald-400' : 'bg-slate-100' %> opacity-80" style="height:<%= bh %>px" title="<%= m.label %>: Gs. <%-  amtC(m.revenue) %>"></div>
                 <% }) %>
               </div>
             </td>
@@ -1171,8 +1187,8 @@
           <% projRows.forEach(function(row) { %>
           <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
             <td class="px-5 py-2 font-medium text-slate-700 max-w-xs truncate" title="<%= row.name %>"><%= row.name %></td>
-            <td class="px-4 py-2 text-right text-emerald-700 font-semibold">Gs.&nbsp;<%= gsM(row.totalRevenue) %></td>
-            <td class="px-4 py-2 text-right text-red-600"><%= row.totalCost > 0 ? 'Gs.\u00A0'+gsM(row.totalCost) : '—' %></td>
+            <td class="px-4 py-2 text-right text-emerald-700 font-semibold"><%- amt(row.totalRevenue) %></td>
+            <td class="px-4 py-2 text-right text-red-600"><%-  row.totalCost > 0 ? 'Gs.\u00A0'+amtC(row.totalCost) : '—' %></td>
             <td class="px-4 py-2 text-right">
               <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold
                 <%= row.marginPct >= 50 ? 'bg-emerald-100 text-emerald-700' : row.marginPct >= 25 ? 'bg-blue-100 text-blue-700' : row.marginPct >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
@@ -1199,7 +1215,7 @@
     <h2 class="text-xl font-extrabold text-slate-900">Cash Flow</h2>
     <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-full">
       Net en 90d: <span class="<%= cashInflow.d90 - cashOutflow.d90 >= 0 ? 'text-emerald-600' : 'text-red-600' %>">
-        Gs.&nbsp;<%= gsM(cashInflow.d90 - cashOutflow.d90) %>
+        <%- amt(cashInflow.d90 - cashOutflow.d90) %>
       </span>
     </span>
   </div>
@@ -1208,30 +1224,30 @@
   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
     <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
       <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Entradas esperadas 30d</div>
-      <div class="text-xl font-black text-emerald-700">Gs.&nbsp;<%= gsM(cashInflow.d30) %></div>
+      <div class="text-xl font-black text-emerald-700"><%- amt(cashInflow.d30) %></div>
       <div class="text-[11px] text-emerald-600 mt-1">CXC al día + 1–30d</div>
     </div>
     <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
       <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Entradas esperadas 60d</div>
-      <div class="text-xl font-black text-emerald-700">Gs.&nbsp;<%= gsM(cashInflow.d60) %></div>
+      <div class="text-xl font-black text-emerald-700"><%- amt(cashInflow.d60) %></div>
     </div>
     <div class="bg-emerald-50 rounded-xl border border-emerald-200 p-4">
       <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Total CXC</div>
-      <div class="text-xl font-black text-emerald-700">Gs.&nbsp;<%= gsM(cashInflow.total) %></div>
+      <div class="text-xl font-black text-emerald-700"><%- amt(cashInflow.total) %></div>
       <div class="text-[11px] text-slate-400 mt-1"><%= cxc.count %> facturas</div>
     </div>
     <div class="bg-orange-50 rounded-xl border border-orange-200 p-4">
       <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Salidas esperadas 30d</div>
-      <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cashOutflow.d30) %></div>
+      <div class="text-xl font-black text-orange-700"><%- amt(cashOutflow.d30) %></div>
       <div class="text-[11px] text-orange-600 mt-1">CXP al día + 1–30d</div>
     </div>
     <div class="bg-orange-50 rounded-xl border border-orange-200 p-4">
       <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Salidas esperadas 60d</div>
-      <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cashOutflow.d60) %></div>
+      <div class="text-xl font-black text-orange-700"><%- amt(cashOutflow.d60) %></div>
     </div>
     <div class="bg-orange-50 rounded-xl border border-orange-200 p-4">
       <div class="text-[10px] font-bold text-orange-600 uppercase tracking-wide mb-1">Total CXP</div>
-      <div class="text-xl font-black text-orange-700">Gs.&nbsp;<%= gsM(cashOutflow.total) %></div>
+      <div class="text-xl font-black text-orange-700"><%- amt(cashOutflow.total) %></div>
       <div class="text-[11px] text-slate-400 mt-1"><%= cxp.count %> facturas prov.</div>
     </div>
   </div>
@@ -1246,13 +1262,13 @@
       <div class="bg-slate-50 rounded-xl p-4 text-center">
         <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">En <%= days %> días</div>
         <div class="text-2xl font-black <%= net >= 0 ? 'text-emerald-600' : 'text-red-600' %>">
-          Gs.&nbsp;<%= gsM(net) %>
+          <%- amt(net) %>
         </div>
         <div class="mt-3 space-y-1 text-xs">
-          <div class="flex justify-between text-emerald-600"><span>Entradas</span><span class="font-semibold">Gs.&nbsp;<%= gsM(inf) %></span></div>
-          <div class="flex justify-between text-orange-600"><span>Salidas</span><span class="font-semibold">Gs.&nbsp;<%= gsM(out) %></span></div>
+          <div class="flex justify-between text-emerald-600"><span>Entradas</span><span class="font-semibold"><%- amt(inf) %></span></div>
+          <div class="flex justify-between text-orange-600"><span>Salidas</span><span class="font-semibold"><%- amt(out) %></span></div>
           <div class="border-t border-slate-200 pt-1 flex justify-between font-bold <%= net >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
-            <span>Neto</span><span>Gs.&nbsp;<%= gsM(net) %></span>
+            <span>Neto</span><span><%- amt(net) %></span>
           </div>
         </div>
       </div>
@@ -1266,7 +1282,7 @@
     <div class="bg-white rounded-xl border border-orange-200 overflow-hidden">
       <div class="bg-orange-50 border-b border-orange-200 px-5 py-2.5">
         <h3 class="text-sm font-bold text-orange-800">Cuentas por Pagar — Detalle</h3>
-        <p class="text-xs text-orange-600 mt-0.5"><%= cxp.count %> facturas · Gs.&nbsp;<%= gsM(cxp.total) %></p>
+        <p class="text-xs text-orange-600 mt-0.5"><%= cxp.count %> facturas · <%- amt(cxp.total) %></p>
       </div>
       <div class="overflow-x-auto" style="max-height:300px;overflow-y:auto">
         <table class="w-full text-xs">
@@ -1283,7 +1299,7 @@
             <tr class="border-b border-slate-50 hover:bg-orange-50/30 transition">
               <td class="px-4 py-2 font-medium text-slate-700 truncate max-w-[140px]" title="<%= inv.partner %>"><%= inv.partner %></td>
               <td class="px-3 py-2 text-center text-slate-500"><%= inv.dueDate || '—' %></td>
-              <td class="px-4 py-2 text-right font-bold <%= inv.daysOverdue > 0 ? 'text-red-600' : 'text-orange-600' %>">Gs.&nbsp;<%= gsM(inv.residual) %></td>
+              <td class="px-4 py-2 text-right font-bold <%= inv.daysOverdue > 0 ? 'text-red-600' : 'text-orange-600' %>"><%- amt(inv.residual) %></td>
               <td class="px-3 py-2 text-center">
                 <% if (inv.daysOverdue > 0) { %>
                 <span class="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700"><%= inv.daysOverdue %>d</span>
@@ -1355,13 +1371,84 @@
   const clientData = <%- _clientData %>;
   const svcData = <%- _svcData %>;
   const yoyData = <%- _yoyData %>;
-  const fmt = n => 'Gs.\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(n || 0);
+  // ── Currency switch ──────────────────────────────────────────────────────
+  const _USD_RATE = <%- usdRate || 7500 %>;
+  let _currency = localStorage.getItem('fin_currency') || 'pyg';
+
+  function _fmtCur(pyg, compact) {
+    if (_currency === 'usd') {
+      const usd = Math.abs(pyg || 0) / _USD_RATE;
+      if (compact) {
+        if (usd >= 1e6) return '$\u00A0' + (usd/1e6).toFixed(1) + 'M';
+        if (usd >= 1e3) return '$\u00A0' + Math.round(usd/1e3) + 'K';
+        return '$\u00A0' + usd.toFixed(0);
+      }
+      return '$\u00A0' + new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(usd);
+    } else {
+      const abs = Math.abs(pyg || 0);
+      if (compact) {
+        if (abs >= 1e9) return 'Gs.\u00A0' + (abs/1e9).toFixed(1) + 'B';
+        if (abs >= 1e6) return 'Gs.\u00A0' + (abs/1e6).toFixed(1) + 'M';
+        if (abs >= 1e3) return 'Gs.\u00A0' + Math.round(abs/1e3) + 'K';
+        return 'Gs.\u00A0' + Math.round(abs);
+      }
+      return 'Gs.\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(abs);
+    }
+  }
+
+  window.switchCurrency = function(cur) {
+    _currency = cur;
+    localStorage.setItem('fin_currency', cur);
+    // Update all tagged amount spans
+    document.querySelectorAll('.c-amt').forEach(el => {
+      const pyg     = parseFloat(el.dataset.pyg || 0);
+      const compact = el.classList.contains('c-amt-compact');
+      el.textContent = _fmtCur(pyg, compact || el.textContent.includes('M') || el.textContent.includes('K'));
+    });
+    // Update toggle button styles
+    const btnPyg = document.getElementById('cur-btn-pyg');
+    const btnUsd = document.getElementById('cur-btn-usd');
+    [btnPyg, btnUsd].forEach(btn => {
+      if (!btn) return;
+      const active = btn.id === 'cur-btn-' + cur;
+      btn.className = active
+        ? 'px-2.5 py-1 rounded-md text-[11px] font-bold transition-all bg-white text-slate-700 shadow-sm border border-slate-200'
+        : 'px-2.5 py-1 rounded-md text-[11px] font-bold transition-all text-slate-400 hover:text-slate-600';
+    });
+    // Re-render visible charts with new currency
+    _reinitVisibleCharts();
+  };
+
+  function _reinitVisibleCharts() {
+    // Destroy and re-init charts that are currently visible
+    Object.keys(chartsInited).forEach(name => {
+      chartsInited[name] = false; // mark as stale
+    });
+    // Re-init the currently active tab's charts
+    const activeTab = document.querySelector('[id^="tab-"]:not(.hidden)');
+    if (activeTab) {
+      const tabName = activeTab.id.replace('tab-', '');
+      chartsInited[tabName] = false;
+      Chart.helpers.each(Chart.instances, c => c.destroy()); // destroy all chart instances
+      initTabCharts(tabName);
+      chartsInited[tabName] = true;
+    }
+  }
+
+  // Proxy: fmt/fmtM now respect current currency
+  const fmt  = n => _fmtCur(n, false);
   const fmtM = n => {
     const abs = Math.abs(n||0);
-    if (abs >= 1e9) return (n/1e9).toFixed(1) + ' B';
-    if (abs >= 1e6) return (n/1e6).toFixed(1) + ' M';
-    if (abs >= 1e3) return Math.round(n/1e3) + ' K';
-    return String(Math.round(n||0));
+    if (_currency === 'usd') {
+      const usd = abs / _USD_RATE;
+      if (usd >= 1e6) return (usd/1e6).toFixed(1) + 'M';
+      if (usd >= 1e3) return Math.round(usd/1e3) + 'K';
+      return usd.toFixed(0);
+    }
+    if (abs >= 1e9) return (abs/1e9).toFixed(1) + ' B';
+    if (abs >= 1e6) return (abs/1e6).toFixed(1) + ' M';
+    if (abs >= 1e3) return Math.round(abs/1e3) + ' K';
+    return String(Math.round(abs));
   };
 
   const PALETTE = [
@@ -1561,7 +1648,7 @@
         },
         scales:{
           x:{ grid:{ display:false }, ticks:{ font:{size:11} } },
-          y:{ beginAtZero:true, ticks:{ font:{size:10}, callback: v => v >= 1e6 ? 'Gs. '+(v/1e6).toFixed(0)+'M' : v >= 1e3 ? 'Gs. '+(v/1e3).toFixed(0)+'K' : 'Gs. '+v } },
+          y:{ beginAtZero:true, ticks:{ font:{size:10}, callback: v => _fmtCur(v, true) } },
           yPct:{ position:'right', beginAtZero:false, grid:{ drawOnChartArea:false }, ticks:{ font:{size:10}, callback: v => v+'%' } },
         },
       },
@@ -1715,6 +1802,10 @@
   chartsInited['resumen'] = true;
   initMonthlyChart();
   initDonutChart();
+
+  // Restore currency preference from localStorage
+  if (_currency === 'usd') switchCurrency('usd');
+  else switchCurrency('pyg');
 
 })();
 </script>

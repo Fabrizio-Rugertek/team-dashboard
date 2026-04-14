@@ -12,8 +12,33 @@ const SKIP_ACCOUNT_IDS  = new Set([3908, 3914, 3923]); // IVA / tax throughput a
 const MONTH_LABELS      = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const CACHE_TTL_MS      = 60 * 60 * 1000; // 1 hour for financial data
 
-const _finCache = { data: null, time: 0, key: null };
-const _cxcCache = { data: null, time: 0 };
+const _finCache  = { data: null, time: 0, key: null };
+const _cxcCache  = { data: null, time: 0 };
+const _rateCache = { data: null, time: 0 };
+
+// ── Exchange rate (USD → PYG) ──────────────────────────────────────────────
+async function fetchExchangeRate() {
+  const now = Date.now();
+  if (_rateCache.data && now - _rateCache.time < 60 * 60 * 1000) return _rateCache.data;
+  try {
+    const [usd] = await callKw('res.currency', 'search_read', [[['name', '=', 'USD'], ['active', '=', true]]], {
+      fields: ['name', 'rate', 'symbol'],
+      limit: 1,
+    });
+    // Odoo stores rate as "1 unit of this currency = rate units of company currency"
+    // For PYG company: USD.rate ≈ 7500 (7500 PYG per 1 USD)
+    // If Odoo returns inverse (<1), flip it
+    let rate = usd?.rate || 7500;
+    if (rate < 1) rate = Math.round(1 / rate);
+    _rateCache.data = rate;
+    _rateCache.time = now;
+    console.log(`[Finanzas] USD/PYG rate: ${rate}`);
+    return rate;
+  } catch (e) {
+    console.warn('[Finanzas] fetchExchangeRate failed, using fallback 7500:', e.message);
+    return 7500;
+  }
+}
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function monthKey(dateStr) { return dateStr ? String(dateStr).slice(0, 7) : null; }
@@ -197,7 +222,7 @@ async function fetchCXC() {
     ['company_id',    '=',  TORUS_COMPANY_ID],
   ]], {
     fields: ['name', 'partner_id', 'invoice_date', 'invoice_date_due',
-             'amount_total', 'amount_residual', 'payment_state'],
+             'amount_total_signed', 'amount_residual_signed', 'currency_id', 'payment_state'],
     order: 'invoice_date_due asc',
     limit: 300,
   });
@@ -206,7 +231,8 @@ async function fetchCXC() {
   const items   = [];
 
   for (const inv of invoices) {
-    const residual = inv.amount_residual || 0;
+    // amount_residual_signed is in company currency (PYG) — always positive for out_invoice
+    const residual = Math.abs(inv.amount_residual_signed || 0);
     if (residual <= 0) continue;
 
     const due = inv.invoice_date_due || null;
@@ -225,7 +251,8 @@ async function fetchCXC() {
     items.push({
       name: inv.name, partner: inv.partner_id?.[1] || '?',
       invoiceDate: inv.invoice_date, dueDate: due,
-      total: inv.amount_total, residual, daysOverdue, bucket,
+      currency: inv.currency_id?.[1] || 'PYG',
+      total: Math.abs(inv.amount_total_signed || 0), residual, daysOverdue, bucket,
     });
   }
 
@@ -310,7 +337,7 @@ async function fetchCXP() {
     ['company_id',    '=',  TORUS_COMPANY_ID],
   ]], {
     fields: ['name', 'partner_id', 'invoice_date', 'invoice_date_due',
-             'amount_total', 'amount_residual'],
+             'amount_total_signed', 'amount_residual_signed', 'currency_id'],
     order: 'invoice_date_due asc',
     limit: 300,
   });
@@ -319,7 +346,8 @@ async function fetchCXP() {
   const items   = [];
 
   for (const inv of invoices) {
-    const residual = inv.amount_residual || 0;
+    // amount_residual_signed is negative for in_invoice (you owe), abs it for display
+    const residual = Math.abs(inv.amount_residual_signed || 0);
     if (residual <= 0) continue;
     const due = inv.invoice_date_due || null;
     let daysOverdue = 0, bucket = 'current';
@@ -334,7 +362,8 @@ async function fetchCXP() {
     items.push({
       name: inv.name, partner: inv.partner_id?.[1] || '?',
       invoiceDate: inv.invoice_date, dueDate: due,
-      total: inv.amount_total, residual, daysOverdue, bucket,
+      currency: inv.currency_id?.[1] || 'PYG',
+      total: Math.abs(inv.amount_total_signed || 0), residual, daysOverdue, bucket,
     });
   }
 
@@ -363,7 +392,7 @@ async function fetchClientProfitability(year, opts = {}) {
     ['invoice_date', '<=', dateTo],
     ['company_id',   '=',  TORUS_COMPANY_ID],
   ]], {
-    fields: ['id', 'name', 'partner_id', 'amount_untaxed', 'amount_residual', 'payment_state', 'invoice_date'],
+    fields: ['id', 'name', 'partner_id', 'amount_untaxed_signed', 'amount_residual_signed', 'payment_state', 'invoice_date'],
     limit: 2000,
   });
 
@@ -373,7 +402,8 @@ async function fetchClientProfitability(year, opts = {}) {
     const name = m.partner_id?.[1] || 'Sin cliente';
     if (!pid) continue;
     if (!byPartner[pid]) byPartner[pid] = { id: pid, name, revenue: 0, paid: 0, unpaid: 0, invoiceCount: 0, monthlyRev: {} };
-    const rev = m.amount_untaxed || 0;
+    // _signed fields are in company currency (PYG), always positive for out_invoice
+    const rev = Math.abs(m.amount_untaxed_signed || 0);
     byPartner[pid].revenue      += rev;
     byPartner[pid].invoiceCount += 1;
     const monthKey = (m.invoice_date || '').slice(0, 7);
@@ -381,7 +411,7 @@ async function fetchClientProfitability(year, opts = {}) {
     if (m.payment_state === 'paid' || m.payment_state === 'in_payment') {
       byPartner[pid].paid += rev;
     } else {
-      byPartner[pid].unpaid += m.amount_residual || 0;
+      byPartner[pid].unpaid += Math.abs(m.amount_residual_signed || 0);
     }
   }
 
@@ -488,5 +518,5 @@ async function fetchCRMPipeline() {
 module.exports = {
   fetchFinancialData, fetchCXC, fetchCXP,
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
-  fetchClientProfitability, fetchYoY,
+  fetchClientProfitability, fetchYoY, fetchExchangeRate,
 };

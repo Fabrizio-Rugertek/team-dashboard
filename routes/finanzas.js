@@ -5,7 +5,7 @@ const router  = express.Router();
 const {
   fetchFinancialData, fetchCXC, fetchCXP,
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
-  fetchClientProfitability, fetchYoY,
+  fetchClientProfitability, fetchYoY, fetchExchangeRate,
 } = require('../src/finanzas');
 
 router.get('/', async (req, res) => {
@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
     const year = (from ? parseInt(from.slice(0, 4)) : baseYear);
     const activeFilters = { year, from: from || null, to: to || null, period: period || null };
 
-    const [fin, cxc, cxp, pipeline, closingRate, crm, clients, yoy] = await Promise.all([
+    const [fin, cxc, cxp, pipeline, closingRate, crm, clients, yoy, usdRate] = await Promise.all([
       fetchFinancialData(year, { from, to }),
       fetchCXC(),
       fetchCXP(),
@@ -32,6 +32,7 @@ router.get('/', async (req, res) => {
       fetchCRMPipeline(),
       fetchClientProfitability(year, { from, to }),
       fetchYoY(year),
+      fetchExchangeRate(),
     ]);
 
     res.render('dashboards/finanzas', {
@@ -48,6 +49,7 @@ router.get('/', async (req, res) => {
       clients,
       yoy,
       cxcItemsJson: JSON.stringify(cxc.items || []),
+      usdRate,
       lastUpdate: new Date().toLocaleString('es-PY', { dateStyle: 'medium', timeStyle: 'short' }),
     });
   } catch (err) {
