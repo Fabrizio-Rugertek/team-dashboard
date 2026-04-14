@@ -165,13 +165,15 @@
             </a>
             <% }) %>
           </div>
+          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Ventana móvil</div>
+          <div class="flex flex-wrap gap-1.5 mb-3" id="rollingPresets"></div>
           <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2">Rango personalizado</div>
           <form method="GET" action="/finanzas" class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <input type="date" name="from" value="<%= _af.from || '' %>"
+              <input type="date" name="from" id="pickerFrom" value="<%= _af.from || '' %>"
                 class="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:border-blue-400">
               <span class="text-slate-400 text-xs">—</span>
-              <input type="date" name="to" value="<%= _af.to || '' %>"
+              <input type="date" name="to" id="pickerTo" value="<%= _af.to || '' %>"
                 class="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1.5 text-slate-700 focus:outline-none focus:border-blue-400">
             </div>
             <button type="submit" class="w-full py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-colors">
@@ -431,16 +433,58 @@
 ═══════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-eerr" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-4">
 
-  <div class="flex items-center justify-between">
+  <div class="flex items-center justify-between flex-wrap gap-3">
     <div>
       <h2 class="text-xl font-extrabold text-slate-900">Estado de Resultados — Torus · <%= year %></h2>
-      <p class="text-xs text-slate-400 mt-0.5">Basado en cuentas analíticas de Odoo · facturas de clientes (ingresos) y proveedores (costos directos)</p>
+      <p class="text-xs text-slate-400 mt-0.5">Basado en cuentas analíticas de Odoo · facturas de clientes (ingresos) y proveedores (costos)</p>
     </div>
     <div class="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
       <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-      Nómina y gastos de estructura no incluidos (no están en Odoo)
+      Nómina y estructura no incluidos (no están en Odoo)
     </div>
   </div>
+
+  <!-- Cost structure breakdown -->
+  <% const _cb = fin.costBreakdown || {}; %>
+  <% if (_cb.total > 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wide">Estructura de Costos</span>
+      <span class="text-xs text-slate-400">Total registrado en Odoo: <%- amt(_cb.total) %></span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- COGS -->
+      <div class="flex items-start gap-3">
+        <div class="mt-0.5 w-3 h-3 rounded-sm bg-red-500 shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline justify-between gap-2 mb-1">
+            <span class="text-xs font-bold text-slate-700">Costo de Ventas <span class="font-normal text-slate-400">(COGS)</span></span>
+            <span class="text-xs font-bold text-red-600 shrink-0"><%- amt(_cb.cogs) %></span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2">
+            <div class="bg-red-500 h-2 rounded-full" style="width:<%= _cb.cogsPct %>%"></div>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1"><%= _cb.cogsPct %>% del total · cuenta tipo <code>expense_direct_cost</code> · costos directos del servicio (subcontratos, licencias de proyecto, etc.)</p>
+        </div>
+      </div>
+      <!-- Opex -->
+      <div class="flex items-start gap-3">
+        <div class="mt-0.5 w-3 h-3 rounded-sm bg-orange-400 shrink-0"></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-baseline justify-between gap-2 mb-1">
+            <span class="text-xs font-bold text-slate-700">Gastos Operativos <span class="font-normal text-slate-400">(Opex)</span></span>
+            <span class="text-xs font-bold text-orange-600 shrink-0"><%- amt(_cb.opex) %></span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2">
+            <div class="bg-orange-400 h-2 rounded-full" style="width:<%= _cb.opexPct %>%"></div>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-1"><%= _cb.opexPct %>% del total · cuenta tipo <code>expense</code> · gastos generales, admin, marketing, software, etc.</p>
+        </div>
+      </div>
+    </div>
+    <p class="text-[10px] text-slate-400 mt-3 pt-3 border-t border-slate-100">⚠ No incluye nómina del equipo ni gastos de estructura fija (alquiler, servicios) — no están registrados como facturas en Odoo.</p>
+  </div>
+  <% } %>
 
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <div class="overflow-x-auto">
@@ -496,9 +540,14 @@
           <% rows.forEach(function(row) {
             const mClass = row.margin >= 0 ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold';
             const pClass = row.marginPct >= 0 ? 'text-emerald-500' : 'text-red-500';
+            const costBadge = row.totalCost > 0
+              ? (row.dominantCostType === 'cogs'
+                  ? '<span class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-600">COGS</span>'
+                  : '<span class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-600">Opex</span>')
+              : '';
           %>
           <tr class="<%= gId %>-row hidden border-b border-slate-50 hover:bg-slate-50 transition">
-            <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs"><%= row.name %></td>
+            <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs"><%= row.name %><%- costBadge %></td>
             <td class="text-right px-3 py-2 text-emerald-700 text-xs"><%-  amtC(row.totalRevenue) %></td>
             <td class="text-right px-3 py-2 text-red-600 text-xs"><%-  row.totalCost > 0 ? amtC(row.totalCost) : '—' %></td>
             <td class="text-right px-3 py-2 text-xs <%= mClass %>"><%-  amtC(row.margin) %></td>
@@ -553,9 +602,13 @@
               const mCost = rows.reduce((s,r) => s + (r.months.find(x=>x.month===m.month)||{}).cost||0, 0);
             %><td class="text-right px-2 py-2 text-xs <%= mCost > 0 ? 'text-red-500' : 'text-slate-200' %>"><%-  mCost > 0 ? '('+amtC(mCost)+')' : '' %></td><% }) %>
           </tr>
-          <% rows.forEach(function(row) { %>
+          <% rows.forEach(function(row) {
+            const egCostBadge = row.dominantCostType === 'cogs'
+              ? '<span class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-600">COGS</span>'
+              : '<span class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-600">Opex</span>';
+          %>
           <tr class="<%= gId %>-row hidden border-b border-slate-50 hover:bg-slate-50 transition">
-            <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs"><%= row.name %></td>
+            <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs"><%= row.name %><%- egCostBadge %></td>
             <td class="text-right px-3 py-2 text-slate-300 text-xs">—</td>
             <td class="text-right px-3 py-2 text-red-600 text-xs"><%-  amtC(row.totalCost) %></td>
             <td class="text-right px-3 py-2 text-red-500 font-bold text-xs">(<%-  amtC(row.totalCost) %>)</td>
@@ -914,8 +967,16 @@
       <h2 class="text-xl font-extrabold text-slate-900">Rentabilidad por Cliente</h2>
       <p class="text-xs text-slate-400 mt-0.5">Ingresos facturados a cada cliente · <%= year %></p>
     </div>
-    <div class="flex items-center gap-3">
-      <span class="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full"><%= clients.clientCount %> clientes activos</span>
+    <div class="flex items-center gap-3 flex-wrap">
+      <div class="relative">
+        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input id="clientSearch" type="text" placeholder="Buscar cliente…"
+          oninput="filterClients(this.value)"
+          class="pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-400 w-44">
+      </div>
+      <span class="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded-full" id="clientCount"><%= clients.clientCount %> clientes activos</span>
       <% if (clients.top3Pct > 0) { %>
       <span class="<%= clients.top3Pct > 70 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700' %> text-xs font-bold px-3 py-1.5 rounded-full">
         Top 3 = <%= clients.top3Pct %>% del revenue
@@ -1017,9 +1078,9 @@
             <th class="text-left px-4 py-3 font-bold text-slate-500">Rev. mensual</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="clientTableBody">
           <% clients.clients.forEach(function(c, i) { %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+          <tr class="client-row border-b border-slate-50 hover:bg-slate-50 transition" data-name="<%= c.name.toLowerCase() %>">
             <td class="px-5 py-2.5 text-slate-400 font-bold"><%= i+1 %></td>
             <td class="px-4 py-2.5 font-semibold text-slate-800"><%= c.name %></td>
             <td class="px-4 py-2.5 text-right font-bold text-emerald-700"><%- amt(c.revenue) %></td>
@@ -1182,8 +1243,16 @@
 
   <!-- Tabla servicios -->
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <div class="bg-slate-50 border-b border-slate-200 px-5 py-2.5 text-xs font-extrabold text-slate-700 uppercase tracking-wide">
-      Líneas de Servicio — Detalle
+    <div class="bg-slate-50 border-b border-slate-200 px-5 py-2.5 flex items-center justify-between gap-3">
+      <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wide">Líneas de Servicio — Detalle</span>
+      <div class="relative">
+        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input id="svcSearch" type="text" placeholder="Filtrar…"
+          oninput="filterSvcLines(this.value)"
+          class="pl-8 pr-3 py-1 text-xs border border-slate-200 rounded-lg bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:border-blue-400 w-36">
+      </div>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-xs">
@@ -1199,7 +1268,7 @@
         </thead>
         <tbody>
           <% (svcLines.length > 0 ? svcLines : ingRows).forEach(function(row) { %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+          <tr class="svc-row border-b border-slate-50 hover:bg-slate-50 transition" data-name="<%= row.name.toLowerCase() %>">
             <td class="px-5 py-2.5 font-semibold text-slate-800"><%= row.name %></td>
             <td class="px-4 py-2.5 text-right text-emerald-700 font-bold"><%- amt(row.totalRevenue) %></td>
             <td class="px-4 py-2.5 text-right text-red-600"><%- row.totalCost > 0 ? amt(row.totalCost) : '—' %></td>
@@ -1532,6 +1601,66 @@
       document.getElementById('finPickerPanel')?.classList.add('hidden');
     }
   });
+
+  // ── Rolling date presets ──────────────────────────────────────────────────
+  (function() {
+    const presets = [
+      { label: 'Este mes',   months: 0 },
+      { label: 'Últ. 3M',   months: 3 },
+      { label: 'Últ. 6M',   months: 6 },
+      { label: 'Últ. 12M',  months: 12 },
+    ];
+    const container = document.getElementById('rollingPresets');
+    if (!container) return;
+    const today = new Date();
+    const curFrom = document.getElementById('pickerFrom')?.value;
+    const curTo   = document.getElementById('pickerTo')?.value;
+    presets.forEach(p => {
+      const toDate   = new Date(today);
+      toDate.setDate(today.getDate()); // today
+      let fromDate;
+      if (p.months === 0) {
+        fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      } else {
+        fromDate = new Date(today);
+        fromDate.setMonth(today.getMonth() - p.months);
+        fromDate.setDate(1);
+      }
+      const fromStr = fromDate.toISOString().slice(0, 10);
+      const toStr   = toDate.toISOString().slice(0, 10);
+      const isActive = curFrom === fromStr && curTo === toStr;
+      const a = document.createElement('a');
+      a.href = `/finanzas?from=${fromStr}&to=${toStr}`;
+      a.textContent = p.label;
+      a.className = 'px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ' +
+        (isActive ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600');
+      container.appendChild(a);
+    });
+  })();
+
+  // ── Client search filter ─────────────────────────────────────────────────
+  window.filterClients = function(q) {
+    const term = (q || '').toLowerCase().trim();
+    const rows = document.querySelectorAll('.client-row');
+    let visible = 0;
+    rows.forEach(tr => {
+      const name = tr.dataset.name || '';
+      const show = !term || name.includes(term);
+      tr.classList.toggle('hidden', !show);
+      if (show) visible++;
+    });
+    const counter = document.getElementById('clientCount');
+    if (counter) counter.textContent = visible + (visible === 1 ? ' cliente' : ' clientes') + (term ? ' encontrado' + (visible === 1 ? '' : 's') : ' activos');
+  };
+
+  // ── Service line filter ───────────────────────────────────────────────────
+  window.filterSvcLines = function(q) {
+    const term = (q || '').toLowerCase().trim();
+    document.querySelectorAll('.svc-row').forEach(tr => {
+      const name = tr.dataset.name || '';
+      tr.classList.toggle('hidden', !!(term && !name.includes(term)));
+    });
+  };
 
   // ── EERR group toggle ─────────────────────────────────────────────────────
   window.eerrToggle = function(gId) {

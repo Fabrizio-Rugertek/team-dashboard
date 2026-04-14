@@ -97,6 +97,19 @@ async function fetchFinancialData(year, opts = {}) {
     for (const a of accs) analyticById[a.id] = a.name;
   }
 
+  // Resolve account types (to classify COGS vs Opex)
+  const accountIds = new Set();
+  for (const l of allLines) {
+    if (l.account_id?.[0]) accountIds.add(l.account_id[0]);
+  }
+  const accountTypeMap = {}; // accountId → account_type string
+  if (accountIds.size) {
+    const accounts = await callKw('account.account', 'read', [[...accountIds]], {
+      fields: ['id', 'account_type', 'code'],
+    });
+    for (const a of accounts) accountTypeMap[a.id] = a.account_type || 'expense';
+  }
+
   // Resolve product → second-order category name
   const productCatMap = {}; // productId → categoryId
   if (productIds.size) {
@@ -126,10 +139,11 @@ async function fetchFinancialData(year, opts = {}) {
   };
 
   // 4. Aggregate in memory
-  const revByMonth  = {};
-  const costByMonth = {};
-  const byAnalytic  = {}; // name -> { revByMonth, costByMonth, totalRev, totalCost }
-  const byCat       = {}; // secondOrderCategory -> { revByMonth, costByMonth, totalRev, totalCost }
+  const revByMonth    = {};
+  const costByMonth   = {};
+  const byAnalytic    = {}; // name -> { revByMonth, costByMonth, totalRev, totalCost, costByType }
+  const byCat         = {}; // secondOrderCategory -> { revByMonth, costByMonth, totalRev, totalCost }
+  const costByType    = {}; // account_type -> total cost (for cost structure breakdown)
 
   for (const l of allLines) {
     const move = moveById.get(l.move_id?.[0]);
@@ -154,13 +168,26 @@ async function fetchFinancialData(year, opts = {}) {
     if (isRev) revByMonth[month]  = (revByMonth[month]  || 0) + amount;
     else       costByMonth[month] = (costByMonth[month] || 0) + amount;
 
+    // Track cost type (COGS vs Opex)
+    if (!isRev) {
+      const accType = accountTypeMap[l.account_id?.[0]] || 'expense';
+      costByType[accType] = (costByType[accType] || 0) + amount;
+    }
+
     // By analytic
     if (!byAnalytic[analytic]) {
-      byAnalytic[analytic] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
+      byAnalytic[analytic] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0, costByType: {} };
     }
     const a = byAnalytic[analytic];
-    if (isRev) { a.revByMonth[month]  = (a.revByMonth[month]  || 0) + amount; a.totalRev  += amount; }
-    else       { a.costByMonth[month] = (a.costByMonth[month] || 0) + amount; a.totalCost += amount; }
+    if (isRev) {
+      a.revByMonth[month]  = (a.revByMonth[month]  || 0) + amount;
+      a.totalRev  += amount;
+    } else {
+      a.costByMonth[month] = (a.costByMonth[month] || 0) + amount;
+      a.totalCost += amount;
+      const accType = accountTypeMap[l.account_id?.[0]] || 'expense';
+      a.costByType[accType] = (a.costByType[accType] || 0) + amount;
+    }
 
     // By second-order product category
     const catName = l.product_id?.[0] ? getProductCategory(l.product_id[0]) : 'Sin categoría';
@@ -200,13 +227,22 @@ async function fetchFinancialData(year, opts = {}) {
     : null;
 
   // EERR rows sorted by revenue desc
+  // dominantCostType: 'cogs' if expense_direct_cost dominates, 'opex' otherwise
+  const _getCostType = (costByTypeMap) => {
+    const cogs = costByTypeMap['expense_direct_cost'] || 0;
+    const total = Object.values(costByTypeMap).reduce((s, v) => s + v, 0);
+    if (total === 0) return 'opex';
+    return cogs / total >= 0.5 ? 'cogs' : 'opex';
+  };
+
   const eerrRows = Object.entries(byAnalytic)
     .map(([name, d]) => ({
       name,
-      totalRevenue: d.totalRev,
-      totalCost:    d.totalCost,
-      margin:       d.totalRev - d.totalCost,
-      marginPct:    d.totalRev > 0 ? Math.round((d.totalRev - d.totalCost) / d.totalRev * 100) : 0,
+      totalRevenue:    d.totalRev,
+      totalCost:       d.totalCost,
+      margin:          d.totalRev - d.totalCost,
+      marginPct:       d.totalRev > 0 ? Math.round((d.totalRev - d.totalCost) / d.totalRev * 100) : 0,
+      dominantCostType: _getCostType(d.costByType),
       months: months.map(m => ({
         label:   m.label,
         month:   m.month,
@@ -215,6 +251,19 @@ async function fetchFinancialData(year, opts = {}) {
       })),
     }))
     .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  // Cost structure breakdown (for the cost visibility card)
+  const cogs  = Math.round(costByType['expense_direct_cost'] || 0);
+  const opex  = Math.round(Object.entries(costByType)
+    .filter(([k]) => k !== 'expense_direct_cost')
+    .reduce((s, [, v]) => s + v, 0));
+  const costBreakdown = {
+    cogs,
+    opex,
+    total:   cogs + opex,
+    cogsPct: (cogs + opex) > 0 ? Math.round(cogs / (cogs + opex) * 100) : 0,
+    opexPct: (cogs + opex) > 0 ? Math.round(opex / (cogs + opex) * 100) : 0,
+  };
 
   // Category rows (second-order product category) sorted by revenue desc
   const catRows = Object.entries(byCat)
@@ -238,6 +287,7 @@ async function fetchFinancialData(year, opts = {}) {
     curMonth: { ...curM, label: MONTH_LABELS[today.getMonth()], revDelta },
     eerrRows,
     catRows,
+    costBreakdown,
     note: 'Los costos no incluyen nómina (payslips no registrados en Odoo).',
     generatedAt: new Date().toISOString(),
   };
@@ -260,6 +310,7 @@ function _buildEmpty(year) {
     curMonth: { revenue: 0, cost: 0, margin: 0, revDelta: null },
     eerrRows: [],
     catRows: [],
+    costBreakdown: { cogs: 0, opex: 0, total: 0, cogsPct: 0, opexPct: 0 },
     note: 'Sin datos para el año seleccionado.',
     generatedAt: new Date().toISOString(),
   };
