@@ -12,9 +12,53 @@ const SKIP_ACCOUNT_IDS  = new Set([3908, 3914, 3923]); // IVA / tax throughput a
 const MONTH_LABELS      = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const CACHE_TTL_MS      = 60 * 60 * 1000; // 1 hour for financial data
 
-const _finCache  = { data: null, time: 0, key: null };
-const _cxcCache  = { data: null, time: 0 };
-const _rateCache = { data: null, time: 0 };
+// ── Analytic plan classification ──────────────────────────────────────────
+// Plan 1 = "Project"  → client project accounts (S00089-..., CONSORCIO..., etc.)
+// Plan 3 = "Centro de Costos" (plans 3–17) → departmental cost centers + service lines
+// Plan 2 = "no usar" (obsolete) → ignore
+
+// Plan 3 service/revenue accounts — the [XXX] billing codes used on invoice lines
+const PLAN3_SERVICE_IDS = new Set([
+  186, // [DISC]   Análisis y Descubrimiento
+  187, // [CORE]   Core Administrativo
+  188, // [CDEV]   Desarrollo a medida
+  189, // [LOC]    Localización Paraguay
+  190, // [HR]     Recursos Humanos
+  191, // [PROJ]   Proyectos & Servicios
+  192, // [SALES]  Ventas & CRM
+  193, // [SCM]    Supply Chain
+  194, // [WEB]    Web & eCommerce
+  195, // [SUPP]   Soporte Evolutivo
+  198, // [HOURS]  Bolsa de Horas
+  199, // [HOURLY] Servicio por Hora
+  200, // [INFRA]  Odoo.sh Hosting
+  201, // [LIC]    Licencia Odoo Enterprise
+  202, // [LIC-AMIBA] Licencia Amiba
+]);
+
+// Plan 3 cost/department accounts — should NOT appear in revenue lines
+const PLAN3_COST_IDS = new Set([
+  164, 165, 166, 167, 168,        // top-level dept accounts (01–05)
+  169, 170,                        // Gerencia General — Sueldos / GG
+  171, 172,                        // Comercial y Marketing
+  173, 174,                        // Administración
+  175, 176,                        // RRHH
+  177, 178,                        // Customización
+  179, 180,                        // Localización
+  181, 182,                        // Consultores Técnicos
+  183, 184,                        // Consultor Funcional
+  185,                             // Gastos Generales - Producción
+  196, 197,                        // Soporte
+  203,                             // GG - Infraestructura y Licencias
+]);
+
+// Plan 2 — obsolete, skip entirely
+const PLAN2_IDS = new Set([93, 94, 95]);
+
+const _finCache     = { data: null, time: 0, key: null };
+const _cxcCache     = { data: null, time: 0 };
+const _rateCache    = { data: null, time: 0 };
+const _payrollCache = { data: null, time: 0, key: null };
 
 // ── Exchange rate (USD → PYG) ──────────────────────────────────────────────
 async function fetchExchangeRate() {
@@ -139,62 +183,74 @@ async function fetchFinancialData(year, opts = {}) {
   };
 
   // 4. Aggregate in memory
-  const revByMonth    = {};
-  const costByMonth   = {};
-  const byAnalytic    = {}; // name -> { revByMonth, costByMonth, totalRev, totalCost, costByType }
-  const byCat         = {}; // secondOrderCategory -> { revByMonth, costByMonth, totalRev, totalCost }
-  const costByType    = {}; // account_type -> total cost (for cost structure breakdown)
+  const revByMonth  = {};
+  const costByMonth = {};
+  const byProject   = {}; // Plan 1 account name  → { revByMonth, costByMonth, totalRev, totalCost }
+  const byService   = {}; // Plan 3 [XXX] account → { revByMonth, totalRev }
+  const costByType  = {}; // account_type → total cost (for cost structure breakdown)
+
+  // Helper: classify all analytic IDs in a distribution
+  function _classifyDist(dist) {
+    let projName = null, svcName = null;
+    if (!dist) return { projName, svcName };
+    for (const [idStr] of Object.entries(dist)) {
+      const id = parseInt(idStr);
+      if (PLAN2_IDS.has(id)) continue;                        // obsolete — skip
+      if (PLAN3_SERVICE_IDS.has(id)) {
+        svcName = analyticById[id] || `Servicio ${id}`;       // Plan 3 service line
+      } else if (!PLAN3_COST_IDS.has(id)) {
+        projName = analyticById[id] || `Proyecto ${id}`;      // Plan 1 project account
+      }
+      // PLAN3_COST_IDS → internal cost centers, not used in revenue lines
+    }
+    return { projName, svcName };
+  }
 
   for (const l of allLines) {
     const move = moveById.get(l.move_id?.[0]);
     if (!move) continue;
     if (l.account_id && SKIP_ACCOUNT_IDS.has(l.account_id[0])) continue;
 
-    const month  = monthKey(move.invoice_date);
+    const month = monthKey(move.invoice_date);
     if (!month) continue;
 
     const isRev  = move.move_type === 'out_invoice';
     const amount = isRev ? (l.credit || 0) : (l.debit || 0);
     if (amount <= 0) continue;
 
-    // Resolve analytic name
-    let analytic = 'Sin clasificar';
-    if (l.analytic_distribution) {
-      const firstId = parseInt(Object.keys(l.analytic_distribution)[0]);
-      if (analyticById[firstId]) analytic = analyticById[firstId];
-    }
-
     // Monthly totals
     if (isRev) revByMonth[month]  = (revByMonth[month]  || 0) + amount;
     else       costByMonth[month] = (costByMonth[month] || 0) + amount;
 
-    // Track cost type (COGS vs Opex)
+    // Track cost type
     if (!isRev) {
       const accType = accountTypeMap[l.account_id?.[0]] || 'expense';
       costByType[accType] = (costByType[accType] || 0) + amount;
     }
 
-    // By analytic
-    if (!byAnalytic[analytic]) {
-      byAnalytic[analytic] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0, costByType: {} };
-    }
-    const a = byAnalytic[analytic];
-    if (isRev) {
-      a.revByMonth[month]  = (a.revByMonth[month]  || 0) + amount;
-      a.totalRev  += amount;
-    } else {
-      a.costByMonth[month] = (a.costByMonth[month] || 0) + amount;
-      a.totalCost += amount;
-      const accType = accountTypeMap[l.account_id?.[0]] || 'expense';
-      a.costByType[accType] = (a.costByType[accType] || 0) + amount;
-    }
+    // Classify analytic accounts
+    const { projName, svcName } = _classifyDist(l.analytic_distribution);
 
-    // By second-order product category
-    const catName = l.product_id?.[0] ? getProductCategory(l.product_id[0]) : 'Sin categoría';
-    if (!byCat[catName]) byCat[catName] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
-    const cat = byCat[catName];
-    if (isRev) { cat.revByMonth[month]  = (cat.revByMonth[month]  || 0) + amount; cat.totalRev  += amount; }
-    else       { cat.costByMonth[month] = (cat.costByMonth[month] || 0) + amount; cat.totalCost += amount; }
+    if (isRev) {
+      // ── Revenue: group by Plan 1 project ─────────────────────────────────
+      const pk = projName || (svcName ? `[sin proyecto] ${svcName}` : 'Sin clasificar');
+      if (!byProject[pk]) byProject[pk] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
+      byProject[pk].revByMonth[month] = (byProject[pk].revByMonth[month] || 0) + amount;
+      byProject[pk].totalRev += amount;
+
+      // ── Revenue: group by Plan 3 service line ─────────────────────────────
+      const sk = svcName || (projName ? 'Sin línea de servicio' : 'Sin clasificar');
+      if (!byService[sk]) byService[sk] = { revByMonth: {}, totalRev: 0 };
+      byService[sk].revByMonth[month] = (byService[sk].revByMonth[month] || 0) + amount;
+      byService[sk].totalRev += amount;
+    } else {
+      // ── Costs: attribute to project if Plan 1 tagged ─────────────────────
+      if (projName) {
+        if (!byProject[projName]) byProject[projName] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
+        byProject[projName].costByMonth[month] = (byProject[projName].costByMonth[month] || 0) + amount;
+        byProject[projName].totalCost += amount;
+      }
+    }
   }
 
   // 5. Build month series covering the actual date range (may span years)
@@ -239,53 +295,16 @@ async function fetchFinancialData(year, opts = {}) {
     ? Math.round((curM.revenue - prevM.revenue) / prevM.revenue * 100)
     : null;
 
-  // EERR rows sorted by revenue desc
-  // dominantCostType: 'cogs' if expense_direct_cost dominates, 'opex' otherwise
-  const _getCostType = (costByTypeMap) => {
-    const cogs = costByTypeMap['expense_direct_cost'] || 0;
-    const total = Object.values(costByTypeMap).reduce((s, v) => s + v, 0);
-    if (total === 0) return 'opex';
-    return cogs / total >= 0.5 ? 'cogs' : 'opex';
-  };
-
-  const eerrRows = Object.entries(byAnalytic)
-    .map(([name, d]) => ({
-      name,
-      totalRevenue:    d.totalRev,
-      totalCost:       d.totalCost,
-      margin:          d.totalRev - d.totalCost,
-      marginPct:       d.totalRev > 0 ? Math.round((d.totalRev - d.totalCost) / d.totalRev * 100) : 0,
-      dominantCostType: _getCostType(d.costByType),
-      months: months.map(m => ({
-        label:   m.label,
-        month:   m.month,
-        revenue: d.revByMonth[m.month]  || 0,
-        cost:    d.costByMonth[m.month] || 0,
-      })),
-    }))
-    .sort((a, b) => b.totalRevenue - a.totalRevenue);
-
-  // Cost structure breakdown (for the cost visibility card)
-  const cogs  = Math.round(costByType['expense_direct_cost'] || 0);
-  const opex  = Math.round(Object.entries(costByType)
-    .filter(([k]) => k !== 'expense_direct_cost')
-    .reduce((s, [, v]) => s + v, 0));
-  const costBreakdown = {
-    cogs,
-    opex,
-    total:   cogs + opex,
-    cogsPct: (cogs + opex) > 0 ? Math.round(cogs / (cogs + opex) * 100) : 0,
-    opexPct: (cogs + opex) > 0 ? Math.round(opex / (cogs + opex) * 100) : 0,
-  };
-
-  // Category rows (second-order product category) sorted by revenue desc
-  const catRows = Object.entries(byCat)
+  // ── Build project rows (Plan 1) — primary EERR view ─────────────────────
+  const projectRows = Object.entries(byProject)
     .map(([name, d]) => ({
       name,
       totalRevenue: Math.round(d.totalRev),
       totalCost:    Math.round(d.totalCost),
       margin:       Math.round(d.totalRev - d.totalCost),
       marginPct:    d.totalRev > 0 ? Math.round((d.totalRev - d.totalCost) / d.totalRev * 100) : 0,
+      // flag rows that came from Plan 3 only (no project tag)
+      untagged: name.startsWith('[sin proyecto]') || name === 'Sin clasificar',
       months: months.map(m => ({
         label:   m.label,
         month:   m.month,
@@ -295,13 +314,49 @@ async function fetchFinancialData(year, opts = {}) {
     }))
     .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
+  // ── Build service line rows (Plan 3 [XXX]) — secondary view ─────────────
+  const serviceRows = Object.entries(byService)
+    .map(([name, d]) => ({
+      name,
+      totalRevenue: Math.round(d.totalRev),
+      untagged: name === 'Sin línea de servicio' || name === 'Sin clasificar',
+      months: months.map(m => ({
+        label:   m.label,
+        month:   m.month,
+        revenue: Math.round(d.revByMonth[m.month] || 0),
+      })),
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  // ── Cost structure breakdown ──────────────────────────────────────────────
+  const cogs  = Math.round(costByType['expense_direct_cost'] || 0);
+  const opex  = Math.round(Object.entries(costByType)
+    .filter(([k]) => k !== 'expense_direct_cost')
+    .reduce((s, [, v]) => s + v, 0));
+  const costBreakdown = {
+    cogs, opex,
+    total:   cogs + opex,
+    cogsPct: (cogs + opex) > 0 ? Math.round(cogs / (cogs + opex) * 100) : 0,
+    opexPct: (cogs + opex) > 0 ? Math.round(opex / (cogs + opex) * 100) : 0,
+  };
+
+  // Untagged revenue warning counts
+  const untaggedProjectRev = projectRows.filter(r => r.untagged).reduce((s, r) => s + r.totalRevenue, 0);
+  const untaggedServiceRev = serviceRows.filter(r => r.untagged).reduce((s, r) => s + r.totalRevenue, 0);
+
   const result = {
     year, months, totalRevenue, totalCost, totalMargin, marginPct,
     curMonth: { ...curM, label: MONTH_LABELS[today.getMonth()], revDelta },
-    eerrRows,
-    catRows,
+    // Primary views — properly classified
+    projectRows,                          // by Plan 1 client project
+    serviceRows,                          // by Plan 3 [XXX] service line
+    // Backward-compat aliases used by finanzas.ejs
+    eerrRows: projectRows,
+    catRows:  serviceRows,
     costBreakdown,
-    note: 'Los costos no incluyen nómina (payslips no registrados en Odoo).',
+    untaggedProjectRev: Math.round(untaggedProjectRev),
+    untaggedServiceRev: Math.round(untaggedServiceRev),
+    note: 'Costos reflejan facturas de proveedor en Odoo. Nómina se calcula por separado desde contratos activos.',
     generatedAt: new Date().toISOString(),
   };
 
@@ -329,9 +384,10 @@ function _buildEmpty(year, opts = {}) {
     year, months,
     totalRevenue: 0, totalCost: 0, totalMargin: 0, marginPct: '0.0',
     curMonth: { revenue: 0, cost: 0, margin: 0, revDelta: null },
-    eerrRows: [],
-    catRows: [],
+    projectRows: [], serviceRows: [],
+    eerrRows: [],    catRows: [],
     costBreakdown: { cogs: 0, opex: 0, total: 0, cogsPct: 0, opexPct: 0 },
+    untaggedProjectRev: 0, untaggedServiceRev: 0,
     note: 'Sin datos para el año seleccionado.',
     generatedAt: new Date().toISOString(),
   };
@@ -784,9 +840,83 @@ async function fetchDataQualityAlerts(year, opts = {}) {
   return result;
 }
 
+// ── Nómina desde contratos activos (hr.contract) ──────────────────────────
+async function fetchPayroll(year, opts = {}) {
+  const dateFrom = opts.from || `${year}-01-01`;
+  const dateTo   = opts.to   || `${year}-12-31`;
+  const cacheKey = `${dateFrom}_${dateTo}`;
+  const now = Date.now();
+  if (_payrollCache.data && _payrollCache.key === cacheKey && now - _payrollCache.time < CACHE_TTL_MS) {
+    return _payrollCache.data;
+  }
+
+  let contracts = [];
+  try {
+    contracts = await callKw('hr.contract', 'search_read', [[
+      ['state',       'in', ['open', 'draft']],
+      ['date_start',  '<=', dateTo],
+      ['company_id',  '=',  TORUS_COMPANY_ID],
+    ]], {
+      fields: ['id', 'name', 'employee_id', 'wage', 'state', 'date_start', 'date_end'],
+      limit: 200,
+    });
+  } catch (e) {
+    console.warn('[Finanzas] fetchPayroll failed:', e.message);
+  }
+
+  const fromY = parseInt(dateFrom.slice(0, 4)), fromM = parseInt(dateFrom.slice(5, 7));
+  const toY   = parseInt(dateTo.slice(0, 4)),   toM   = parseInt(dateTo.slice(5, 7));
+
+  const monthlyPayroll = [];
+  let cy = fromY, cm = fromM;
+  while (cy < toY || (cy === toY && cm <= toM)) {
+    const ms         = `${cy}-${pad(cm)}`;
+    const msStart    = `${cy}-${pad(cm)}-01`;
+    const lastDay    = new Date(cy, cm, 0).getDate();
+    const msEnd      = `${cy}-${pad(cm)}-${pad(lastDay)}`;
+
+    let total = 0;
+    const active = [];
+    for (const c of contracts) {
+      const cs = c.date_start || '1900-01-01';
+      const ce = c.date_end   || '9999-12-31';
+      if (cs <= msEnd && ce >= msStart) {
+        total += c.wage || 0;
+        active.push({ name: c.employee_id?.[1] || c.name, wage: c.wage || 0 });
+      }
+    }
+    monthlyPayroll.push({ month: ms, label: MONTH_LABELS[cm - 1], amount: Math.round(total), activeCount: active.length });
+    cm++;
+    if (cm > 12) { cm = 1; cy++; }
+  }
+
+  const totalPayroll = monthlyPayroll.reduce((s, m) => s + m.amount, 0);
+
+  // Current month payroll
+  const today = new Date();
+  const curMs  = `${today.getFullYear()}-${pad(today.getMonth() + 1)}`;
+  const curPayroll = monthlyPayroll.find(m => m.month === curMs)?.amount || 0;
+
+  // Employee breakdown for display
+  const byEmployee = contracts.map(c => ({
+    name:      c.employee_id?.[1] || c.name,
+    wage:      Math.round(c.wage || 0),
+    state:     c.state,
+    dateStart: c.date_start,
+    dateEnd:   c.date_end || null,
+  })).sort((a, b) => b.wage - a.wage);
+
+  const result = { monthlyPayroll, totalPayroll, curPayroll, byEmployee, contractCount: contracts.length };
+  _payrollCache.data = result;
+  _payrollCache.time = Date.now();
+  _payrollCache.key  = cacheKey;
+  console.log(`[Finanzas] payroll year=${year} total=${totalPayroll.toLocaleString()} contracts=${contracts.length}`);
+  return result;
+}
+
 module.exports = {
   fetchFinancialData, fetchCXC, fetchCXP,
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
   fetchClientProfitability, fetchYoY, fetchExchangeRate,
-  fetchDataQualityAlerts,
+  fetchDataQualityAlerts, fetchPayroll,
 };

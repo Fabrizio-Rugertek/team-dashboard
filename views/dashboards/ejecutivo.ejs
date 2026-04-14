@@ -169,6 +169,48 @@
     </div>
   </div>
 
+  <!-- ── P&L estimado ────────────────────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-sm font-bold text-slate-700">P&L Estimado <%= year %></h2>
+        <p class="text-xs text-slate-400">Ingresos facturados · Costos Odoo · Nómina contratos activos</p>
+      </div>
+      <% if (untaggedRev > 0) { %>
+      <span class="text-xs bg-amber-50 border border-amber-200 text-amber-700 px-2 py-1 rounded-lg font-medium">
+        ⚠ <span class="c-amt" data-pyg="<%= untaggedRev %>"><%- gsM(untaggedRev) %></span> sin proyecto asignado
+      </span>
+      <% } %>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <!-- Ingresos -->
+      <div class="p-4 bg-emerald-50 rounded-xl border border-emerald-100">
+        <p class="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Ingresos</p>
+        <p class="text-xl font-extrabold text-emerald-700 c-amt" data-pyg="<%= fin.totalRevenue || 0 %>"><%- gsM(fin.totalRevenue || 0) %></p>
+        <p class="text-xs text-emerald-500 mt-1">Facturas emitidas</p>
+      </div>
+      <!-- Costos Odoo -->
+      <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
+        <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Costos directos</p>
+        <p class="text-xl font-extrabold text-slate-700 c-amt" data-pyg="<%= vendorCosts %>"><%- gsM(vendorCosts) %></p>
+        <p class="text-xs text-slate-400 mt-1">Facturas proveedor Odoo</p>
+      </div>
+      <!-- Nómina -->
+      <div class="p-4 bg-blue-50 rounded-xl border border-blue-100">
+        <p class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">Nómina estimada</p>
+        <p class="text-xl font-extrabold text-blue-700 c-amt" data-pyg="<%= payrollTotal %>"><%- gsM(payrollTotal) %></p>
+        <p class="text-xs text-blue-400 mt-1"><%= payroll.contractCount %> contratos activos</p>
+      </div>
+      <!-- Resultado -->
+      <div class="p-4 rounded-xl border <%= resultadoAnteImp >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100' %>">
+        <p class="text-xs font-semibold <%= resultadoAnteImp >= 0 ? 'text-green-600' : 'text-red-600' %> uppercase tracking-wide mb-1">Resultado estimado</p>
+        <p class="text-xl font-extrabold <%= resultadoAnteImp >= 0 ? 'text-green-700' : 'text-red-700' %> c-amt" data-pyg="<%= resultadoAnteImp %>"><%- gsM(resultadoAnteImp) %></p>
+        <p class="text-xs mt-1 <%= resultadoAnteImp >= 0 ? 'text-green-500' : 'text-red-400' %>"><%= resultadoPct %>% s/ ingresos</p>
+      </div>
+    </div>
+    <p class="text-xs text-slate-300 mt-3">* No incluye IPS, cargas sociales ni beneficios adicionales. Nómina calculada desde contratos activos en Odoo.</p>
+  </div>
+
   <!-- ── Row: Revenue trend + Utilización ─────────────────────────────────── -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
@@ -239,7 +281,7 @@
     <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
       <div>
         <h2 class="text-sm font-bold text-slate-700">Salud Financiera por Proyecto</h2>
-        <p class="text-xs text-slate-400 mt-0.5"><%= projectHealth.length %> proyectos con facturación en <%= year %></p>
+        <p class="text-xs text-slate-400 mt-0.5"><%= projectHealth.length %> proyectos · Plan analítico "Project" · RAG basado en margen s/ costos directos Odoo</p>
       </div>
       <div class="flex items-center gap-3 text-xs">
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full rag-dot-green inline-block"></span>≥25% margen</span>
@@ -316,6 +358,29 @@
       </table>
     </div>
   </div>
+
+  <!-- ── Ingresos por línea de servicio ──────────────────────────────────── -->
+  <% if (serviceRows && serviceRows.length > 0) { %>
+  <div class="bg-white rounded-2xl border border-slate-200 mb-6 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100">
+      <h2 class="text-sm font-bold text-slate-700">Ingresos por Línea de Servicio</h2>
+      <p class="text-xs text-slate-400 mt-0.5">Plan "Centro de Costos" · códigos [CDEV], [CORE], [WEB]…</p>
+    </div>
+    <div class="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+      <% serviceRows.forEach(function(s) { %>
+      <div class="p-3 rounded-xl bg-slate-50 border border-slate-100">
+        <p class="text-xs font-bold text-slate-600 truncate mb-1" title="<%= s.name %>"><%= s.name %></p>
+        <p class="text-base font-extrabold text-slate-800 c-amt" data-pyg="<%= s.totalRevenue %>"><%- gsM(s.totalRevenue) %></p>
+        <% const svcPct = fin.totalRevenue > 0 ? Math.round(s.totalRevenue / fin.totalRevenue * 100) : 0; %>
+        <div class="mt-2 w-full bg-slate-200 rounded-full h-1.5 overflow-hidden">
+          <div class="h-1.5 rounded-full bg-teal-500" style="width: <%= svcPct %>%"></div>
+        </div>
+        <p class="text-xs text-slate-400 mt-1"><%= svcPct %>% del total</p>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
 
   <!-- ── Row: CXC + Utilización detalle ────────────────────────────────────── -->
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">

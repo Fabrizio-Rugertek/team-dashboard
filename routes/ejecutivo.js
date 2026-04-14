@@ -8,6 +8,7 @@ const {
   fetchCXC,
   fetchExchangeRate,
   fetchPipeline,
+  fetchPayroll,
 } = require('../src/finanzas');
 const { getDashboardCached } = require('../src/cache');
 
@@ -20,11 +21,12 @@ router.get('/', async (req, res) => {
     const curMonthKey = `${year}-${pad(today.getMonth() + 1)}`;
 
     // Parallel fetch — financial + team data
-    const [fin, cxc, usdRate, pipeline, equipoRaw] = await Promise.all([
+    const [fin, cxc, usdRate, pipeline, payroll, equipoRaw] = await Promise.all([
       fetchFinancialData(year),
       fetchCXC(),
       fetchExchangeRate(),
       fetchPipeline(),
+      fetchPayroll(year),
       getDashboardCached({ range: 'mtd', status: 'all', tag: 'all', consultants: new Set() }),
     ]);
 
@@ -44,19 +46,31 @@ router.get('/', async (req, res) => {
       .sort((a, b2) => b2.residual - a.residual)
       .slice(0, 8);
 
-    // ── Project health (RAG) ────────────────────────────────────────────────
-    const projectHealth = (fin.eerrRows || [])
-      .filter(r => r.totalRevenue > 0)
+    // ── Project health (RAG) — use Plan 1 projectRows ───────────────────────
+    // Only show properly tagged projects (skip "sin proyecto" catch-alls)
+    const projectHealth = (fin.projectRows || [])
+      .filter(r => r.totalRevenue > 0 && !r.untagged)
       .map(r => {
-        const mp  = parseFloat(r.marginPct) || 0;
+        const mp  = typeof r.marginPct === 'string' ? parseFloat(r.marginPct) : (r.marginPct || 0);
         const rag = mp >= 25 ? 'green' : mp >= 10 ? 'amber' : 'red';
         const curRev = (r.months || []).find(m => m.month === curMonthKey)?.revenue || 0;
         return { ...r, marginPctNum: mp, rag, activeThisMonth: curRev > 0, curMonthRevenue: curRev };
-      })
-      .sort((a, b2) => b2.totalRevenue - a.totalRevenue);
+      });
 
     const projectsAtRisk = projectHealth.filter(p => p.rag === 'red').length;
     const projectsAmber  = projectHealth.filter(p => p.rag === 'amber').length;
+
+    // ── P&L estimado ─────────────────────────────────────────────────────────
+    // Revenue: from posted invoices (fin.totalRevenue)
+    // Direct costs: from vendor bills in Odoo (fin.totalCost)
+    // Payroll: from active hr.contract wages
+    const vendorCosts   = fin.totalCost   || 0;
+    const payrollTotal  = payroll.totalPayroll || 0;
+    const resultadoAnteImp = (fin.totalRevenue || 0) - vendorCosts - payrollTotal;
+    const resultadoPct  = fin.totalRevenue > 0
+      ? Math.round(resultadoAnteImp / fin.totalRevenue * 100) : 0;
+    // Service line breakdown for the secondary view
+    const serviceRows = (fin.serviceRows || []).filter(r => !r.untagged).slice(0, 8);
 
     // ── Forecast de facturación ─────────────────────────────────────────────
     const daysInMonth = new Date(year, today.getMonth() + 1, 0).getDate();
@@ -85,18 +99,28 @@ router.get('/', async (req, res) => {
       year,
       curMonthKey,
       fin,
-      curMonth:      fin.curMonth || {},
+      curMonth:       fin.curMonth || {},
       curMarginPct,
       utilization,
       billableRange,
       totalRange,
       overdueAmount,
       overdueItems,
-      cxcBuckets:    b,
-      cxcTotal:      cxc.total || 0,
+      cxcBuckets:     b,
+      cxcTotal:       cxc.total || 0,
       projectsAtRisk,
       projectsAmber,
       projectHealth,
+      serviceRows,
+      // P&L
+      vendorCosts,
+      payrollTotal,
+      resultadoAnteImp,
+      resultadoPct,
+      payroll,
+      // Untagged warning
+      untaggedRev: fin.untaggedProjectRev || 0,
+      // Forecast
       forecast,
       forecastPct,
       daysElapsed,
@@ -104,8 +128,8 @@ router.get('/', async (req, res) => {
       revSoFar,
       pipeline,
       usdRate,
-      revTrendLabels: JSON.stringify(revTrendLabels),
-      revTrendData:   JSON.stringify(revTrendData),
+      revTrendLabels:  JSON.stringify(revTrendLabels),
+      revTrendData:    JSON.stringify(revTrendData),
       marginTrendData: JSON.stringify(marginTrendData),
       consultantCount,
       lastUpdate: new Date().toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' }),
