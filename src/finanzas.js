@@ -75,17 +75,20 @@ async function fetchFinancialData(year, opts = {}) {
   const allLines = await callKw('account.move.line', 'search_read', [[
     ['move_id', 'in', moveIds],
   ]], {
-    fields: ['move_id', 'name', 'account_id', 'credit', 'debit', 'analytic_distribution'],
+    fields: ['move_id', 'name', 'account_id', 'credit', 'debit', 'analytic_distribution', 'product_id'],
     limit: 10000,
   });
 
-  // 3. Batch-resolve analytic account names
+  // 3. Batch-resolve analytic account names + product categories
   const analyticIds = new Set();
+  const productIds  = new Set();
   for (const l of allLines) {
     if (l.analytic_distribution) {
       for (const id of Object.keys(l.analytic_distribution)) analyticIds.add(parseInt(id));
     }
+    if (l.product_id?.[0]) productIds.add(l.product_id[0]);
   }
+
   const analyticById = {};
   if (analyticIds.size) {
     const accs = await callKw('account.analytic.account', 'read', [[...analyticIds]], {
@@ -94,10 +97,39 @@ async function fetchFinancialData(year, opts = {}) {
     for (const a of accs) analyticById[a.id] = a.name;
   }
 
+  // Resolve product → second-order category name
+  const productCatMap = {}; // productId → categoryId
+  if (productIds.size) {
+    const products = await callKw('product.product', 'read', [[...productIds]], {
+      fields: ['id', 'categ_id'],
+    });
+    for (const p of products) {
+      if (p.categ_id?.[0]) productCatMap[p.id] = p.categ_id[0];
+    }
+  }
+  const catSecondOrder = {}; // categoryId → secondOrderName
+  const catIdsNeeded = new Set(Object.values(productCatMap).filter(Boolean));
+  if (catIdsNeeded.size) {
+    const cats = await callKw('product.category', 'read', [[...catIdsNeeded]], {
+      fields: ['id', 'complete_name'],
+    });
+    for (const c of cats) {
+      // complete_name = "All / Servicios / Implementación / CDEV"
+      // [0]=root [1]=second-order (what user wants) [2+]=deeper
+      const parts = (c.complete_name || '').split(' / ').map(s => s.trim()).filter(Boolean);
+      catSecondOrder[c.id] = parts.length >= 2 ? parts[1] : (parts[0] || 'Otros');
+    }
+  }
+  const getProductCategory = pid => {
+    const catId = productCatMap[pid];
+    return catId ? (catSecondOrder[catId] || 'Sin categoría') : 'Sin categoría';
+  };
+
   // 4. Aggregate in memory
   const revByMonth  = {};
   const costByMonth = {};
   const byAnalytic  = {}; // name -> { revByMonth, costByMonth, totalRev, totalCost }
+  const byCat       = {}; // secondOrderCategory -> { revByMonth, costByMonth, totalRev, totalCost }
 
   for (const l of allLines) {
     const move = moveById.get(l.move_id?.[0]);
@@ -129,6 +161,13 @@ async function fetchFinancialData(year, opts = {}) {
     const a = byAnalytic[analytic];
     if (isRev) { a.revByMonth[month]  = (a.revByMonth[month]  || 0) + amount; a.totalRev  += amount; }
     else       { a.costByMonth[month] = (a.costByMonth[month] || 0) + amount; a.totalCost += amount; }
+
+    // By second-order product category
+    const catName = l.product_id?.[0] ? getProductCategory(l.product_id[0]) : 'Sin categoría';
+    if (!byCat[catName]) byCat[catName] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
+    const cat = byCat[catName];
+    if (isRev) { cat.revByMonth[month]  = (cat.revByMonth[month]  || 0) + amount; cat.totalRev  += amount; }
+    else       { cat.costByMonth[month] = (cat.costByMonth[month] || 0) + amount; cat.totalCost += amount; }
   }
 
   // 5. Build 12-month series
@@ -177,10 +216,28 @@ async function fetchFinancialData(year, opts = {}) {
     }))
     .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
+  // Category rows (second-order product category) sorted by revenue desc
+  const catRows = Object.entries(byCat)
+    .map(([name, d]) => ({
+      name,
+      totalRevenue: Math.round(d.totalRev),
+      totalCost:    Math.round(d.totalCost),
+      margin:       Math.round(d.totalRev - d.totalCost),
+      marginPct:    d.totalRev > 0 ? Math.round((d.totalRev - d.totalCost) / d.totalRev * 100) : 0,
+      months: months.map(m => ({
+        label:   m.label,
+        month:   m.month,
+        revenue: Math.round(d.revByMonth[m.month]  || 0),
+        cost:    Math.round(d.costByMonth[m.month] || 0),
+      })),
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
   const result = {
     year, months, totalRevenue, totalCost, totalMargin, marginPct,
     curMonth: { ...curM, label: MONTH_LABELS[today.getMonth()], revDelta },
     eerrRows,
+    catRows,
     note: 'Los costos no incluyen nómina (payslips no registrados en Odoo).',
     generatedAt: new Date().toISOString(),
   };
@@ -202,6 +259,7 @@ function _buildEmpty(year) {
     totalRevenue: 0, totalCost: 0, totalMargin: 0, marginPct: '0.0',
     curMonth: { revenue: 0, cost: 0, margin: 0, revDelta: null },
     eerrRows: [],
+    catRows: [],
     note: 'Sin datos para el año seleccionado.',
     generatedAt: new Date().toISOString(),
   };

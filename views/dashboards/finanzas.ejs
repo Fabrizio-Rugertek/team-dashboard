@@ -1033,7 +1033,7 @@
             </td>
             <td class="px-4 py-2.5 text-right text-slate-600"><%= c.invoiceCount %></td>
             <td class="px-4 py-2.5 text-right font-semibold <%= c.unpaid > 0 ? 'text-amber-600' : 'text-slate-300' %>">
-              <%-  c.unpaid > 0 ? 'Gs.\u00A0' + amtC(c.unpaid) : '—' %>
+              <%- c.unpaid > 0 ? amt(c.unpaid) : '—' %>
             </td>
             <td class="px-4 py-2.5 text-right">
               <% if (c.dso > 0) { %>
@@ -1047,7 +1047,7 @@
               %>
               <div class="flex items-end gap-0.5 h-5">
                 <% mKeys.forEach(function(k) { const h = Math.round((c.monthlyRev[k]/mMax)*16); %>
-                <div class="w-2 rounded-sm bg-emerald-400 opacity-70" style="height:<%= h %>px" title="<%= k %>: Gs. <%-  amtC(c.monthlyRev[k]) %>"></div>
+                <div class="w-2 rounded-sm bg-emerald-400 opacity-70" style="height:<%= h %>px" title="<%= k %>: Gs. <%= gsM(c.monthlyRev[k] || 0) %>"></div>
                 <% }) %>
               </div>
             </td>
@@ -1071,8 +1071,71 @@
 
   <div>
     <h2 class="text-xl font-extrabold text-slate-900">Rentabilidad por Línea de Servicio</h2>
-    <p class="text-xs text-slate-400 mt-0.5">Cuentas analíticas con tag [TIPO] · <%= year %></p>
+    <p class="text-xs text-slate-400 mt-0.5">Agrupado por categoría de producto (2° nivel) · Cuentas analíticas · <%= year %></p>
   </div>
+
+  <!-- ── Categorías de Producto ─────────────────────────────────────────── -->
+  <% if (fin.catRows && fin.catRows.length > 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-50 border-b border-slate-200 px-5 py-2.5 flex items-center justify-between">
+      <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wide">Por Categoría de Producto</span>
+      <span class="text-xs text-slate-400"><%= fin.catRows.length %> categorías</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="border-b border-slate-100">
+          <tr>
+            <th class="text-left px-5 py-3 font-bold text-slate-600">Categoría</th>
+            <th class="text-right px-4 py-3 font-bold text-emerald-700">Ingresos</th>
+            <th class="text-right px-4 py-3 font-bold text-red-600">Costo</th>
+            <th class="text-right px-4 py-3 font-bold text-slate-700">Margen</th>
+            <th class="text-right px-4 py-3 font-bold text-slate-500">Margen %</th>
+            <th class="text-right px-4 py-3 font-bold text-slate-400">% Ingresos</th>
+            <th class="text-left px-4 py-3 font-bold text-slate-400">Evolución</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% const totalCatRev = fin.catRows.reduce((s,r) => s + r.totalRevenue, 0); %>
+          <% fin.catRows.forEach(function(row) { %>
+          <%
+            const cPct = totalCatRev > 0 ? Math.round(row.totalRevenue / totalCatRev * 100) : 0;
+            const cMx  = Math.max(...row.months.map(m => m.revenue), 1);
+          %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-5 py-2.5 font-semibold text-slate-800"><%= row.name %></td>
+            <td class="px-4 py-2.5 text-right text-emerald-700 font-bold"><%- amt(row.totalRevenue) %></td>
+            <td class="px-4 py-2.5 text-right text-red-600"><%- row.totalCost > 0 ? amt(row.totalCost) : '<span class="text-slate-300">—</span>' %></td>
+            <td class="px-4 py-2.5 text-right font-bold <%= row.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%- amt(row.margin) %></td>
+            <td class="px-4 py-2.5 text-right">
+              <span class="inline-block px-2 py-0.5 rounded font-bold text-[11px]
+                <%= row.marginPct >= 50 ? 'bg-emerald-100 text-emerald-700' : row.marginPct >= 25 ? 'bg-blue-100 text-blue-700' : row.marginPct >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
+                <%= row.marginPct %>%
+              </span>
+            </td>
+            <td class="px-4 py-2.5 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="w-16 bg-slate-100 rounded-full h-1.5">
+                  <div class="bg-emerald-500 h-1.5 rounded-full" style="width:<%= cPct %>%"></div>
+                </div>
+                <span class="text-slate-500 font-semibold w-7 text-right"><%= cPct %>%</span>
+              </div>
+            </td>
+            <td class="px-4 py-2.5">
+              <div class="flex items-end gap-0.5 h-5">
+                <% row.months.forEach(function(m) { const bh = m.revenue > 0 ? Math.round(m.revenue/cMx*16) : 1; %>
+                <div class="w-2 rounded-sm <%= m.revenue > 0 ? 'bg-blue-400' : 'bg-slate-100' %> opacity-80"
+                     style="height:<%= bh %>px"
+                     title="<%= m.label %>: Gs. <%= gsM(m.revenue) %>"></div>
+                <% }) %>
+              </div>
+            </td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
 
   <!-- KPI row productos -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1090,7 +1153,7 @@
       <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Mejor producto</div>
       <% const bestSvc = svcLines[0]; %>
       <div class="text-base font-black text-slate-900 truncate"><%= bestSvc ? bestSvc.name.replace(/[\[\]]/g,'') : '—' %></div>
-      <div class="text-xs text-emerald-600 font-bold mt-1"><%-  bestSvc ? 'Gs.\u00A0'+amtC(bestSvc.totalRevenue) : '' %></div>
+      <div class="text-xs text-emerald-600 font-bold mt-1"><%- bestSvc ? amt(bestSvc.totalRevenue) : '' %></div>
     </div>
     <div class="bg-white rounded-xl border border-emerald-200 p-4">
       <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Mejor margen</div>
@@ -1139,7 +1202,7 @@
           <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
             <td class="px-5 py-2.5 font-semibold text-slate-800"><%= row.name %></td>
             <td class="px-4 py-2.5 text-right text-emerald-700 font-bold"><%- amt(row.totalRevenue) %></td>
-            <td class="px-4 py-2.5 text-right text-red-600"><%-  row.totalCost > 0 ? 'Gs.\u00A0'+amtC(row.totalCost) : '—' %></td>
+            <td class="px-4 py-2.5 text-right text-red-600"><%- row.totalCost > 0 ? amt(row.totalCost) : '—' %></td>
             <td class="px-4 py-2.5 text-right font-bold <%= row.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%- amt(row.margin) %></td>
             <td class="px-4 py-2.5 text-right">
               <span class="inline-block px-2 py-0.5 rounded font-bold text-[11px]
@@ -1153,7 +1216,7 @@
               %>
               <div class="flex items-end gap-0.5 h-5">
                 <% row.months.forEach(function(m) { const bh = m.revenue > 0 ? Math.round(m.revenue/rMx*16) : 1; %>
-                <div class="w-2 rounded-sm <%= m.revenue > 0 ? 'bg-emerald-400' : 'bg-slate-100' %> opacity-80" style="height:<%= bh %>px" title="<%= m.label %>: Gs. <%-  amtC(m.revenue) %>"></div>
+                <div class="w-2 rounded-sm <%= m.revenue > 0 ? 'bg-emerald-400' : 'bg-slate-100' %> opacity-80" style="height:<%= bh %>px" title="<%= m.label %>: Gs. <%= gsM(m.revenue) %>"></div>
                 <% }) %>
               </div>
             </td>
@@ -1188,7 +1251,7 @@
           <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
             <td class="px-5 py-2 font-medium text-slate-700 max-w-xs truncate" title="<%= row.name %>"><%= row.name %></td>
             <td class="px-4 py-2 text-right text-emerald-700 font-semibold"><%- amt(row.totalRevenue) %></td>
-            <td class="px-4 py-2 text-right text-red-600"><%-  row.totalCost > 0 ? 'Gs.\u00A0'+amtC(row.totalCost) : '—' %></td>
+            <td class="px-4 py-2 text-right text-red-600"><%- row.totalCost > 0 ? amt(row.totalCost) : '—' %></td>
             <td class="px-4 py-2 text-right">
               <span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold
                 <%= row.marginPct >= 50 ? 'bg-emerald-100 text-emerald-700' : row.marginPct >= 25 ? 'bg-blue-100 text-blue-700' : row.marginPct >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
