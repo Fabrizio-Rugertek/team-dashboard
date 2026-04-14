@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> · Torus</title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .rag-green  { background: #dcfce7; color: #15803d; border-color: #86efac; }
+    .rag-amber  { background: #fef9c3; color: #a16207; border-color: #fde047; }
+    .rag-red    { background: #fee2e2; color: #b91c1c; border-color: #fca5a5; }
+    .rag-dot-green  { background: #22c55e; }
+    .rag-dot-amber  { background: #eab308; }
+    .rag-dot-red    { background: #ef4444; }
+    .kpi-card { transition: box-shadow .15s, transform .15s; }
+    .kpi-card:hover { box-shadow: 0 8px 24px rgb(0 0 0/.08); transform: translateY(-1px); }
+    .bar-fill { transition: width .6s cubic-bezier(.4,0,.2,1); }
+    .c-amt { cursor: default; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<%
+  // ── Formatters ─────────────────────────────────────────────────────────────
+  function gs(n) {
+    if (!n && n !== 0) return 'Gs. 0';
+    const abs = Math.abs(Math.round(n));
+    return (n < 0 ? '- ' : '') + 'Gs. ' + abs.toLocaleString('es-PY');
+  }
+  function gsM(n) {
+    const abs = Math.abs(n || 0);
+    if (abs >= 1e9)  return (n < 0 ? '-' : '') + (abs / 1e9).toFixed(1) + ' B';
+    if (abs >= 1e6)  return (n < 0 ? '-' : '') + (abs / 1e6).toFixed(1) + ' M';
+    if (abs >= 1e3)  return (n < 0 ? '-' : '') + (abs / 1e3).toFixed(0) + ' K';
+    return gs(n);
+  }
+  function usd(n) { return '$ ' + Math.round((n || 0) / usdRate).toLocaleString('en-US'); }
+  function pct(n)  { return (n || 0).toFixed(1) + '%'; }
+  function delta(d) {
+    if (!d && d !== 0) return '';
+    const sign = d >= 0 ? '+' : '';
+    return `${sign}${d.toFixed(1)}%`;
+  }
+  const monthName = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const nowMonth  = monthName[new Date().getMonth()];
+%>
+
+<!-- ── Loading overlay ──────────────────────────────────────────────────── -->
+<div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+  <div class="flex items-center gap-3 text-slate-600">
+    <svg class="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"/>
+      <path fill="currentColor" d="M4 12a8 8 0 018-8v8z" class="opacity-75"/>
+    </svg>
+    <span class="font-medium">Cargando…</span>
+  </div>
+</div>
+
+<!-- ── Navbar ────────────────────────────────────────────────────────────── -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-8 w-auto">
+      <div class="flex items-center gap-1 text-sm">
+        <a href="/" class="text-slate-400 hover:text-slate-600 transition-colors font-medium" onclick="document.getElementById('loadingOverlay').classList.remove('hidden')">Inicio</a>
+        <span class="text-slate-300">/</span>
+        <a href="/equipo" class="text-slate-400 hover:text-slate-600 transition-colors font-medium" onclick="document.getElementById('loadingOverlay').classList.remove('hidden')">Equipo</a>
+        <span class="text-slate-300">/</span>
+        <a href="/finanzas" class="text-slate-400 hover:text-slate-600 transition-colors font-medium" onclick="document.getElementById('loadingOverlay').classList.remove('hidden')">Finanzas</a>
+        <span class="text-slate-300">/</span>
+        <span class="text-slate-700 font-semibold">Vista Ejecutiva</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-slate-400 hidden sm:block">Act. <%= lastUpdate %></span>
+      <% if (user.picture) { %>
+      <img src="<%= user.picture %>" class="w-8 h-8 rounded-full border border-slate-200" alt="">
+      <% } else { %>
+      <div class="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-sm font-semibold text-slate-600">
+        <%= (user.name || user.email).slice(0,1).toUpperCase() %>
+      </div>
+      <% } %>
+      <span class="text-sm font-medium text-slate-700 hidden sm:block"><%= user.name || user.email %></span>
+      <span class="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold capitalize"><%= user.role %></span>
+      <form action="/auth/logout" method="POST" class="inline">
+        <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors">Salir</button>
+      </form>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Main ──────────────────────────────────────────────────────────────── -->
+<main class="max-w-7xl mx-auto px-4 py-8">
+
+  <!-- Header -->
+  <div class="mb-8 flex items-start justify-between flex-wrap gap-3">
+    <div>
+      <h1 class="text-2xl font-extrabold text-slate-900">Vista Ejecutiva</h1>
+      <p class="mt-1 text-sm text-slate-500"><%= nowMonth %> <%= year %> · <%= daysElapsed %> de <%= daysInMonth %> días transcurridos</p>
+    </div>
+    <!-- Currency toggle -->
+    <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1">
+      <button id="btnPYG" onclick="setCurrency('pyg')"
+        class="px-3 py-1 text-xs font-semibold rounded-md bg-slate-800 text-white">Gs.</button>
+      <button id="btnUSD" onclick="setCurrency('usd')"
+        class="px-3 py-1 text-xs font-semibold rounded-md text-slate-500 hover:bg-slate-100 transition-colors">USD</button>
+    </div>
+  </div>
+
+  <!-- ── KPI row ──────────────────────────────────────────────────────────── -->
+  <div class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+
+    <!-- Ingresos del mes -->
+    <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-5 col-span-1">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Ingresos <%= nowMonth %></p>
+      <p class="text-2xl font-extrabold text-slate-900 c-amt" data-pyg="<%= curMonth.revenue || 0 %>">
+        <%- gsM(curMonth.revenue || 0) %>
+      </p>
+      <% const rd = curMonth.revDelta; %>
+      <% if (rd != null) { %>
+      <p class="text-xs mt-1 font-medium <%= rd >= 0 ? 'text-green-600' : 'text-red-500' %>">
+        <%= delta(rd) %> vs mes anterior
+      </p>
+      <% } %>
+    </div>
+
+    <!-- Margen del mes -->
+    <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-5 col-span-1">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Margen <%= nowMonth %></p>
+      <p class="text-2xl font-extrabold <%= curMarginPct >= 25 ? 'text-green-600' : curMarginPct >= 10 ? 'text-amber-500' : 'text-red-600' %>">
+        <%= curMarginPct %>%
+      </p>
+      <p class="text-xs mt-1 text-slate-400 c-amt" data-pyg="<%= curMonth.margin || 0 %>">
+        <%- gsM(curMonth.margin || 0) %> neto
+      </p>
+    </div>
+
+    <!-- Utilización equipo -->
+    <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-5 col-span-1">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Utilización MTD</p>
+      <p class="text-2xl font-extrabold <%= utilization >= 70 ? 'text-green-600' : utilization >= 50 ? 'text-amber-500' : 'text-red-600' %>">
+        <%= utilization %>%
+      </p>
+      <p class="text-xs mt-1 text-slate-400"><%= billableRange.toFixed(0) %>h billables · <%= consultantCount %> consultores</p>
+    </div>
+
+    <!-- CXC vencida -->
+    <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-5 col-span-1">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">CXC Vencida</p>
+      <p class="text-2xl font-extrabold <%= overdueAmount > 0 ? 'text-red-600' : 'text-green-600' %> c-amt"
+         data-pyg="<%= overdueAmount %>">
+        <%- gsM(overdueAmount) %>
+      </p>
+      <p class="text-xs mt-1 text-slate-400"><%= overdueItems.length %> facturas pendientes</p>
+    </div>
+
+    <!-- Proyectos en riesgo -->
+    <div class="kpi-card bg-white rounded-2xl border border-slate-200 p-5 col-span-1">
+      <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Proyectos</p>
+      <div class="flex items-end gap-2 mt-1">
+        <span class="text-2xl font-extrabold <%= projectsAtRisk > 0 ? 'text-red-600' : 'text-green-600' %>"><%= projectsAtRisk %></span>
+        <span class="text-sm text-slate-400 mb-0.5">en riesgo</span>
+      </div>
+      <p class="text-xs mt-1 text-slate-400"><%= projectsAmber %> en alerta · <%= projectHealth.length %> activos</p>
+    </div>
+  </div>
+
+  <!-- ── Row: Revenue trend + Utilización ─────────────────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+    <!-- Revenue trend -->
+    <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-sm font-bold text-slate-700">Ingresos y Margen</h2>
+          <p class="text-xs text-slate-400">Últimos 6 meses</p>
+        </div>
+        <div class="flex items-center gap-4 text-xs text-slate-500">
+          <span class="flex items-center gap-1"><span class="w-3 h-1 bg-emerald-500 rounded inline-block"></span>Ingresos</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-1 bg-blue-400 rounded inline-block"></span>Margen</span>
+        </div>
+      </div>
+      <div class="relative h-48">
+        <canvas id="revTrendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Forecast -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6 flex flex-col justify-between">
+      <div>
+        <h2 class="text-sm font-bold text-slate-700 mb-1">Proyección <%= nowMonth %></h2>
+        <p class="text-xs text-slate-400 mb-4">Basado en ritmo actual (<%= daysElapsed %>/<%= daysInMonth %> días)</p>
+
+        <!-- Progress bar -->
+        <div class="mb-4">
+          <div class="flex justify-between text-xs text-slate-500 mb-1">
+            <span>Facturado</span>
+            <span><%= forecastPct %>% del objetivo</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+            <div class="bar-fill h-3 rounded-full <%= forecastPct >= 100 ? 'bg-green-500' : forecastPct >= 70 ? 'bg-amber-400' : 'bg-red-400' %>"
+                 style="width: <%= Math.min(forecastPct, 100) %>%"></div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-slate-500">Facturado hoy</span>
+            <span class="text-sm font-bold text-slate-800 c-amt" data-pyg="<%= revSoFar %>"><%- gsM(revSoFar) %></span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-slate-500">Proyección cierre</span>
+            <span class="text-sm font-bold text-emerald-600 c-amt" data-pyg="<%= forecast %>"><%- gsM(forecast) %></span>
+          </div>
+          <% if (pipeline && pipeline.total > 0) { %>
+          <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+            <span class="text-xs text-slate-500">Pipeline activo</span>
+            <span class="text-sm font-semibold text-blue-600 c-amt" data-pyg="<%= pipeline.total %>"><%- gsM(pipeline.total) %></span>
+          </div>
+          <% } %>
+        </div>
+      </div>
+
+      <div class="mt-4 pt-3 border-t border-slate-100">
+        <p class="text-xs text-slate-400">
+          Acum. año: <span class="font-semibold text-slate-600 c-amt" data-pyg="<%= fin.totalRevenue || 0 %>"><%- gsM(fin.totalRevenue || 0) %></span>
+          · Margen: <span class="font-semibold text-slate-600"><%= fin.marginPct || '–' %></span>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Salud financiera por proyecto ─────────────────────────────────────── -->
+  <div class="bg-white rounded-2xl border border-slate-200 mb-6 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-bold text-slate-700">Salud Financiera por Proyecto</h2>
+        <p class="text-xs text-slate-400 mt-0.5"><%= projectHealth.length %> proyectos con facturación en <%= year %></p>
+      </div>
+      <div class="flex items-center gap-3 text-xs">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full rag-dot-green inline-block"></span>≥25% margen</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full rag-dot-amber inline-block"></span>10–25%</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full rag-dot-red inline-block"></span>&lt;10%</span>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs font-semibold text-slate-400 uppercase tracking-wide bg-slate-50 border-b border-slate-100">
+            <th class="px-6 py-3 text-left">Proyecto</th>
+            <th class="px-4 py-3 text-right">Ingresos YTD</th>
+            <th class="px-4 py-3 text-right">Costos YTD</th>
+            <th class="px-4 py-3 text-right">Margen</th>
+            <th class="px-4 py-3 text-right">Margen %</th>
+            <th class="px-4 py-3 text-center"><%= nowMonth %></th>
+            <th class="px-4 py-3 text-center">Estado</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-50">
+          <% projectHealth.forEach(function(p) { %>
+          <tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-6 py-3">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full rag-dot-<%= p.rag %> flex-shrink-0"></span>
+                <span class="font-medium text-slate-800 max-w-xs truncate" title="<%= p.name %>"><%= p.name %></span>
+                <% if (p.dominantCostType === 'cogs') { %>
+                <span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium hidden sm:inline">COGS</span>
+                <% } else { %>
+                <span class="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium hidden sm:inline">Opex</span>
+                <% } %>
+              </div>
+            </td>
+            <td class="px-4 py-3 text-right font-mono text-sm text-slate-700 c-amt" data-pyg="<%= p.totalRevenue %>">
+              <%- gsM(p.totalRevenue) %>
+            </td>
+            <td class="px-4 py-3 text-right font-mono text-sm text-slate-500 c-amt" data-pyg="<%= p.totalCost %>">
+              <%- gsM(p.totalCost) %>
+            </td>
+            <td class="px-4 py-3 text-right font-mono text-sm <%= p.margin >= 0 ? 'text-emerald-600' : 'text-red-600' %> c-amt" data-pyg="<%= p.margin %>">
+              <%- gsM(p.margin) %>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border rag-<%= p.rag %>">
+                <%= p.marginPctNum.toFixed(1) %>%
+              </span>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <% if (p.activeThisMonth) { %>
+              <span class="text-xs text-emerald-600 font-semibold c-amt" data-pyg="<%= p.curMonthRevenue %>">
+                <%- gsM(p.curMonthRevenue) %>
+              </span>
+              <% } else { %>
+              <span class="text-xs text-slate-300">–</span>
+              <% } %>
+            </td>
+            <td class="px-4 py-3 text-center">
+              <% if (p.rag === 'green') { %>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold">Saludable</span>
+              <% } else if (p.rag === 'amber') { %>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-semibold">Alerta</span>
+              <% } else { %>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-semibold">Riesgo</span>
+              <% } %>
+            </td>
+          </tr>
+          <% }) %>
+          <% if (projectHealth.length === 0) { %>
+          <tr><td colspan="7" class="px-6 py-8 text-center text-slate-400 text-sm">Sin datos de proyectos para <%= year %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Row: CXC + Utilización detalle ────────────────────────────────────── -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+    <!-- CXC vencida -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-sm font-bold text-slate-700 mb-1">Cuentas por Cobrar Vencidas</h2>
+      <p class="text-xs text-slate-400 mb-4">Total pendiente de cobro con mora</p>
+
+      <!-- Aging buckets -->
+      <div class="grid grid-cols-4 gap-2 mb-5">
+        <%
+          const bucketDefs = [
+            { label: '1–30d',   key: 'd1_30',   color: 'amber' },
+            { label: '31–60d',  key: 'd31_60',  color: 'orange' },
+            { label: '61–90d',  key: 'd61_90',  color: 'red' },
+            { label: '+90d',    key: 'd90plus', color: 'red' },
+          ];
+        %>
+        <% bucketDefs.forEach(function(bk) { %>
+        <div class="text-center p-3 rounded-xl bg-slate-50 border border-slate-100">
+          <p class="text-xs font-semibold text-slate-400 mb-1"><%= bk.label %></p>
+          <p class="text-sm font-bold text-<%= bk.color %>-600 c-amt" data-pyg="<%= cxcBuckets[bk.key] || 0 %>">
+            <%- gsM(cxcBuckets[bk.key] || 0) %>
+          </p>
+        </div>
+        <% }) %>
+      </div>
+
+      <!-- Top overdue items -->
+      <% if (overdueItems.length > 0) { %>
+      <div class="space-y-2">
+        <% overdueItems.forEach(function(item) { %>
+        <div class="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 last:border-0">
+          <div class="flex-1 min-w-0 pr-3">
+            <p class="font-medium text-slate-700 truncate"><%= item.partner || item.name %></p>
+            <p class="text-slate-400"><%= item.daysOverdue %> días vencida · <%= item.invoiceDate || '' %></p>
+          </div>
+          <span class="font-bold text-red-600 whitespace-nowrap c-amt" data-pyg="<%= item.residual %>">
+            <%- gsM(item.residual) %>
+          </span>
+        </div>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <p class="text-sm text-center text-green-600 font-semibold py-4">✓ Sin facturas vencidas</p>
+      <% } %>
+
+      <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-400">
+        <span>CXC total: <span class="font-semibold text-slate-600 c-amt" data-pyg="<%= cxcTotal %>"><%- gsM(cxcTotal) %></span></span>
+        <a href="/finanzas" class="text-blue-500 hover:text-blue-700 font-semibold" onclick="document.getElementById('loadingOverlay').classList.remove('hidden')">Ver detalle →</a>
+      </div>
+    </div>
+
+    <!-- Utilización del equipo -->
+    <div class="bg-white rounded-2xl border border-slate-200 p-6">
+      <h2 class="text-sm font-bold text-slate-700 mb-1">Utilización del Equipo</h2>
+      <p class="text-xs text-slate-400 mb-5">Mes en curso (MTD) · <%= consultantCount %> consultores activos</p>
+
+      <!-- Big utilization number -->
+      <div class="flex items-center gap-4 mb-5">
+        <div class="relative w-20 h-20 flex-shrink-0">
+          <canvas id="utilDonut" width="80" height="80"></canvas>
+        </div>
+        <div>
+          <p class="text-4xl font-extrabold <%= utilization >= 70 ? 'text-green-600' : utilization >= 50 ? 'text-amber-500' : 'text-red-600' %>">
+            <%= utilization %>%
+          </p>
+          <p class="text-xs text-slate-400 mt-1">horas billables / total</p>
+        </div>
+      </div>
+
+      <!-- Breakdown bars -->
+      <div class="space-y-3">
+        <div>
+          <div class="flex justify-between text-xs text-slate-500 mb-1">
+            <span>Billable</span>
+            <span><%= billableRange.toFixed(0) %>h</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div class="bar-fill h-2 rounded-full bg-emerald-500"
+                 style="width: <%= totalRange > 0 ? (billableRange/totalRange*100).toFixed(1) : 0 %>%"></div>
+          </div>
+        </div>
+        <div>
+          <div class="flex justify-between text-xs text-slate-500 mb-1">
+            <span>No billable</span>
+            <span><%= (totalRange - billableRange).toFixed(0) %>h</span>
+          </div>
+          <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div class="bar-fill h-2 rounded-full bg-slate-300"
+                 style="width: <%= totalRange > 0 ? ((totalRange-billableRange)/totalRange*100).toFixed(1) : 0 %>%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Threshold reference -->
+      <div class="mt-5 pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-400">
+        <span>Objetivo: <span class="font-semibold text-slate-600">≥70%</span></span>
+        <a href="/equipo" class="text-blue-500 hover:text-blue-700 font-semibold" onclick="document.getElementById('loadingOverlay').classList.remove('hidden')">Ver equipo →</a>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="text-center text-xs text-slate-400 py-6">
+  Torus Dashboard Platform · v<%= appVersion %> · <%= lastUpdate %>
+</footer>
+
+<!-- ── Charts ────────────────────────────────────────────────────────────── -->
+<script>
+// ── Revenue trend chart ──────────────────────────────────────────────────────
+(function() {
+  const labels  = <%- revTrendLabels %>;
+  const revData = <%- revTrendData %>;
+  const marData = <%- marginTrendData %>;
+
+  new Chart(document.getElementById('revTrendChart'), {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Ingresos',
+          data: revData,
+          backgroundColor: 'rgba(16,185,129,0.15)',
+          borderColor: 'rgba(16,185,129,0.8)',
+          borderWidth: 1.5,
+          borderRadius: 4,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: 'Margen',
+          data: marData,
+          borderColor: 'rgba(96,165,250,0.9)',
+          backgroundColor: 'rgba(96,165,250,0.05)',
+          borderWidth: 2,
+          pointRadius: 3,
+          pointBackgroundColor: 'rgba(96,165,250,1)',
+          tension: 0.35,
+          fill: true,
+          yAxisID: 'y',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(ctx) {
+              const v = ctx.raw || 0;
+              const abs = Math.abs(v);
+              if (abs >= 1e9) return ctx.dataset.label + ': ' + (v/1e9).toFixed(1) + ' B';
+              if (abs >= 1e6) return ctx.dataset.label + ': ' + (v/1e6).toFixed(1) + ' M';
+              return ctx.dataset.label + ': ' + Math.round(v).toLocaleString('es-PY');
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: {
+            font: { size: 10 },
+            callback: v => {
+              if (Math.abs(v) >= 1e9) return (v/1e9).toFixed(0)+'B';
+              if (Math.abs(v) >= 1e6) return (v/1e6).toFixed(0)+'M';
+              return Math.round(v/1e3)+'K';
+            }
+          }
+        },
+      },
+    },
+  });
+})();
+
+// ── Utilization donut ────────────────────────────────────────────────────────
+(function() {
+  const util  = <%= utilization %>;
+  const color = util >= 70 ? '#22c55e' : util >= 50 ? '#eab308' : '#ef4444';
+  new Chart(document.getElementById('utilDonut'), {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [util, 100 - util],
+        backgroundColor: [color, '#f1f5f9'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      cutout: '72%',
+      responsive: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+    },
+  });
+})();
+
+// ── Currency toggle ──────────────────────────────────────────────────────────
+const USD_RATE = <%= usdRate %>;
+let _curCurrency = 'pyg';
+
+function setCurrency(c) {
+  _curCurrency = c;
+  document.getElementById('btnPYG').className = c === 'pyg'
+    ? 'px-3 py-1 text-xs font-semibold rounded-md bg-slate-800 text-white'
+    : 'px-3 py-1 text-xs font-semibold rounded-md text-slate-500 hover:bg-slate-100 transition-colors';
+  document.getElementById('btnUSD').className = c === 'usd'
+    ? 'px-3 py-1 text-xs font-semibold rounded-md bg-slate-800 text-white'
+    : 'px-3 py-1 text-xs font-semibold rounded-md text-slate-500 hover:bg-slate-100 transition-colors';
+
+  document.querySelectorAll('.c-amt').forEach(el => {
+    const pyg = parseFloat(el.dataset.pyg || 0);
+    const abs = Math.abs(pyg);
+    if (c === 'usd') {
+      const usdVal = Math.round(pyg / USD_RATE);
+      const absU = Math.abs(usdVal);
+      if (absU >= 1e6)      el.textContent = (pyg < 0 ? '-' : '') + '$ ' + (absU/1e6).toFixed(1) + ' M';
+      else if (absU >= 1e3) el.textContent = (pyg < 0 ? '-' : '') + '$ ' + (absU/1e3).toFixed(0) + ' K';
+      else                  el.textContent = (pyg < 0 ? '-$' : '$ ') + Math.abs(usdVal).toLocaleString('en-US');
+    } else {
+      if (abs >= 1e9)       el.textContent = (pyg < 0 ? '-' : '') + 'Gs. ' + (abs/1e9).toFixed(1) + ' B';
+      else if (abs >= 1e6)  el.textContent = (pyg < 0 ? '-' : '') + 'Gs. ' + (abs/1e6).toFixed(1) + ' M';
+      else if (abs >= 1e3)  el.textContent = (pyg < 0 ? '-' : '') + 'Gs. ' + (abs/1e3).toFixed(0) + ' K';
+      else                  el.textContent = 'Gs. ' + Math.round(pyg).toLocaleString('es-PY');
+    }
+  });
+}
+</script>
+</body>
+</html>

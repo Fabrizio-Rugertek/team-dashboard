@@ -46,42 +46,27 @@
 
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-    <!-- Control de Equipo -->
-    <a href="/equipo" class="group block bg-white rounded-2xl border-l-4 border-blue-500 border border-slate-200 p-6 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+    <% dashboards.forEach(function(d) { %>
+    <a href="<%= d.href %>" class="group block bg-white rounded-2xl border-l-4 border border-slate-200 p-6 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200"
+       style="border-left-color: <%= d.color %>">
       <div class="flex items-start justify-between mb-4">
-        <span class="text-4xl">👥</span>
+        <span class="text-4xl"><%= d.icon %></span>
         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">● Activo</span>
       </div>
-      <h3 class="text-lg font-bold text-slate-900 group-hover:text-blue-600">Control de Equipo</h3>
-      <p class="mt-2 text-sm text-slate-500 leading-relaxed">Horas por consultor, anomalías, estado de proyectos y detección de actividades sospechosas</p>
-      <div class="mt-4 flex items-center text-blue-600 text-sm font-semibold">
-        Abrir →
-      </div>
+      <h3 class="text-lg font-bold text-slate-900 group-hover:transition-colors" style="--hover-color: <%= d.color %>"><%= d.name %></h3>
+      <p class="mt-2 text-sm text-slate-500 leading-relaxed"><%= d.description %></p>
+      <div class="mt-4 flex items-center text-sm font-semibold" style="color: <%= d.color %>">Abrir →</div>
     </a>
+    <% }) %>
 
-    <!-- Finanzas -->
-    <% if (typeof user !== 'undefined' && user && ['admin','director'].includes(user.role)) { %>
-    <a href="/finanzas" class="group block bg-white rounded-2xl border-l-4 border-green-500 border border-slate-200 p-6 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
-      <div class="flex items-start justify-between mb-4">
-        <span class="text-4xl">📊</span>
-        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">● Activo</span>
-      </div>
-      <h3 class="text-lg font-bold text-slate-900 group-hover:text-green-600">Finanzas</h3>
-      <p class="mt-2 text-sm text-slate-500 leading-relaxed">Ingresos, gastos, rentabilidad por proyecto y flujo de caja</p>
-      <div class="mt-4 flex items-center text-green-600 text-sm font-semibold">
-        Abrir →
-      </div>
-    </a>
-    <% } %>
-
-    <!-- Clientes (próximamente) -->
+    <!-- CRM Pipeline (próximamente) -->
     <div class="block bg-white rounded-2xl border-l-4 border-slate-300 border border-slate-200 p-6 opacity-60 cursor-not-allowed">
       <div class="flex items-start justify-between mb-4">
-        <span class="text-4xl">🎯</span>
+        <span class="text-4xl">📈</span>
         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500">○ Próximamente</span>
       </div>
-      <h3 class="text-lg font-bold text-slate-400">Clientes</h3>
-      <p class="mt-2 text-sm text-slate-400 leading-relaxed">Estado de proyectos por cliente, SLA, satisfacción y facturación</p>
+      <h3 class="text-lg font-bold text-slate-400">Pipeline CRM</h3>
+      <p class="mt-2 text-sm text-slate-400 leading-relaxed">Oportunidades, proyección de ventas y forecast de cierre</p>
     </div>
 
   </div>
