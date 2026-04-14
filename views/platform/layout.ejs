@@ -40,6 +40,10 @@
   <!-- Footer -->
   <footer class="mt-12 py-6 text-center text-sm text-gray-400">
     Torus Dashboard Platform · <%= new Date().getFullYear() %>
+    <span class="ml-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-gray-100 text-[11px] font-mono text-gray-500"
+          title="Deploy: <%= appDeployAt %>">
+      v<%= appVersion %>
+    </span>
   </footer>
 
   <% if (typeof footScripts !== 'undefined') { %><%- footScripts %><% } %>

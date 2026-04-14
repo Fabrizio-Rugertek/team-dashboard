@@ -83,6 +83,8 @@
         <span>Actualizado: <%= lastUpdate %></span>
         <button id="refreshBtn" onclick="manualRefresh()" title="Actualizar datos desde Odoo"
           class="px-2 py-0.5 rounded-md bg-slate-100 hover:bg-blue-100 text-slate-400 hover:text-blue-600 transition-colors font-bold text-sm leading-none">↺</button>
+        <span class="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] text-slate-400"
+              title="Deploy: <%= appDeployAt %>">v<%= appVersion %></span>
       </div>
       <% if (user) { %>
       <div class="flex items-center gap-2">
@@ -1294,8 +1296,12 @@
   </div>
 </div>
 
-<footer class="text-center text-xs text-slate-400 py-6 mt-4">
-  Torus Dashboard Platform · <%= new Date().getFullYear() %>
+<footer class="text-center text-xs text-slate-400 py-6 mt-4 flex items-center justify-center gap-3">
+  <span>Torus Dashboard Platform · <%= new Date().getFullYear() %></span>
+  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 font-mono text-slate-500"
+        title="Deploy: <%= appDeployAt %>">
+    v<%= appVersion %>
+  </span>
 </footer>
 
 <script>

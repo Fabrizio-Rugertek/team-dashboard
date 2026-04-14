@@ -1,9 +1,18 @@
 require('dotenv').config();
-const express  = require('express');
-const path     = require('path');
-const session  = require('express-session');
-const passport = require('./auth');
+const express      = require('express');
+const path         = require('path');
+const session      = require('express-session');
+const { execSync } = require('child_process');
+const passport     = require('./auth');
 const { requireAuth, requireRole } = require('../middleware/requireAuth');
+
+// ── App version (git hash + deploy time) ─────────────────────────────────────
+function getGitHash() {
+  try { return execSync('git rev-parse --short HEAD', { cwd: path.join(__dirname, '..') }).toString().trim(); }
+  catch { return 'dev'; }
+}
+const APP_VERSION    = getGitHash();
+const APP_DEPLOY_AT  = new Date().toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' });
 
 const app  = express();
 const PORT = process.env.PORT || 3511;
@@ -16,6 +25,10 @@ const PREWARM_INTERVAL_MS = Number(process.env.PREWARM_INTERVAL_MS || 30000);
 // ── View engine ───────────────────────────────────────────────────────────────
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, '../views'));
+
+// ── Inject version into every template ───────────────────────────────────────
+app.locals.appVersion   = APP_VERSION;
+app.locals.appDeployAt  = APP_DEPLOY_AT;
 
 // ── Body parser ───────────────────────────────────────────────────────────────
 app.use(express.urlencoded({ extended: false }));

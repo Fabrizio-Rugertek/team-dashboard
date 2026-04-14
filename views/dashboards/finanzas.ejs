@@ -1311,8 +1311,12 @@
 
 </div><!-- /tab-cashflow -->
 
-<div class="text-center text-xs text-slate-400 py-6">
-  Torus Finanzas · Datos al <%= lastUpdate %> · Cache: 1h financiero · 15min CXC
+<div class="text-center text-xs text-slate-400 py-6 flex items-center justify-center gap-3">
+  <span>Torus Finanzas · Datos al <%= lastUpdate %> · Cache: 1h financiero · 15min CXC</span>
+  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 font-mono text-slate-500"
+        title="Deploy: <%= appDeployAt %>">
+    v<%= appVersion %>
+  </span>
 </div>
 
 <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
