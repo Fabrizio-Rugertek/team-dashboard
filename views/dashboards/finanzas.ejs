@@ -21,6 +21,12 @@
 </head>
 <body class="bg-slate-100 min-h-screen">
 
+<!-- ── Loading overlay (shown while navigating to a new filter) ─────────── -->
+<div id="finLoadingOverlay" class="hidden fixed inset-0 z-[9999] bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center gap-3 transition-opacity">
+  <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+  <span class="text-sm font-semibold text-slate-600 tracking-wide">Cargando datos…</span>
+</div>
+
 <%
   // Plain text formatters (for title attrs, insights text, chart tooltips)
   const gs  = n => 'Gs.\u00A0' + new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(Math.abs(n || 0));
@@ -1602,6 +1608,23 @@
     }
   });
 
+  // ── Filter loader ─────────────────────────────────────────────────────────
+  function _showLoader() {
+    const el = document.getElementById('finLoadingOverlay');
+    if (el) el.classList.remove('hidden');
+  }
+  // Show loader on any filter link click (year, quarter, rolling presets, tab picker)
+  document.getElementById('finPickerPanel')?.addEventListener('click', function(e) {
+    const a = e.target.closest('a');
+    if (a && a.href && !a.href.startsWith('javascript')) _showLoader();
+  });
+  // Show loader on custom range form submit
+  document.querySelector('#finPickerPanel form')?.addEventListener('submit', _showLoader);
+  // Hide loader if user hits back/popstate (browser nav)
+  window.addEventListener('pageshow', function() {
+    document.getElementById('finLoadingOverlay')?.classList.add('hidden');
+  });
+
   // ── Rolling date presets ──────────────────────────────────────────────────
   (function() {
     const presets = [
@@ -1634,6 +1657,7 @@
       a.textContent = p.label;
       a.className = 'px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors ' +
         (isActive ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-600');
+      a.addEventListener('click', _showLoader);
       container.appendChild(a);
     });
   })();

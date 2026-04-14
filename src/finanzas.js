@@ -66,7 +66,7 @@ async function fetchFinancialData(year, opts = {}) {
     limit: 2000,
   });
 
-  if (!moves.length) return _buildEmpty(year);
+  if (!moves.length) return _buildEmpty(year, opts);
 
   const moveIds  = moves.map(m => m.id);
   const moveById = new Map(moves.map(m => [m.id, m]));
@@ -197,17 +197,30 @@ async function fetchFinancialData(year, opts = {}) {
     else       { cat.costByMonth[month] = (cat.costByMonth[month] || 0) + amount; cat.totalCost += amount; }
   }
 
-  // 5. Build 12-month series
+  // 5. Build month series covering the actual date range (may span years)
+  const fromY = parseInt(dateFrom.slice(0, 4));
+  const fromM = parseInt(dateFrom.slice(5, 7));
+  const toY   = parseInt(dateTo.slice(0, 4));
+  const toM   = parseInt(dateTo.slice(5, 7));
+  const spansYears = fromY !== toY;
+
   const months = [];
-  for (let m = 1; m <= 12; m++) {
-    const ms   = `${year}-${pad(m)}`;
+  let cy = fromY, cm = fromM;
+  while (cy < toY || (cy === toY && cm <= toM)) {
+    const ms   = `${cy}-${pad(cm)}`;
     const rev  = revByMonth[ms]  || 0;
     const cost = costByMonth[ms] || 0;
+    // Include year suffix in label when range spans years (e.g. "Abr 25")
+    const label = spansYears
+      ? MONTH_LABELS[cm - 1] + ' ' + String(cy).slice(2)
+      : MONTH_LABELS[cm - 1];
     months.push({
-      month: ms, label: MONTH_LABELS[m - 1],
+      month: ms, label,
       revenue: rev, cost, margin: rev - cost,
       marginPct: rev > 0 ? Math.round((rev - cost) / rev * 100) : null,
     });
+    cm++;
+    if (cm > 12) { cm = 1; cy++; }
   }
 
   const totalRevenue = months.reduce((s, m) => s + m.revenue, 0);
@@ -215,9 +228,9 @@ async function fetchFinancialData(year, opts = {}) {
   const totalMargin  = totalRevenue - totalCost;
   const marginPct    = totalRevenue > 0 ? (totalMargin / totalRevenue * 100).toFixed(1) : '0.0';
 
-  // Month-over-month comparison
+  // Month-over-month comparison (based on current real date, not filtered range)
   const today    = new Date();
-  const curMs    = `${year}-${pad(today.getMonth() + 1)}`;
+  const curMs    = `${today.getFullYear()}-${pad(today.getMonth() + 1)}`;
   const prevDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const prevMs   = `${prevDate.getFullYear()}-${pad(prevDate.getMonth() + 1)}`;
   const curM     = months.find(m => m.month === curMs)  || { revenue: 0, cost: 0, margin: 0 };
@@ -299,11 +312,19 @@ async function fetchFinancialData(year, opts = {}) {
   return result;
 }
 
-function _buildEmpty(year) {
-  const months = MONTH_LABELS.map((label, i) => ({
-    month: `${year}-${pad(i + 1)}`, label,
-    revenue: 0, cost: 0, margin: 0, marginPct: null,
-  }));
+function _buildEmpty(year, opts = {}) {
+  const dateFrom = opts.from || `${year}-01-01`;
+  const dateTo   = opts.to   || `${year}-12-31`;
+  const fromY = parseInt(dateFrom.slice(0, 4)), fromMo = parseInt(dateFrom.slice(5, 7));
+  const toY   = parseInt(dateTo.slice(0, 4)),   toMo   = parseInt(dateTo.slice(5, 7));
+  const spansYears = fromY !== toY;
+  const months = [];
+  let cy = fromY, cm = fromMo;
+  while (cy < toY || (cy === toY && cm <= toMo)) {
+    const label = spansYears ? MONTH_LABELS[cm - 1] + ' ' + String(cy).slice(2) : MONTH_LABELS[cm - 1];
+    months.push({ month: `${cy}-${pad(cm)}`, label, revenue: 0, cost: 0, margin: 0, marginPct: null });
+    cm++; if (cm > 12) { cm = 1; cy++; }
+  }
   return {
     year, months,
     totalRevenue: 0, totalCost: 0, totalMargin: 0, marginPct: '0.0',
