@@ -1,5 +1,5 @@
 'use strict';
-const { canAccess } = require('../src/users');
+const { canAccess, hasViewAccess } = require('../src/users');
 
 /**
  * Require authentication. Redirects to /auth/login if not logged in.
@@ -31,4 +31,24 @@ function requireRole(minRole) {
   };
 }
 
-module.exports = { requireAuth, requireRole };
+/**
+ * Require access to a specific view.
+ * Checks user.allowedViews first; falls back to role-based defaults.
+ */
+function requireView(viewName) {
+  return (req, res, next) => {
+    if (!req.isAuthenticated()) {
+      req.session.returnTo = req.originalUrl;
+      return res.redirect('/auth/login');
+    }
+    if (!hasViewAccess(req.user, viewName)) {
+      return res.status(403).render('auth/forbidden', {
+        user: req.user,
+        requiredRole: viewName,
+      });
+    }
+    next();
+  };
+}
+
+module.exports = { requireAuth, requireRole, requireView };

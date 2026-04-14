@@ -169,9 +169,9 @@ router.get('/', async (req, res) => {
       buildQuery,
       lastUpdate:       new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }),
       tsByPP:           JSON.stringify(timesheetsByPersonProject || {}),
-      capacityData:     cached.capacityData     || [],
-      sprintOverview:   cached.sprintOverview   || [],
-      projectAlerts:    cached.projectAlerts    || [],
+      capacityData:     data.capacityData     || [],
+      sprintOverview:   data.sprintOverview   || [],
+      projectAlerts:    data.projectAlerts    || [],
     });
   } catch (err) {
     console.error('Error loading equipo:', err.message);

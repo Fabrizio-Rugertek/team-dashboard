@@ -4,7 +4,7 @@ const path         = require('path');
 const session      = require('express-session');
 const { execSync } = require('child_process');
 const passport     = require('./auth');
-const { requireAuth, requireRole } = require('../middleware/requireAuth');
+const { requireAuth, requireRole, requireView } = require('../middleware/requireAuth');
 
 // ── App version (git hash + deploy time) ─────────────────────────────────────
 function getGitHash() {
@@ -62,11 +62,11 @@ const finanzasRoutes = require('../routes/finanzas');
 const apiRoutes      = require('../routes/api');
 const adminRoutes    = require('../routes/admin');
 
-// /equipo — consultants and above
-app.use('/equipo',  requireRole('consultant'), equipoRoutes);
+// /equipo — users with equipo view access
+app.use('/equipo',   requireView('equipo'),   equipoRoutes);
 
-// /finanzas — directors and above
-app.use('/finanzas', requireRole('director'), finanzasRoutes);
+// /finanzas — users with finanzas view access
+app.use('/finanzas', requireView('finanzas'), finanzasRoutes);
 
 // /api — authenticated only
 app.use('/api', requireAuth, apiRoutes);
@@ -75,24 +75,22 @@ app.use('/api', requireAuth, apiRoutes);
 app.use('/admin', adminRoutes);
 
 // ── Platform hub ──────────────────────────────────────────────────────────────
+const { hasViewAccess } = require('../src/users');
 app.get('/', requireAuth, (req, res) => {
-  const canFinanzas = ['admin', 'director'].includes(req.user.role);
-  res.render('platform/hub', {
-    title: 'Torus Dashboards',
-    user:  req.user,
-    dashboards: [
-      {
-        id: 'equipo', name: 'Control de Equipo',
-        description: 'Horas por consultor, anomalías, estado de proyectos',
-        icon: '👥', color: '#3B82F6', href: '/equipo', status: 'active',
-      },
-      ...(canFinanzas ? [{
-        id: 'finanzas', name: 'Finanzas',
-        description: 'Ingresos, gastos, rentabilidad por proyecto y flujo de caja',
-        icon: '📊', color: '#10B981', href: '/finanzas', status: 'active',
-      }] : []),
-    ],
-  });
+  const dashboards = [];
+  if (hasViewAccess(req.user, 'equipo'))
+    dashboards.push({ id: 'equipo', name: 'Control de Equipo',
+      description: 'Horas por consultor, anomalías, estado de proyectos',
+      icon: '👥', color: '#3B82F6', href: '/equipo', status: 'active' });
+  if (hasViewAccess(req.user, 'finanzas'))
+    dashboards.push({ id: 'finanzas', name: 'Finanzas',
+      description: 'Ingresos, gastos, rentabilidad por proyecto y flujo de caja',
+      icon: '📊', color: '#10B981', href: '/finanzas', status: 'active' });
+  if (hasViewAccess(req.user, 'admin'))
+    dashboards.push({ id: 'admin', name: 'Administración',
+      description: 'Gestión de usuarios, roles y permisos de acceso',
+      icon: '🔑', color: '#8B5CF6', href: '/admin/users', status: 'active' });
+  res.render('platform/hub', { title: 'Torus Dashboards', user: req.user, dashboards });
 });
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

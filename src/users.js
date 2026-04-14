@@ -29,6 +29,20 @@ function _save(users) {
 }
 
 const VALID_ROLES = ['admin', 'director', 'consultant'];
+const VALID_VIEWS = ['equipo', 'finanzas', 'admin'];
+
+// Default views when allowedViews not explicitly set
+function getDefaultViews(role) {
+  if (role === 'admin')     return ['equipo', 'finanzas', 'admin'];
+  if (role === 'director')  return ['equipo', 'finanzas'];
+  return ['equipo'];
+}
+
+function hasViewAccess(user, view) {
+  if (!user) return false;
+  const views = Array.isArray(user.allowedViews) ? user.allowedViews : getDefaultViews(user.role);
+  return views.includes(view);
+}
 
 function getUser(email) {
   if (!email) return null;
@@ -77,4 +91,4 @@ function canAccess(userRole, requiredRole) {
   return (ROLE_HIERARCHY[userRole] || 0) >= (ROLE_HIERARCHY[requiredRole] || 99);
 }
 
-module.exports = { getUser, listUsers, addUser, updateUser, removeUser, canAccess, VALID_ROLES };
+module.exports = { getUser, listUsers, addUser, updateUser, removeUser, canAccess, hasViewAccess, VALID_ROLES, VALID_VIEWS, getDefaultViews };
