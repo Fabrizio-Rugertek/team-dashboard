@@ -645,8 +645,148 @@ async function fetchCRMPipeline() {
   }
 }
 
+// ── Data Quality Alerts ───────────────────────────────────────────────────
+const _alertsCache = { data: null, time: 0, key: null };
+const ODOO_BASE = process.env.ODOO_URL || 'https://www.torus.dev';
+
+async function fetchDataQualityAlerts(year, opts = {}) {
+  const dateFrom = opts.from || `${year}-01-01`;
+  const dateTo   = opts.to   || `${year}-12-31`;
+  const cacheKey = `${dateFrom}_${dateTo}`;
+  const now = Date.now();
+  if (_alertsCache.data && _alertsCache.key === cacheKey && now - _alertsCache.time < 30 * 60 * 1000) {
+    return _alertsCache.data;
+  }
+
+  const alerts = [];
+
+  // ── 1. Out-invoices with income lines missing analytic distribution ──────
+  try {
+    const moves = await callKw('account.move', 'search_read', [[
+      ['move_type',    '=',  'out_invoice'],
+      ['state',        '=',  'posted'],
+      ['invoice_date', '>=', dateFrom],
+      ['invoice_date', '<=', dateTo],
+      ['company_id',   '=',  TORUS_COMPANY_ID],
+    ]], {
+      fields: ['id', 'name', 'partner_id', 'invoice_date', 'amount_untaxed_signed'],
+      limit: 2000,
+    });
+
+    if (moves.length) {
+      const moveById = new Map(moves.map(m => [m.id, m]));
+      const incomeLines = await callKw('account.move.line', 'search_read', [[
+        ['move_id', 'in', moves.map(m => m.id)],
+        ['account_id.account_type', 'in', ['income', 'income_other']],
+      ]], {
+        fields: ['move_id', 'analytic_distribution', 'credit'],
+        limit: 8000,
+      });
+
+      const missingByMove = {};
+      for (const l of incomeLines) {
+        const noAna = !l.analytic_distribution || Object.keys(l.analytic_distribution).length === 0;
+        if (noAna && (l.credit || 0) > 0) {
+          const mid = l.move_id?.[0];
+          if (!missingByMove[mid]) missingByMove[mid] = { count: 0, amount: 0 };
+          missingByMove[mid].count++;
+          missingByMove[mid].amount += l.credit;
+        }
+      }
+
+      for (const [midStr, data] of Object.entries(missingByMove)) {
+        const mid  = parseInt(midStr);
+        const move = moveById.get(mid);
+        if (!move) continue;
+        alerts.push({
+          type:     'missing_analytic',
+          severity: 'high',
+          title:    'Sin distribución analítica',
+          detail:   move.name + ' · ' + (move.partner_id?.[1] || '?'),
+          amount:   Math.round(data.amount),
+          date:     move.invoice_date,
+          partner:  move.partner_id?.[1] || '?',
+          moveId:   mid,
+          moveName: move.name,
+          odooUrl:  `${ODOO_BASE}/odoo/accounting/customer-invoices/${mid}`,
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[Finanzas] alerts missing_analytic:', e.message);
+  }
+
+  // ── 2. Vendor bills with expense lines missing analytic distribution ─────
+  try {
+    const bills = await callKw('account.move', 'search_read', [[
+      ['move_type',    '=',  'in_invoice'],
+      ['state',        '=',  'posted'],
+      ['invoice_date', '>=', dateFrom],
+      ['invoice_date', '<=', dateTo],
+      ['company_id',   '=',  TORUS_COMPANY_ID],
+    ]], {
+      fields: ['id', 'name', 'partner_id', 'invoice_date', 'amount_untaxed_signed'],
+      limit: 1000,
+    });
+
+    if (bills.length) {
+      const billById = new Map(bills.map(b => [b.id, b]));
+      const expLines = await callKw('account.move.line', 'search_read', [[
+        ['move_id', 'in', bills.map(b => b.id)],
+        ['account_id.account_type', 'in', ['expense', 'expense_direct_cost']],
+      ]], {
+        fields: ['move_id', 'analytic_distribution', 'debit'],
+        limit: 8000,
+      });
+
+      const missingBills = {};
+      for (const l of expLines) {
+        const noAna = !l.analytic_distribution || Object.keys(l.analytic_distribution).length === 0;
+        if (noAna && (l.debit || 0) > 0) {
+          const mid = l.move_id?.[0];
+          if (!missingBills[mid]) missingBills[mid] = { count: 0, amount: 0 };
+          missingBills[mid].count++;
+          missingBills[mid].amount += l.debit;
+        }
+      }
+
+      for (const [midStr, data] of Object.entries(missingBills)) {
+        const mid  = parseInt(midStr);
+        const bill = billById.get(mid);
+        if (!bill) continue;
+        alerts.push({
+          type:     'missing_analytic_cost',
+          severity: 'medium',
+          title:    'Costo sin distribución analítica',
+          detail:   bill.name + ' · ' + (bill.partner_id?.[1] || '?'),
+          amount:   Math.round(data.amount),
+          date:     bill.invoice_date,
+          partner:  bill.partner_id?.[1] || '?',
+          moveId:   mid,
+          moveName: bill.name,
+          odooUrl:  `${ODOO_BASE}/odoo/accounting/vendor-bills/${mid}`,
+        });
+      }
+    }
+  } catch (e) {
+    console.error('[Finanzas] alerts missing_analytic_cost:', e.message);
+  }
+
+  // Sort: high severity first, then by amount desc
+  const sevOrd = { high: 0, medium: 1, low: 2 };
+  alerts.sort((a, b) => (sevOrd[a.severity] - sevOrd[b.severity]) || (b.amount - a.amount));
+
+  const result = { alerts, count: alerts.length, highCount: alerts.filter(a => a.severity === 'high').length };
+  _alertsCache.data = result;
+  _alertsCache.time = Date.now();
+  _alertsCache.key  = cacheKey;
+  console.log(`[Finanzas] alerts key=${cacheKey} count=${alerts.length}`);
+  return result;
+}
+
 module.exports = {
   fetchFinancialData, fetchCXC, fetchCXP,
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
   fetchClientProfitability, fetchYoY, fetchExchangeRate,
+  fetchDataQualityAlerts,
 };
