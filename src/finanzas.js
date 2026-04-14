@@ -12,7 +12,7 @@ const SKIP_ACCOUNT_IDS  = new Set([3908, 3914, 3923]); // IVA / tax throughput a
 const MONTH_LABELS      = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const CACHE_TTL_MS      = 60 * 60 * 1000; // 1 hour for financial data
 
-const _finCache = { data: null, time: 0, year: null };
+const _finCache = { data: null, time: 0, key: null };
 const _cxcCache = { data: null, time: 0 };
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -20,14 +20,14 @@ function monthKey(dateStr) { return dateStr ? String(dateStr).slice(0, 7) : null
 
 // ── Main financial data ───────────────────────────────────────────────────
 
-async function fetchFinancialData(year) {
+async function fetchFinancialData(year, opts = {}) {
+  const dateFrom = opts.from || `${year}-01-01`;
+  const dateTo   = opts.to   || `${year}-12-31`;
+  const cacheKey = `${year}_${dateFrom}_${dateTo}`;
   const now = Date.now();
-  if (_finCache.data && _finCache.year === year && now - _finCache.time < CACHE_TTL_MS) {
+  if (_finCache.data && _finCache.key === cacheKey && now - _finCache.time < CACHE_TTL_MS) {
     return _finCache.data;
   }
-
-  const dateFrom = `${year}-01-01`;
-  const dateTo   = `${year}-12-31`;
 
   // 1. All posted invoices + bills for the year — one query
   const moves = await callKw('account.move', 'search_read', [[
@@ -162,8 +162,8 @@ async function fetchFinancialData(year) {
 
   _finCache.data = result;
   _finCache.time = Date.now();
-  _finCache.year = year;
-  console.log(`[Finanzas] year=${year} rev=${totalRevenue.toLocaleString()} cost=${totalCost.toLocaleString()} rows=${eerrRows.length}`);
+  _finCache.key  = cacheKey;
+  console.log(`[Finanzas] key=${cacheKey} rev=${totalRevenue.toLocaleString()} cost=${totalCost.toLocaleString()} rows=${eerrRows.length}`);
   return result;
 }
 

@@ -1015,31 +1015,62 @@ const currentTo          = '<%- activeFilters.to || "" %>';
 const currentConsultants = '<%- [...selectedLogins].join(",") %>';
 
 // ── Charts ────────────────────────────────────────────────────────────────────
-const weeklyLabels = <%- JSON.stringify(weeklyLabels) %>;
-const weeklyHours  = <%- JSON.stringify(weeklyHours) %>;
+const weeklyLabels         = <%- JSON.stringify(weeklyLabels) %>;
+const weeklyHours          = <%- JSON.stringify(weeklyHours) %>;
+const weeklyByConsultant   = <%- JSON.stringify(weeklyByConsultant) %>;
+const weeklyConsultantNames = <%- weeklyConsultantNames %>;
 
 function renderWeeklyChart() {
   const ctx = document.getElementById('weeklyChart')?.getContext('2d');
   if (!ctx) return;
+
+  // Build one dataset per consultant (only those with any hours)
+  const _PALETTE = ['#3B82F6','#10B981','#8B5CF6','#F59E0B','#EF4444','#06B6D4','#F97316','#EC4899','#84CC16','#6B7280','#0EA5E9','#A855F7'];
+  const loginSet = [...new Set(weeklyByConsultant.flatMap(w => Object.keys(w)))];
+
+  const datasets = loginSet.map((login, i) => ({
+    label: weeklyConsultantNames[login] || login,
+    data:  weeklyByConsultant.map(w => w[login] || null),
+    backgroundColor: _PALETTE[i % _PALETTE.length],
+    borderRadius: 3,
+    borderSkipped: false,
+    stack: 'hours',
+  }));
+
+  // Fallback to simple bar if no consultant breakdown
+  if (!datasets.length) {
+    datasets.push({
+      label: 'Horas',
+      data: weeklyHours,
+      backgroundColor: weeklyHours.map((_, i) => i === weeklyHours.length - 1 ? '#3B82F6' : '#BFDBFE'),
+      borderRadius: 6, borderSkipped: false,
+    });
+  }
+
   new Chart(ctx, {
     type: 'bar',
-    data: {
-      labels: weeklyLabels,
-      datasets: [{
-        label: 'Horas',
-        data: weeklyHours,
-        backgroundColor: weeklyHours.map((_, i) => i === weeklyHours.length - 1 ? '#3B82F6' : '#BFDBFE'),
-        borderRadius: 6, borderSkipped: false,
-      }]
-    },
+    data: { labels: weeklyLabels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.raw}h` } } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: datasets.length > 1, position: 'bottom', labels: { font: { size: 10 }, padding: 8, boxWidth: 10 } },
+        tooltip: {
+          callbacks: {
+            label: c => c.raw ? ` ${c.dataset.label}: ${c.raw}h` : null,
+            footer: items => {
+              const total = items.reduce((s, c) => s + (c.raw || 0), 0);
+              return total > 0 ? `Total: ${Math.round(total * 10) / 10}h` : '';
+            },
+          },
+          filter: item => item.raw > 0,
+        },
+      },
       scales: {
-        y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: v => `${v}h`, font: { size: 11 } } },
-        x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-      }
-    }
+        y: { stacked: true, beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: v => `${v}h`, font: { size: 11 } } },
+        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+      },
+    },
   });
 }
 

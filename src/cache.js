@@ -610,10 +610,22 @@ function computeDashboard(raw, filters = {}) {
     const wEnd   = new Date(nowDate);
     wEnd.setDate(nowDate.getDate() - nowDate.getDay() - (i * 7));
     const wStart = addDays(wEnd, -6);
-    const weekHours = allTimesheets
-      .filter(ts => { const d = fromDateOnly(ts.date); const login = ts.user_id?.[0] ? userIdToLogin.get(ts.user_id[0]) : null; return d >= wStart && d <= wEnd && login && activeLogins.has(login); })
-      .reduce((sum, ts) => sum + parseFloat(ts.unit_amount || 0), 0);
-    weeklyData.push({ label: `Sem ${wStart.toLocaleDateString('es', { day: 'numeric', month: 'short' })}`, hours: round(weekHours) });
+    const byConsultant = {};
+    let weekHours = 0;
+    for (const ts of allTimesheets) {
+      const d     = fromDateOnly(ts.date);
+      const login = ts.user_id?.[0] ? userIdToLogin.get(ts.user_id[0]) : null;
+      if (!login || !activeLogins.has(login) || d < wStart || d > wEnd) continue;
+      const h = parseFloat(ts.unit_amount || 0);
+      weekHours += h;
+      byConsultant[login] = (byConsultant[login] || 0) + h;
+    }
+    for (const k of Object.keys(byConsultant)) byConsultant[k] = round(byConsultant[k]);
+    weeklyData.push({
+      label: `Sem ${wStart.toLocaleDateString('es', { day: 'numeric', month: 'short' })}`,
+      hours: round(weekHours),
+      byConsultant,
+    });
   }
 
   // ── Project statuses ──────────────────────────────────────────────────────

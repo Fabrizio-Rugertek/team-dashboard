@@ -152,8 +152,12 @@ router.get('/', async (req, res) => {
       criticalCount,
       warningCount,
       infoCount,
-      weeklyLabels:     weeklyData.map(w => w.label),
-      weeklyHours:      weeklyData.map(w => w.hours),
+      weeklyLabels:          weeklyData.map(w => w.label),
+      weeklyHours:           weeklyData.map(w => w.hours),
+      weeklyByConsultant:    weeklyData.map(w => w.byConsultant || {}),
+      weeklyConsultantNames: JSON.stringify(
+        consultantOptions.reduce((acc, c) => { acc[c.login] = c.name.split(' ')[0]; return acc; }, {})
+      ),
       loggingControl,
       activeFilters:    filters,
       selectedLogins:   consultantSet,
