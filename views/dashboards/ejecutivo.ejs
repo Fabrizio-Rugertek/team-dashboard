@@ -296,7 +296,7 @@
           <tr class="text-xs font-semibold text-slate-400 uppercase tracking-wide bg-slate-50 border-b border-slate-100">
             <th class="px-6 py-3 text-left">Proyecto</th>
             <th class="px-4 py-3 text-right">Ingresos YTD</th>
-            <th class="px-4 py-3 text-right">Costos YTD</th>
+            <th class="px-4 py-3 text-right">Costo Horas</th>
             <th class="px-4 py-3 text-right">Margen</th>
             <th class="px-4 py-3 text-right">Margen %</th>
             <th class="px-4 py-3 text-center"><%= nowMonth %></th>
@@ -310,18 +310,17 @@
               <div class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full rag-dot-<%= p.rag %> flex-shrink-0"></span>
                 <span class="font-medium text-slate-800 max-w-xs truncate" title="<%= p.name %>"><%= p.name %></span>
-                <% if (p.dominantCostType === 'cogs') { %>
-                <span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium hidden sm:inline">COGS</span>
-                <% } else { %>
-                <span class="text-xs px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium hidden sm:inline">Opex</span>
-                <% } %>
               </div>
             </td>
             <td class="px-4 py-3 text-right font-mono text-sm text-slate-700 c-amt" data-pyg="<%= p.totalRevenue %>">
               <%- gsM(p.totalRevenue) %>
             </td>
-            <td class="px-4 py-3 text-right font-mono text-sm text-slate-500 c-amt" data-pyg="<%= p.totalCost %>">
-              <%- gsM(p.totalCost) %>
+            <td class="px-4 py-3 text-right font-mono text-sm text-slate-500">
+              <% if (p.timesheetCost > 0) { %>
+              <span class="c-amt" data-pyg="<%= p.timesheetCost %>"><%- gsM(p.timesheetCost) %></span>
+              <% } else { %>
+              <span class="text-slate-300">–</span>
+              <% } %>
             </td>
             <td class="px-4 py-3 text-right font-mono text-sm <%= p.margin >= 0 ? 'text-emerald-600' : 'text-red-600' %> c-amt" data-pyg="<%= p.margin %>">
               <%- gsM(p.margin) %>

@@ -191,8 +191,8 @@ async function fetchFinancialData(year, opts = {}) {
 
   // Helper: classify all analytic IDs in a distribution
   function _classifyDist(dist) {
-    let projName = null, svcName = null;
-    if (!dist) return { projName, svcName };
+    let projName = null, projId = null, svcName = null;
+    if (!dist) return { projName, projId, svcName };
     for (const [idStr] of Object.entries(dist)) {
       const id = parseInt(idStr);
       if (PLAN2_IDS.has(id)) continue;                        // obsolete — skip
@@ -200,10 +200,11 @@ async function fetchFinancialData(year, opts = {}) {
         svcName = analyticById[id] || `Servicio ${id}`;       // Plan 3 service line
       } else if (!PLAN3_COST_IDS.has(id)) {
         projName = analyticById[id] || `Proyecto ${id}`;      // Plan 1 project account
+        projId   = id;
       }
       // PLAN3_COST_IDS → internal cost centers, not used in revenue lines
     }
-    return { projName, svcName };
+    return { projName, projId, svcName };
   }
 
   for (const l of allLines) {
@@ -229,12 +230,12 @@ async function fetchFinancialData(year, opts = {}) {
     }
 
     // Classify analytic accounts
-    const { projName, svcName } = _classifyDist(l.analytic_distribution);
+    const { projName, projId, svcName } = _classifyDist(l.analytic_distribution);
 
     if (isRev) {
       // ── Revenue: group by Plan 1 project ─────────────────────────────────
       const pk = projName || (svcName ? `[sin proyecto] ${svcName}` : 'Sin clasificar');
-      if (!byProject[pk]) byProject[pk] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
+      if (!byProject[pk]) byProject[pk] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0, accountId: projId || null };
       byProject[pk].revByMonth[month] = (byProject[pk].revByMonth[month] || 0) + amount;
       byProject[pk].totalRev += amount;
 
@@ -246,7 +247,7 @@ async function fetchFinancialData(year, opts = {}) {
     } else {
       // ── Costs: attribute to project if Plan 1 tagged ─────────────────────
       if (projName) {
-        if (!byProject[projName]) byProject[projName] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0 };
+        if (!byProject[projName]) byProject[projName] = { revByMonth: {}, costByMonth: {}, totalRev: 0, totalCost: 0, accountId: projId || null };
         byProject[projName].costByMonth[month] = (byProject[projName].costByMonth[month] || 0) + amount;
         byProject[projName].totalCost += amount;
       }
@@ -295,23 +296,49 @@ async function fetchFinancialData(year, opts = {}) {
     ? Math.round((curM.revenue - prevM.revenue) / prevM.revenue * 100)
     : null;
 
+  // ── Timesheet costs per Plan 1 project (account.analytic.line) ──────────
+  // amount field is already computed by Odoo (horas × costo/hora del empleado)
+  const tsLines = await callKw('account.analytic.line', 'search_read', [[
+    ['project_id', '!=', false],
+    ['date', '>=', dateFrom],
+    ['date', '<=', dateTo],
+  ]], { fields: ['account_id', 'amount'], limit: 0 });
+
+  const tsMap = {}; // accountId → total timesheet cost (absolute PYG)
+  for (const l of tsLines) {
+    const aid = l.account_id?.[0];
+    if (!aid) continue;
+    // Skip Plan 2/3 accounts — only want Plan 1 client projects
+    if (PLAN2_IDS.has(aid) || PLAN3_SERVICE_IDS.has(aid) || PLAN3_COST_IDS.has(aid)) continue;
+    tsMap[aid] = (tsMap[aid] || 0) + Math.abs(l.amount || 0);
+  }
+
   // ── Build project rows (Plan 1) — primary EERR view ─────────────────────
   const projectRows = Object.entries(byProject)
-    .map(([name, d]) => ({
-      name,
-      totalRevenue: Math.round(d.totalRev),
-      totalCost:    Math.round(d.totalCost),
-      margin:       Math.round(d.totalRev - d.totalCost),
-      marginPct:    d.totalRev > 0 ? Math.round((d.totalRev - d.totalCost) / d.totalRev * 100) : 0,
-      // flag rows that came from Plan 3 only (no project tag)
-      untagged: name.startsWith('[sin proyecto]') || name === 'Sin clasificar',
-      months: months.map(m => ({
-        label:   m.label,
-        month:   m.month,
-        revenue: Math.round(d.revByMonth[m.month]  || 0),
-        cost:    Math.round(d.costByMonth[m.month] || 0),
-      })),
-    }))
+    .map(([name, d]) => {
+      const vendorCost    = Math.round(d.totalCost);
+      const timesheetCost = d.accountId ? Math.round(tsMap[d.accountId] || 0) : 0;
+      const totalCost     = vendorCost + timesheetCost;
+      const margin        = Math.round(d.totalRev) - totalCost;
+      const marginPct     = d.totalRev > 0 ? Math.round(margin / d.totalRev * 100) : 0;
+      return {
+        name,
+        totalRevenue:   Math.round(d.totalRev),
+        vendorCost,
+        timesheetCost,
+        totalCost,
+        margin,
+        marginPct,
+        // flag rows that came from Plan 3 only (no project tag)
+        untagged: name.startsWith('[sin proyecto]') || name === 'Sin clasificar',
+        months: months.map(m => ({
+          label:   m.label,
+          month:   m.month,
+          revenue: Math.round(d.revByMonth[m.month]  || 0),
+          cost:    Math.round(d.costByMonth[m.month] || 0),
+        })),
+      };
+    })
     .sort((a, b) => b.totalRevenue - a.totalRevenue);
 
   // ── Build service line rows (Plan 3 [XXX]) — secondary view ─────────────
@@ -356,7 +383,8 @@ async function fetchFinancialData(year, opts = {}) {
     costBreakdown,
     untaggedProjectRev: Math.round(untaggedProjectRev),
     untaggedServiceRev: Math.round(untaggedServiceRev),
-    note: 'Costos reflejan facturas de proveedor en Odoo. Nómina se calcula por separado desde contratos activos.',
+    totalTimesheetCost: Math.round(Object.values(tsMap).reduce((s, v) => s + v, 0)),
+    note: 'Costos por proyecto = facturas de proveedor + hojas de hora (costo/h del empleado). Nómina total calculada desde contratos activos.',
     generatedAt: new Date().toISOString(),
   };
 
@@ -388,6 +416,7 @@ function _buildEmpty(year, opts = {}) {
     eerrRows: [],    catRows: [],
     costBreakdown: { cogs: 0, opex: 0, total: 0, cogsPct: 0, opexPct: 0 },
     untaggedProjectRev: 0, untaggedServiceRev: 0,
+    totalTimesheetCost: 0,
     note: 'Sin datos para el año seleccionado.',
     generatedAt: new Date().toISOString(),
   };
