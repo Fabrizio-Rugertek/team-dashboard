@@ -363,7 +363,7 @@ async function fetchFinancialData(year, opts = {}) {
   _finCache.data = result;
   _finCache.time = Date.now();
   _finCache.key  = cacheKey;
-  console.log(`[Finanzas] key=${cacheKey} rev=${totalRevenue.toLocaleString()} cost=${totalCost.toLocaleString()} rows=${eerrRows.length}`);
+  console.log(`[Finanzas] key=${cacheKey} rev=${totalRevenue.toLocaleString()} cost=${totalCost.toLocaleString()} rows=${projectRows.length}`);
   return result;
 }
 
