@@ -81,9 +81,10 @@
       equipo:   users.filter(u => u.effectiveViews.includes('equipo')).length,
       finanzas: users.filter(u => u.effectiveViews.includes('finanzas')).length,
       admin:    users.filter(u => u.effectiveViews.includes('admin')).length,
+      crm:      users.filter(u => u.effectiveViews.includes('crm')).length,
     };
   %>
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
     <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
       <div class="text-3xl font-black text-slate-800"><%= totalUsers %></div>
       <div class="text-xs text-slate-500 font-semibold mt-1">Usuarios totales</div>
@@ -99,6 +100,10 @@
     <div class="bg-violet-50 rounded-xl border border-violet-200 p-4 text-center">
       <div class="text-3xl font-black text-violet-600"><%= byView.admin %></div>
       <div class="text-xs text-violet-500 font-semibold mt-1">Acceso Admin</div>
+    </div>
+    <div class="bg-amber-50 rounded-xl border border-amber-200 p-4 text-center">
+      <div class="text-3xl font-black text-amber-600"><%= byView.crm %></div>
+      <div class="text-xs text-amber-500 font-semibold mt-1">Acceso CRM</div>
     </div>
   </div>
 
@@ -127,6 +132,7 @@
               { id: 'equipo',   label: 'Equipo',   color: 'blue'   },
               { id: 'finanzas', label: 'Finanzas', color: 'emerald'},
               { id: 'admin',    label: 'Admin',    color: 'violet' },
+              { id: 'crm',      label: 'CRM',      color: 'amber'  },
             ]; %>
             <% viewConfig.forEach(v => { %>
             <label class="flex items-center gap-1.5 cursor-pointer select-none">
@@ -155,6 +161,7 @@
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-400 inline-block"></span>Equipo</span>
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-400 inline-block"></span>Finanzas</span>
         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-violet-400 inline-block"></span>Admin</span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span>CRM</span>
       </div>
     </div>
 
@@ -166,6 +173,7 @@
             <th class="text-center py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">Equipo</th>
             <th class="text-center py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">Finanzas</th>
             <th class="text-center py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">Admin</th>
+            <th class="text-center py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">CRM</th>
             <th class="text-left py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide hidden lg:table-cell">Agregado</th>
             <th class="text-center py-3 px-4 font-semibold text-slate-500 uppercase tracking-wide">Acciones</th>
           </tr>
@@ -193,9 +201,9 @@
 
             <!-- View toggles -->
             <% if (!isSelf) { %>
-            <% ['equipo', 'finanzas', 'admin'].forEach(view => {
+            <% ['equipo', 'finanzas', 'admin', 'crm'].forEach(view => {
               const hasAccess = u.effectiveViews.includes(view);
-              const viewColors = { equipo: 'blue', finanzas: 'emerald', admin: 'violet' };
+              const viewColors = { equipo: 'blue', finanzas: 'emerald', admin: 'violet', crm: 'amber' };
               const col = viewColors[view];
             %>
             <td class="py-3 px-4 text-center">
@@ -224,9 +232,9 @@
             <% }) %>
             <% } else { %>
             <!-- Self: show read-only badges -->
-            <% ['equipo', 'finanzas', 'admin'].forEach(view => {
+            <% ['equipo', 'finanzas', 'admin', 'crm'].forEach(view => {
               const hasAccess = u.effectiveViews.includes(view);
-              const viewColors = { equipo: 'blue', finanzas: 'emerald', admin: 'violet' };
+              const viewColors = { equipo: 'blue', finanzas: 'emerald', admin: 'violet', crm: 'amber' };
               const col = viewColors[view];
             %>
             <td class="py-3 px-4 text-center">
@@ -273,7 +281,7 @@
           <% }) %>
           <% if (!users.length) { %>
           <tr>
-            <td colspan="7" class="py-14 text-center text-slate-400">
+            <td colspan="8" class="py-14 text-center text-slate-400">
               <div class="text-3xl mb-2">👤</div>
               <div class="font-semibold">Sin usuarios registrados</div>
               <div class="text-xs mt-1">Agregá el primer usuario usando el formulario de arriba.</div>
@@ -288,7 +296,7 @@
   <!-- ── Permission reference ──────────────────────────────────── -->
   <div class="bg-white rounded-xl border border-slate-200 p-5">
     <h2 class="font-bold text-slate-900 mb-4 text-sm">Referencia de vistas</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
       <div class="rounded-xl border border-blue-200 bg-blue-50 p-4">
         <div class="flex items-center gap-2 mb-2">
           <span class="text-lg">👥</span>
@@ -326,6 +334,19 @@
           <div>Control de accesos por vista</div>
           <div>Alta y baja de cuentas</div>
           <div>Auditoría de accesos</div>
+        </div>
+      </div>
+      <div class="rounded-xl border border-amber-200 bg-amber-50 p-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-lg">📈</span>
+          <span class="font-bold text-amber-700 text-sm">CRM</span>
+          <span class="ml-auto text-[10px] bg-amber-200 text-amber-700 font-bold px-1.5 py-0.5 rounded">/crm</span>
+        </div>
+        <div class="text-xs text-amber-600 space-y-1">
+          <div>Pipeline activo y oportunidades</div>
+          <div>Win rate y velocidad de venta</div>
+          <div>Performance por hunter</div>
+          <div>Funnel y tendencia mensual</div>
         </div>
       </div>
     </div>
