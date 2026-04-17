@@ -135,6 +135,10 @@
       🚨 Alertas
       <% const critAlerts = (projectAlerts || []).filter(a => a.severity === 'critical').length; if (critAlerts > 0) { %><span class="ml-1.5 text-xs font-bold bg-red-500 text-white rounded-full px-1.5 py-0.5"><%= critAlerts %></span><% } %>
     </button>
+    <button onclick="switchTab('crm')" id="tab-btn-crm"
+            class="tab-btn px-5 py-2.5 text-sm font-semibold transition-all">
+      💼 CRM
+    </button>
   </div>
   <%# Filter row %>
   <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
@@ -1265,6 +1269,188 @@
   <% } %>
 
 </div><!-- /tab-alertas -->
+<div id="tab-crm" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <%# CRM KPI Cards %>
+  <% const crm = crmStats || {}; %>
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+
+    <div class="bg-white rounded-xl border p-4 <%=
+      crm.winRateColor === 'green' ? 'border-green-200' :
+      crm.winRateColor === 'amber' ? 'border-amber-200' :
+      crm.winRateColor === 'red'   ? 'border-red-200'   : 'border-slate-200' %>">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 <%=
+        crm.winRateColor === 'green' ? 'text-green-600' :
+        crm.winRateColor === 'amber' ? 'text-amber-600' :
+        crm.winRateColor === 'red'   ? 'text-red-500'   : 'text-slate-500' %>">Win Rate</div>
+      <div class="text-3xl font-black <%=
+        crm.winRateColor === 'green' ? 'text-green-600' :
+        crm.winRateColor === 'amber' ? 'text-amber-600' :
+        crm.winRateColor === 'red'   ? 'text-red-600'   : 'text-slate-400' %>"><%= crm.winRateLabel || 'N/D' %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= crm.won90Count || 0 %> Won &middot; <%= crm.lost90Count || 0 %> Lost (90d)</div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-blue-200 p-4">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-blue-600">Pipeline</div>
+      <div class="text-3xl font-black text-blue-700"><%= crm.pipelineFmt || '&#8370; 0' %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= crm.pipelineCount || 0 %> oportunidades activas</div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Ticket Prom.</div>
+      <div class="text-3xl font-black text-slate-800"><%= crm.avgTicketFmt || '&#8370; 0' %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= crm.wonWithRevCount || 0 %> deals cerrados</div>
+    </div>
+
+    <div class="bg-white rounded-xl border p-4 <%=
+      crm.avgDaysColor === 'green' ? 'border-green-200' :
+      crm.avgDaysColor === 'amber' ? 'border-amber-200' :
+      crm.avgDaysColor === 'red'   ? 'border-red-200'   : 'border-slate-200' %>">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Velocidad</div>
+      <div class="text-3xl font-black <%=
+        crm.avgDaysColor === 'green' ? 'text-green-600' :
+        crm.avgDaysColor === 'amber' ? 'text-amber-600' :
+        crm.avgDaysColor === 'red'   ? 'text-red-600'   : 'text-slate-400' %>"><%= crm.avgDaysLabel || 'N/D' %></div>
+      <div class="text-xs text-slate-400 mt-1">Prom. d&iacute;as hasta Won (180d)</div>
+    </div>
+
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Deals Won</div>
+      <div class="text-3xl font-black text-slate-800"><%= crm.wonTotal || 0 %></div>
+      <div class="text-xs text-slate-400 mt-1">de <%= crm.totalAll || 0 %> oportunidades totales</div>
+    </div>
+  </div>
+
+  <%# Charts row: Hunter + Source %>
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+    <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 p-5">
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Performance por Hunter</div>
+      <div class="text-xs text-slate-400 mb-4">Leads generados &middot; Deals Won &middot; Revenue acumulado</div>
+      <% const hunters = (crm.byHunter || []).filter(function(h){ return h.name !== 'Sin Hunter'; }); %>
+      <% if (hunters.length > 0) { %>
+        <div class="space-y-3">
+        <% hunters.forEach(function(h) {
+             var maxRev = hunters[0].revenue || 1;
+             var pct = Math.round((h.revenue / maxRev) * 100);
+             var wonPct = h.leads > 0 ? Math.round(h.won / h.leads * 100) : 0;
+             var rev = h.revenue;
+             var revFmt = rev >= 1e9 ? ('\u20b2' + (rev/1e9).toFixed(1) + 'B') :
+                          rev >= 1e6 ? ('\u20b2' + Math.round(rev/1e6) + 'M') :
+                          ('\u20b2' + Math.round(rev).toLocaleString('es-PY'));
+           %>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-slate-700"><%= h.name.split(' ')[0] %></span>
+                <span class="text-xs text-slate-400"><%= h.leads %> leads &middot; <%= h.won %> won (<%= wonPct %>%)</span>
+              </div>
+              <span class="text-xs font-bold text-slate-700"><%= revFmt %></span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-2">
+              <div class="bg-blue-500 h-2 rounded-full" style="width:<%= pct %>%"></div>
+            </div>
+          </div>
+        <% }); %>
+        </div>
+      <% } else { %>
+        <div class="text-center text-slate-400 text-sm py-8">Sin datos de Hunter</div>
+      <% } %>
+    </div>
+
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Leads por Origen</div>
+      <div class="text-xs text-slate-400 mb-4">Oportunidades activas por canal</div>
+      <% var sources = (crm.bySource || []); %>
+      <% if (sources.length > 0) { %>
+        <% var maxSrc = sources[0].count || 1; %>
+        <div class="space-y-2.5">
+        <% sources.slice(0, 8).forEach(function(s) {
+             var pct = Math.round(s.count / maxSrc * 100);
+           %>
+          <div>
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="text-xs font-medium text-slate-600 truncate" style="max-width:68%"><%= s.name %></span>
+              <span class="text-xs font-bold text-slate-500"><%= s.count %></span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-1.5">
+              <div class="bg-indigo-400 h-1.5 rounded-full" style="width:<%= pct %>%"></div>
+            </div>
+          </div>
+        <% }); %>
+        </div>
+      <% } else { %>
+        <div class="text-center text-slate-400 text-sm py-8">Sin datos</div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# Pipeline by stage mini-cards %>
+  <% if ((crm.byStage || []).length > 0) { %>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <% (crm.byStage || []).forEach(function(s) {
+         var val = s.value;
+         var valFmt = val >= 1e9 ? ('\u20b2' + (val/1e9).toFixed(1) + 'B') :
+                      val >= 1e6 ? ('\u20b2' + Math.round(val/1e6) + 'M') :
+                      ('\u20b2' + Math.round(val).toLocaleString('es-PY'));
+       %>
+      <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1"><%= s.name %></div>
+        <div class="text-2xl font-black text-slate-800"><%= s.count %></div>
+        <div class="text-xs text-slate-400 mt-0.5"><%= valFmt %></div>
+      </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+  <%# Top Active Pipeline table %>
+  <% if ((crm.topActive || []).length > 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <div class="font-bold text-slate-800 text-sm">Pipeline Activo</div>
+        <div class="text-xs text-slate-400">Top oportunidades ordenadas por valor esperado</div>
+      </div>
+      <a href="https://www.torus.dev/odoo/crm" target="_blank"
+         class="text-xs text-blue-600 hover:text-blue-700 font-semibold">Ver en Odoo &rarr;</a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 bg-slate-50">
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Oportunidad</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Etapa</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Hunter</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Origen</th>
+            <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Valor</th>
+            <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">D&iacute;as</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% (crm.topActive || []).forEach(function(o) { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+            <td class="px-4 py-2.5">
+              <a href="https://www.torus.dev/odoo/crm/<%= o.id %>" target="_blank"
+                 class="font-medium text-slate-800 hover:text-blue-600 transition-colors"><%= o.name %></a>
+            </td>
+            <td class="px-4 py-2.5">
+              <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium whitespace-nowrap"><%= o.stage %></span>
+            </td>
+            <td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap"><%= o.hunter %></td>
+            <td class="px-4 py-2.5 text-xs text-slate-500"><%= o.source %></td>
+            <td class="px-4 py-2.5 text-right text-xs font-bold text-slate-700 whitespace-nowrap"><%= o.revenueFmt %></td>
+            <td class="px-4 py-2.5 text-right text-xs whitespace-nowrap <%=
+              o.daysOpen > 90 ? 'text-amber-600 font-semibold' : 'text-slate-400' %>"><%= o.daysOpen %>d</td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+</div><!-- /tab-crm -->
+
 
 <%# ── Heatmap Drilldown Modal ──────────────────────────────────────────────────── %>
 <div id="heatmapModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1509,7 +1695,7 @@ document.addEventListener('click', e => {
 });
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-const ALL_TABS = ['equipo', 'proyectos', 'capacidad', 'sprints', 'alertas'];
+const ALL_TABS = ['equipo', 'proyectos', 'capacidad', 'sprints', 'alertas', 'crm'];
 let capacityChartRendered = false;
 
 function switchTab(tab) {

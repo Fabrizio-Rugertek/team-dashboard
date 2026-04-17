@@ -295,3 +295,21 @@ module.exports = {
   fetchActiveEmployees,
   fetchAllEmployees,
 };
+
+// ── CRM Opportunities ──────────────────────────────────────────────────────────
+async function fetchCRMOpportunities() {
+  return callKw('crm.lead', 'search_read',
+    [['|', ['active', '=', true], ['active', '=', false],
+            ['type', '=', 'opportunity']]],
+    { fields: [
+        'id', 'name', 'stage_id', 'probability', 'expected_revenue',
+        'user_id', 'x_hunter_id', 'source_id', 'create_date',
+        'date_closed', 'active', 'type',
+      ],
+      order: 'create_date desc',
+      context: { bin_size: true },
+    }
+  );
+}
+
+module.exports.fetchCRMOpportunities = fetchCRMOpportunities;

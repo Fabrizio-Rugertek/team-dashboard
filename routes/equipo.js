@@ -14,6 +14,8 @@ const express = require('express');
 const router  = express.Router();
 const { getDashboardCached, bustCache } = require('../src/cache');
 const config = require('../src/config');
+const { fetchCRMOpportunities } = require('../src/odoo');
+const { computeCRMStats }       = require('../src/crm');
 
 const VALID_RANGES   = ['7d', '30d', 'mtd', '60d', '90d', 'custom'];
 const VALID_STATUSES = ['all', 'active', 'on_hold', 'completed', 'needs_attention'];
@@ -73,7 +75,11 @@ router.get('/', async (req, res) => {
       tag:         VALID_TAGS.includes(req.query.tag)        ? req.query.tag    : 'all',
     };
 
-    const data = await getDashboardCached(filters);
+    const [data, crmOpps] = await Promise.all([
+      getDashboardCached(filters),
+      fetchCRMOpportunities().catch(e => { console.error('[CRM] fetch error:', e.message); return []; }),
+    ]);
+    const crmStats = computeCRMStats(crmOpps);
     const {
       summary, consultants, consultantOptions, topProjectCols, methodology,
       projectStatuses, anomalies, weeklyData, loggingControl,
@@ -172,6 +178,8 @@ router.get('/', async (req, res) => {
       capacityData:     data.capacityData     || [],
       sprintOverview:   data.sprintOverview   || [],
       projectAlerts:    data.projectAlerts    || [],
+      crmStats:         crmStats,
+      crmJSON:          JSON.stringify(crmStats),
     });
   } catch (err) {
     console.error('Error loading equipo:', err.message);
