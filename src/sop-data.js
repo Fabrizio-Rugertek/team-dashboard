@@ -61,11 +61,10 @@ function compileProcess({ steps: rawSteps, edges: rawEdges, lanes }) {
 // LANES shared across commercial processes
 // ═══════════════════════════════════════════════════════════════════════════════
 const LANES_VENTAS = [
-  { id: 'hunter',  label: 'Hunter',          color: '#3B82F6', bg: '#EFF6FF', row: 0 },
-  { id: 'closer',  label: 'Closer',          color: '#D97706', bg: '#FFFBEB', row: 1 },
-  { id: 'pm',      label: 'PM',              color: '#8B5CF6', bg: '#F5F3FF', row: 2 },
-  { id: 'admin',   label: 'Administración',  color: '#EC4899', bg: '#FDF2F8', row: 3 },
-  { id: 'support', label: 'Soporte',         color: '#10B981', bg: '#ECFDF5', row: 4 },
+  { id: 'hunter',  label: 'Hunter',  color: '#3B82F6', bg: '#EFF6FF', row: 0 },
+  { id: 'closer',  label: 'Closer',  color: '#D97706', bg: '#FFFBEB', row: 1 },
+  { id: 'pm',      label: 'PM',      color: '#8B5CF6', bg: '#F5F3FF', row: 2 },
+  { id: 'support', label: 'Soporte', color: '#10B981', bg: '#ECFDF5', row: 3 },
 ];
 
 const LANES_FACTURACION = [
@@ -260,7 +259,7 @@ const VENTAS_STEPS = [
     handoffs: [{ role: 'Soporte', linkedStep: 's10', description: 'El cliente pasa oficialmente a régimen de soporte post-venta', linkedProcess: 'soporte' }],
   },
   {
-    id: 's10', col: 10, lane: 4, label: 'Soporte Post-venta', sublabel: 'MAINT o HOURS activo',
+    id: 's10', col: 10, lane: 3, label: 'Soporte Post-venta', sublabel: 'MAINT o HOURS activo',
     time: 'Ongoing', stage: 'Post Go-Live',
     description: 'El equipo de soporte atiende tickets según SLA, gestiona la evolución del sistema e identifica oportunidades de expansión con el cliente.',
     substeps: [
@@ -280,58 +279,16 @@ const VENTAS_STEPS = [
   },
 ];
 
-// Admin track — corre EN PARALELO al track del PM después del Cierre (s6).
-// sA1 inicia simultáneamente con s7 (PM kick-off); sA2 corre durante toda la implementación.
-const VENTAS_ADMIN_STEPS = [
-  {
-    id: 'sA1', col: 7, lane: 3, label: 'Config Facturación', sublabel: 'Recibir condiciones del Closer',
-    time: '1 día', stage: 'Post-Won',
-    description: 'Administración recibe las condiciones de pago acordadas en la venta y configura el ciclo de facturación en Odoo: anticipo, cuotas y fechas de vencimiento. Esto ocurre en paralelo con el kick-off de implementación.',
-    substeps: [
-      'Recibir handoff del Closer: modalidad de pago, cuotas, fechas, RUC del cliente',
-      'Configurar customer en Odoo Facturación (condiciones de pago, datos fiscales)',
-      'Emitir factura de anticipo según condiciones acordadas',
-      'Registrar condiciones en el proyecto Odoo',
-      'Confirmar recepción del anticipo — esto habilita el inicio de la implementación',
-    ],
-    inputs:   ['Handoff del Closer (condiciones de pago)', 'Datos fiscales del cliente (RUC)'],
-    outputs:  ['Factura de anticipo emitida y cobrada', 'Ciclo de facturación configurado en Odoo'],
-    tools:    ['Odoo Facturación', 'SIFEN'],
-    tips:     ['NO comenzar la implementación hasta confirmar el anticipo cobrado', 'Registrar el contacto de facturación del cliente (quién recibe las facturas)'],
-    mistakes: ['Emitir facturas sin datos fiscales correctos del cliente', 'No comunicar al PM si el anticipo no se cobra a tiempo'],
-  },
-  {
-    id: 'sA2', col: 9, lane: 3, label: 'Facturación Recurrente', sublabel: 'Cuotas según cronograma',
-    time: 'Mensual', stage: 'Durante Implementación',
-    description: 'Emisión y seguimiento de cuotas según el plan de pagos acordado. CFO monitorea la cobranza. Cualquier atraso se escala al Closer para gestión comercial con el cliente.',
-    substeps: [
-      'Emitir cuota según el cronograma establecido',
-      'Enviar factura al contacto de facturación del cliente',
-      'Registrar cobro en Odoo cuando se confirma el pago',
-      'Si atraso >7 días hábiles: escalar al Closer para seguimiento comercial',
-      'Cierre contable al finalizar el proyecto (factura final del hito o cierre)',
-    ],
-    inputs:   ['Cronograma de pagos configurado', 'Anticipo cobrado confirmado'],
-    outputs:  ['Facturas emitidas según cronograma', 'Cobros registrados en Odoo en tiempo real'],
-    tools:    ['Odoo Facturación', 'SIFEN', 'Email'],
-    tips:     ['El seguimiento de cobros es responsabilidad de Administración — no del PM', 'Registrar cobros en Odoo el mismo día que se reciben'],
-    mistakes: ['Dejar facturas sin follow-up por más de 7 días', 'No registrar cobros en tiempo real en Odoo'],
-  },
-];
-
 const VENTAS_EDGES = [
   { from: 's1',  to: 's2',  type: 'normal'   },
   { from: 's2',  to: 's3',  type: 'normal'   },
-  { from: 's3',  to: 's4',  type: 'handoff'  },
+  { from: 's3',  to: 's4',  type: 'handoff'  },  // Hunter → Closer
   { from: 's4',  to: 's5',  type: 'normal'   },
   { from: 's5',  to: 's6',  type: 'normal'   },
-  // s6 (Cierre) BIFURCA: PM inicia implementación Y Admin configura facturación en PARALELO
-  { from: 's6',  to: 's7',  type: 'handoff'  },
-  { from: 's6',  to: 'sA1', type: 'parallel' },
-  { from: 'sA1', to: 'sA2', type: 'normal'   },
+  { from: 's6',  to: 's7',  type: 'handoff'  },  // Closer → PM (implementación)
   { from: 's7',  to: 's8',  type: 'normal'   },
   { from: 's8',  to: 's9',  type: 'normal'   },
-  { from: 's9',  to: 's10', type: 'handoff'  },
+  { from: 's9',  to: 's10', type: 'handoff'  },  // PM → Soporte (post go-live)
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1099,7 +1056,7 @@ const TAREAS_EDGES = [
 // COMPILE ALL PROCESSES
 // ═══════════════════════════════════════════════════════════════════════════════
 const PROCESSES = {
-  ventas:        compileProcess({ steps: [...VENTAS_STEPS, ...VENTAS_ADMIN_STEPS], edges: VENTAS_EDGES, lanes: LANES_VENTAS }),
+  ventas:        compileProcess({ steps: VENTAS_STEPS, edges: VENTAS_EDGES, lanes: LANES_VENTAS }),
   facturacion:   compileProcess({ steps: FACTURACION_STEPS,   edges: FACTURACION_EDGES,   lanes: LANES_FACTURACION }),
   implementacion:compileProcess({ steps: IMPLEMENTACION_STEPS,edges: IMPLEMENTACION_EDGES,lanes: LANES_IMPLEMENTACION }),
   soporte:       compileProcess({ steps: SOPORTE_STEPS,       edges: SOPORTE_EDGES,       lanes: LANES_SOPORTE }),

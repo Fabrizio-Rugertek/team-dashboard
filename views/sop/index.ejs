@@ -382,6 +382,42 @@
     @media (min-width: 768px) {
       #mobile-visual-fallback { display: none !important; }
     }
+
+    /* ── KB left sidebar (SOP flow pages) ──────────────────────────────────── */
+    #sop-side-nav {
+      width: 220px; flex-shrink: 0;
+      background: white; border-right: 1px solid #e2e8f0;
+      min-height: calc(100vh - 120px);
+      position: sticky; top: 120px; max-height: calc(100vh - 120px); overflow-y: auto;
+      padding: 16px 8px;
+      scrollbar-width: thin;
+    }
+    @media (max-width: 1024px) { #sop-side-nav { display: none; } }
+
+    .kb-section-header {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 10px; border-radius: 8px;
+      font-size: 11px; font-weight: 800; color: #475569;
+      letter-spacing: .04em; text-transform: uppercase;
+      cursor: pointer; user-select: none;
+      transition: background .15s;
+    }
+    .kb-section-header:hover { background: #f1f5f9; }
+    .kb-section-header .kb-chevron { transition: transform .2s; font-size: 9px; }
+    .kb-section-header.collapsed .kb-chevron { transform: rotate(-90deg); }
+
+    .kb-process-link {
+      display: flex; align-items: center; gap: 8px;
+      padding: 5px 10px 5px 22px; border-radius: 8px;
+      font-size: 12.5px; font-weight: 500; color: #475569;
+      text-decoration: none; transition: all .15s;
+    }
+    .kb-process-link:hover { background: #f8fafc; color: #1e293b; }
+    .kb-process-link.active { background: var(--link-bg); color: var(--link-color); font-weight: 700; }
+    .kb-process-link .kb-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+    #sop-page-layout { display: flex; align-items: flex-start; }
+    #sop-page-main   { flex: 1; min-width: 0; }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
@@ -497,6 +533,52 @@
     </button>
   </div>
 </div>
+
+<!-- ── Page layout: KB sidebar + main content ────────────────────────────────── -->
+<div id="sop-page-layout">
+
+<!-- KB left sidebar -->
+<nav id="sop-side-nav" aria-label="Navegación de procesos">
+  <!-- Back link -->
+  <a href="/sop" class="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-slate-700 transition-colors px-2 pb-3 mb-2 border-b border-slate-100">
+    ← Todos los procesos
+  </a>
+
+  <%
+  const _flowList = typeof flowProcesses !== 'undefined' ? flowProcesses : [];
+  %>
+  <div class="space-y-0.5">
+    <% if (typeof encyclopedia !== 'undefined') { encyclopedia.sections.forEach(function(section) {
+         const visProcs = section.processes.filter(function(p){ return p.status !== 'planned'; });
+         if (!visProcs.length) return;
+    %>
+    <!-- Section header -->
+    <div class="kb-section-header" id="idx-kb-section-<%= section.id %>"
+         onclick="toggleKbSection('<%= section.id %>')">
+      <span><%= section.icon || '📁' %></span>
+      <span class="flex-1 truncate"><%= section.name %></span>
+      <span class="kb-chevron">▾</span>
+    </div>
+    <!-- Process links -->
+    <div id="idx-kb-children-<%= section.id %>" class="space-y-0.5 pb-1">
+      <% visProcs.forEach(function(proc) {
+           const _href = _flowList.includes(proc.id) ? '/sop/' + proc.id : '/sop/ref/' + proc.id;
+           const _active = proc.id === processId;
+      %>
+      <a href="<%= _href %>"
+         class="kb-process-link<%= _active ? ' active' : '' %>"
+         style="--link-bg: <%= section.color %>18; --link-color: <%= section.color %>;">
+        <span class="kb-dot" style="background: <%= section.color %>"></span>
+        <span class="truncate"><%= proc.name %></span>
+      </a>
+      <% }); %>
+    </div>
+    <% }); } %>
+  </div>
+</nav>
+
+<!-- Main content wrapper -->
+<div id="sop-page-main">
 
 <!-- Mobile: visual fallback notice -->
 <div id="mobile-visual-fallback" class="hidden px-5 pb-4">
@@ -779,6 +861,9 @@
   </div>
 </div>
 </div><!-- /sop-visual-view -->
+
+</div><!-- /sop-page-main -->
+</div><!-- /sop-page-layout -->
 
 <!-- ── Detail Panel ──────────────────────────────────────────────────────────── -->
 <div id="detailPanel">
@@ -1316,6 +1401,15 @@ function tocScrollTo(stepId) {
 
   document.querySelectorAll('.written-step').forEach(el => observer.observe(el));
 })();
+
+// ── KB sidebar: toggle section ────────────────────────────────────────────────
+function toggleKbSection(id) {
+  const header   = document.getElementById('idx-kb-section-' + id);
+  const children = document.getElementById('idx-kb-children-' + id);
+  if (!header || !children) return;
+  const collapsed = header.classList.toggle('collapsed');
+  children.style.display = collapsed ? 'none' : '';
+}
 
 // ── Mobile: auto-switch to written if on small screen ────────────────────────
 (function initMobileView() {
