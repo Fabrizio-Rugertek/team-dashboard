@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+
+    /* ── Org chart node styles ─────────────────────────────────────────────────── */
+    .org-node {
+      background: white;
+      border-radius: 10px;
+      border: 1.5px solid #e2e8f0;
+      padding: 10px 12px;
+      width: 160px;
+      height: 68px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.07);
+      transition: box-shadow .2s, transform .2s, border-color .2s;
+      cursor: pointer;
+      user-select: none;
+      overflow: hidden;
+    }
+    .org-node:hover {
+      box-shadow: 0 6px 24px rgba(0,0,0,.13);
+      transform: translateY(-2px);
+    }
+    .org-node.highlighted {
+      border-color: #6366F1;
+      box-shadow: 0 0 0 3px rgba(99,102,241,.25), 0 6px 24px rgba(0,0,0,.12);
+    }
+    .org-node.dimmed {
+      opacity: .35;
+    }
+    .org-node-name {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .org-node-role {
+      font-size: 10.5px;
+      color: #64748b;
+      margin-top: 4px;
+      line-height: 1.3;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── SVG connector lines ───────────────────────────────────────────────────── */
+    .org-connector {
+      fill: none;
+      stroke: #CBD5E1;
+      stroke-width: 1.5;
+      stroke-dasharray: 0;
+      opacity: 0;
+      transition: stroke .3s;
+    }
+    .org-connector.visible { animation: drawLine .5s ease forwards; }
+    @keyframes drawLine {
+      from { opacity: 0; stroke-dashoffset: 300; stroke-dasharray: 300; }
+      to   { opacity: 1; stroke-dashoffset: 0;   stroke-dasharray: 300; }
+    }
+
+    /* ── Tooltip ───────────────────────────────────────────────────────────────── */
+    #orgTooltip {
+      position: fixed;
+      background: #1e293b;
+      color: white;
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity .18s;
+      max-width: 220px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.25);
+    }
+    #orgTooltip.visible { opacity: 1; }
+
+    /* ── Zoom controls ─────────────────────────────────────────────────────────── */
+    .zoom-btn {
+      width: 36px; height: 36px;
+      background: white; border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-center;
+      justify-content: center;
+      font-size: 16px; font-weight: 700;
+      color: #64748b;
+      cursor: pointer;
+      transition: all .18s;
+    }
+    .zoom-btn:hover { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
+
+    /* ── Department legend ─────────────────────────────────────────────────────── */
+    .dept-legend-item {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 600; color: #334155;
+    }
+
+    /* ── Entrance animations ───────────────────────────────────────────────────── */
+    @keyframes fadeInScale {
+      from { opacity: 0; transform: scale(0.85) translateY(8px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .org-node-fo { opacity: 0; }
+    .org-node-fo.animate { animation: fadeInScale .4s ease forwards; }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Tooltip -->
+<div id="orgTooltip"></div>
+
+<!-- Nav -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-full px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-7 w-auto">
+      <span class="text-slate-300 text-sm">/</span>
+      <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600 transition-colors">Dashboard Platform</a>
+      <span class="text-slate-300 text-sm">/</span>
+      <a href="/sop" class="text-slate-500 text-sm font-medium hover:text-slate-700 transition-colors">SOPs</a>
+      <span class="text-slate-300 text-sm">/</span>
+      <span class="text-sm font-bold text-emerald-600">Organigrama</span>
+    </div>
+    <% if (typeof user !== 'undefined' && user) { %>
+    <div class="flex items-center gap-3">
+      <% if (user.picture) { %>
+      <img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt="">
+      <% } else { %>
+      <div class="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">
+        <%= (user.name || user.email).slice(0,1).toUpperCase() %>
+      </div>
+      <% } %>
+      <span class="text-xs font-medium text-slate-600 hidden sm:block"><%= user.name || user.email %></span>
+      <form action="/auth/logout" method="POST" class="inline">
+        <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors">Salir</button>
+      </form>
+    </div>
+    <% } %>
+  </div>
+</nav>
+
+<!-- Page header -->
+<div class="max-w-7xl mx-auto px-5 pt-8 pb-4 flex items-start justify-between flex-wrap gap-4">
+  <div>
+    <div class="flex items-center gap-2 mb-1">
+      <span class="text-xs font-bold uppercase tracking-widest text-emerald-500">Torus</span>
+      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+      <span class="text-xs text-slate-400 font-medium">Estructura Organizacional</span>
+    </div>
+    <h1 class="text-2xl font-black text-slate-900">Organigrama Torus</h1>
+    <p class="mt-1 text-sm text-slate-500">Haz clic en cualquier persona para resaltar su cadena de reporte</p>
+  </div>
+
+  <!-- Zoom controls -->
+  <div class="flex items-center gap-2">
+    <button class="zoom-btn" onclick="adjustZoom(-0.15)" title="Alejar">&#x2212;</button>
+    <span id="zoomLabel" class="text-xs font-bold text-slate-500 w-12 text-center">100%</span>
+    <button class="zoom-btn" onclick="adjustZoom(0.15)" title="Acercar">&#x2B;</button>
+    <button class="zoom-btn text-sm" onclick="resetZoom()" title="Restablecer">&#x21BA;</button>
+  </div>
+</div>
+
+<!-- Chart container -->
+<div class="max-w-7xl mx-auto px-5 pb-8">
+  <div id="orgChartWrap" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-auto"
+       style="min-height: 640px; cursor: grab; position: relative;">
+    <div id="orgChartInner" style="transform-origin: top center; transition: transform .3s ease; padding: 32px 20px 40px;">
+      <svg id="orgConnectors" style="position:absolute; top:0; left:0; pointer-events:none; overflow:visible;" width="100%" height="100%"></svg>
+      <div id="orgNodes" style="position:relative;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Department legend -->
+<div class="max-w-7xl mx-auto px-5 pb-10">
+  <div class="bg-white rounded-2xl border border-slate-200 p-5">
+    <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Departamentos</div>
+    <div class="flex flex-wrap gap-6">
+      <div class="dept-legend-item">
+        <span class="w-3 h-3 rounded-full" style="background:#1E293B"></span>
+        Dirección
+      </div>
+      <div class="dept-legend-item">
+        <span class="w-3 h-3 rounded-full" style="background:#8B5CF6"></span>
+        Producción / Funcional
+      </div>
+      <div class="dept-legend-item">
+        <span class="w-3 h-3 rounded-full" style="background:#10B981"></span>
+        Consultor Contable
+      </div>
+      <div class="dept-legend-item">
+        <span class="w-3 h-3 rounded-full" style="background:#3B82F6"></span>
+        Technical Consultant
+      </div>
+      <div class="dept-legend-item">
+        <span class="w-3 h-3 rounded-full" style="background:#EC4899"></span>
+        Finanzas / CFO
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Org data injected from server ─────────────────────────────────────────────
+const ORG = <%- orgDataJSON %>;
+
+// ── Layout constants ──────────────────────────────────────────────────────────
+const NODE_W = 160;
+const NODE_H = 68;
+const H_GAP  = 24;   // horizontal gap between sibling nodes
+const V_GAP  = 80;   // vertical gap between levels
+
+// ── Tree layout computation ───────────────────────────────────────────────────
+function buildLayout(node, depth, counter) {
+  counter = counter || { val: 0 };
+  node._depth = depth;
+  node._children = node.children || [];
+
+  if (node._children.length === 0) {
+    node._x = counter.val * (NODE_W + H_GAP);
+    node._subtreeW = NODE_W;
+    counter.val++;
+  } else {
+    node._children.forEach(c => buildLayout(c, depth + 1, counter));
+    const firstX = node._children[0]._x;
+    const lastX  = node._children[node._children.length - 1]._x;
+    node._x = (firstX + lastX) / 2;
+    node._subtreeW = lastX + NODE_W - firstX;
+  }
+  node._y = depth * (NODE_H + V_GAP);
+}
+
+buildLayout(ORG, 0, { val: 0 });
+
+// ── Compute SVG canvas dimensions ────────────────────────────────────────────
+let maxDepth = 0, maxX = 0;
+function traverse(n) {
+  if (n._depth > maxDepth) maxDepth = n._depth;
+  if (n._x + NODE_W > maxX) maxX = n._x + NODE_W;
+  (n._children || []).forEach(traverse);
+}
+traverse(ORG);
+
+const SVG_W  = maxX + 40;
+const SVG_H  = (maxDepth + 1) * (NODE_H + V_GAP) + 40;
+
+const svgEl   = document.getElementById('orgConnectors');
+const nodesEl = document.getElementById('orgNodes');
+svgEl.setAttribute('width', SVG_W);
+svgEl.setAttribute('height', SVG_H);
+nodesEl.style.width  = SVG_W + 'px';
+nodesEl.style.height = SVG_H + 'px';
+
+// ── Render nodes + connectors ─────────────────────────────────────────────────
+let animDelay = 0;
+const allNodes = [];
+
+function renderNode(node) {
+  // Create foreignObject (node card)
+  const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+  fo.setAttribute('x', node._x);
+  fo.setAttribute('y', node._y);
+  fo.setAttribute('width', NODE_W);
+  fo.setAttribute('height', NODE_H + 4);
+  fo.classList.add('org-node-fo');
+  fo.style.animationDelay = animDelay + 'ms';
+  animDelay += 60;
+
+  const div = document.createElement('div');
+  div.className = 'org-node';
+  div.style.borderTop = '3px solid ' + node.color;
+  div.dataset.nodeId = node.id;
+  div.innerHTML = `<div class="org-node-name">${node.name}</div><div class="org-node-role">${node.role}</div>`;
+
+  div.addEventListener('click', () => highlightChain(node.id));
+  div.addEventListener('mouseenter', (e) => showTooltip(e, node));
+  div.addEventListener('mouseleave', hideTooltip);
+
+  fo.appendChild(div);
+  svgEl.appendChild(fo);
+  allNodes.push({ node, fo, div });
+
+  // Draw connector from parent to this node
+  if (node._parent) {
+    const px = node._parent._x + NODE_W / 2;
+    const py = node._parent._y + NODE_H;
+    const cx = node._x + NODE_W / 2;
+    const cy = node._y;
+    const midY = py + V_GAP / 2;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M ${px} ${py} C ${px} ${midY} ${cx} ${midY} ${cx} ${cy}`);
+    path.classList.add('org-connector');
+    path.dataset.from = node._parent.id;
+    path.dataset.to   = node.id;
+    svgEl.insertBefore(path, svgEl.firstChild);
+  }
+
+  // Recurse
+  node._children.forEach(c => {
+    c._parent = node;
+    renderNode(c);
+  });
+}
+
+renderNode(ORG);
+
+// ── Animate entrance ──────────────────────────────────────────────────────────
+setTimeout(() => {
+  document.querySelectorAll('.org-node-fo').forEach(fo => fo.classList.add('animate'));
+  document.querySelectorAll('.org-connector').forEach((c, i) => {
+    setTimeout(() => c.classList.add('visible'), i * 40 + 200);
+  });
+}, 50);
+
+// ── Chain highlighting ────────────────────────────────────────────────────────
+let highlightedId = null;
+
+function getAncestorIds(nodeId, root) {
+  function find(n, id, path) {
+    if (n.id === id) return [...path, n.id];
+    for (const c of (n._children || [])) {
+      const r = find(c, id, [...path, n.id]);
+      if (r) return r;
+    }
+    return null;
+  }
+  return find(root, nodeId, []) || [];
+}
+
+function getSubtreeIds(node) {
+  const ids = [node.id];
+  (node._children || []).forEach(c => ids.push(...getSubtreeIds(c)));
+  return ids;
+}
+
+function highlightChain(nodeId) {
+  if (highlightedId === nodeId) {
+    // Deselect
+    highlightedId = null;
+    allNodes.forEach(({ div }) => {
+      div.classList.remove('highlighted', 'dimmed');
+    });
+    document.querySelectorAll('.org-connector').forEach(c => {
+      c.style.stroke = '';
+    });
+    return;
+  }
+  highlightedId = nodeId;
+
+  const ancestors = new Set(getAncestorIds(nodeId, ORG));
+  const findNode  = (id, n) => n.id === id ? n : (n._children || []).reduce((a, c) => a || findNode(id, c), null);
+  const clicked   = findNode(nodeId, ORG);
+  const subtree   = new Set(clicked ? getSubtreeIds(clicked) : []);
+  const chain     = new Set([...ancestors, ...subtree]);
+
+  allNodes.forEach(({ node, div }) => {
+    const inChain = chain.has(node.id);
+    div.classList.toggle('highlighted', node.id === nodeId);
+    div.classList.toggle('dimmed', !inChain);
+  });
+
+  // Highlight connectors in chain
+  document.querySelectorAll('.org-connector').forEach(c => {
+    const inChain = chain.has(c.dataset.from) && chain.has(c.dataset.to);
+    c.style.stroke = inChain ? '#6366F1' : '#e2e8f0';
+    c.style.strokeWidth = inChain ? '2' : '1.5';
+  });
+}
+
+// ── Tooltip ───────────────────────────────────────────────────────────────────
+const tooltip = document.getElementById('orgTooltip');
+function showTooltip(e, node) {
+  const deptLabels = {
+    directorio: 'Directorio',
+    direccion:  'Direcci&oacute;n',
+    produccion: 'Producci&oacute;n',
+    funcional:  'Consultor Funcional',
+    contable:   'Consultor Contable',
+    tecnico:    'Technical Consultant',
+    finanzas:   'Finanzas / CFO',
+  };
+  tooltip.innerHTML = `
+    <div style="color:${node.color}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; margin-bottom:2px;">
+      ${deptLabels[node.dept] || node.dept}
+    </div>
+    <div style="font-size:13px; font-weight:800;">${node.name}</div>
+    <div style="font-size:11px; color:#94a3b8; margin-top:1px;">${node.role}</div>
+  `;
+  tooltip.classList.add('visible');
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  tooltip.style.left = (e.clientX + 14) + 'px';
+  tooltip.style.top  = (e.clientY - 20) + 'px';
+}
+function hideTooltip() {
+  tooltip.classList.remove('visible');
+}
+document.addEventListener('mousemove', (e) => {
+  if (tooltip.classList.contains('visible')) moveTooltip(e);
+});
+
+// ── Zoom ──────────────────────────────────────────────────────────────────────
+let currentZoom = 1.0;
+const inner = document.getElementById('orgChartInner');
+
+function adjustZoom(delta) {
+  currentZoom = Math.min(2.0, Math.max(0.4, currentZoom + delta));
+  inner.style.transform = `scale(${currentZoom})`;
+  document.getElementById('zoomLabel').textContent = Math.round(currentZoom * 100) + '%';
+}
+function resetZoom() {
+  currentZoom = 1.0;
+  inner.style.transform = 'scale(1)';
+  document.getElementById('zoomLabel').textContent = '100%';
+}
+</script>
+
+</body>
+</html>

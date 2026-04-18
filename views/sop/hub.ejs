@@ -155,6 +155,53 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
+
+    /* ── Sticky sidebar ────────────────────────────────────────────────────────── */
+    .sidebar-nav-link {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: 12px;
+      font-size: 13px; font-weight: 600; color: #64748b;
+      text-decoration: none; transition: all .18s;
+    }
+    .sidebar-nav-link:hover { background: #F1F5F9; color: #1e293b; }
+    .sidebar-nav-link.active { background: #F1F5F9; color: #1e293b; }
+
+    /* ── Section header block ──────────────────────────────────────────────────── */
+    .section-header-block {
+      border-left: 4px solid var(--section-color);
+      padding: 18px 20px;
+      background: linear-gradient(to right, var(--section-bg), white 80%);
+      border-radius: 16px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Enhanced proc card ────────────────────────────────────────────────────── */
+    .proc-card-v2 {
+      background: white;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 16px;
+      border-left-width: 4px;
+      border-left-color: var(--card-color);
+      transition: all .22s cubic-bezier(.4,0,.2,1);
+      position: relative;
+      overflow: hidden;
+      text-decoration: none;
+      display: block;
+    }
+    .proc-card-v2:hover {
+      box-shadow: 0 8px 32px rgba(0,0,0,.10), 0 0 0 1px var(--card-color) inset;
+      transform: translateY(-3px);
+    }
+    .proc-card-v2.clickable { cursor: pointer; }
+    .proc-card-v2:not(.clickable) { cursor: default; }
+
+    /* ── Stats bar ─────────────────────────────────────────────────────────────── */
+    .stats-bar-item {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 12px 24px;
+      border-right: 1px solid #e2e8f0;
+    }
+    .stats-bar-item:last-child { border-right: none; }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
@@ -368,111 +415,190 @@ const flowList      = flowProcesses || [];
   </div>
 </div>
 
-<!-- ── Sections ───────────────────────────────────────────────────────────────── -->
-<div class="max-w-7xl mx-auto px-5 py-8 space-y-12" id="sectionsContainer">
-
-  <% encyclopedia.sections.forEach(section => { %>
-  <div class="section-block" data-section="<%= section.id %>">
-    <!-- Section header -->
-    <div class="flex items-center gap-3 mb-5">
-      <div class="section-accent h-8" style="background:<%= section.color %>"></div>
-      <div class="flex items-center gap-3">
-        <span class="text-2xl"><%= section.icon || '' %></span>
-        <div>
-          <h2 class="text-xl font-extrabold text-slate-900 leading-none"><%= section.name %></h2>
-          <p class="text-sm text-slate-500 mt-0.5"><%= section.description %></p>
-        </div>
+<!-- ── Quick stats bar ────────────────────────────────────────────────────────── -->
+<div class="bg-white border-b border-slate-100 shadow-sm">
+  <div class="max-w-7xl mx-auto">
+    <div class="flex flex-wrap divide-x divide-slate-100">
+      <div class="stats-bar-item flex-1 min-w-[120px]">
+        <span class="text-2xl font-black text-slate-900"><%= totalProcs %></span>
+        <span class="text-xs font-semibold text-slate-400 mt-0.5">Procesos totales</span>
       </div>
-      <!-- Completion chip -->
-      <%
-        const sComplete = section.processes.filter(p => p.status === 'complete').length;
-        const sRef      = section.processes.filter(p => p.status === 'reference').length;
-        const sTotal    = section.processes.length;
-      %>
-      <div class="ml-auto flex items-center gap-2">
-        <% if (sComplete > 0) { %>
-        <span class="text-xs font-bold px-2.5 py-1 rounded-full badge-complete">
-          <%= sComplete %> flujo<%= sComplete !== 1 ? 's' : '' %>
-        </span>
-        <% } %>
-        <% if (sRef > 0) { %>
-        <span class="text-xs font-bold px-2.5 py-1 rounded-full badge-reference">
-          <%= sRef %> referencia<%= sRef !== 1 ? 's' : '' %>
-        </span>
-        <% } %>
+      <div class="stats-bar-item flex-1 min-w-[120px]">
+        <span class="text-2xl font-black text-emerald-600"><%= totalComplete %></span>
+        <span class="text-xs font-semibold text-slate-400 mt-0.5">Flujos interactivos</span>
       </div>
-    </div>
-
-    <!-- Cards grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <% section.processes.forEach(proc => {
-           const isFlow    = flowList.includes(proc.id);
-           const isRef     = proc.status === 'reference';
-           const isComplete = proc.status === 'complete';
-           const isPlanned = proc.status === 'planned';
-           const isWip     = proc.status === 'wip';
-           const clickable = isFlow || isRef;
-           const href      = isFlow ? `/sop/${proc.id}` : isRef ? `/sop/ref/${proc.id}` : '#';
-           const statusLabel = { complete: 'Interactivo', reference: 'Referencia', wip: 'En desarrollo', planned: 'Próximamente' }[proc.status] || '';
-           const badgeClass  = `badge-${proc.status}`;
-      %>
-      <a href="<%= href %>"
-         class="proc-card proc-item <%= clickable ? 'clickable' : '' %> block p-5 no-underline"
-         style="--card-color:<%= section.color %>; text-decoration:none;"
-         onclick="<%= isWip || isPlanned ? 'return false' : '' %>"
-         data-name="<%= proc.name.toLowerCase() %>"
-         data-desc="<%= proc.description.toLowerCase() %>">
-
-        <!-- Top row: icon + status + steps -->
-        <div class="flex items-start justify-between mb-4">
-          <div class="card-icon-wrap" style="--icon-bg: <%= section.bg %>">
-            <%= section.icon || '📄' %>
-          </div>
-          <div class="flex items-center gap-2">
-            <% if (proc.steps) { %>
-            <span class="text-xs text-slate-400 font-semibold bg-slate-100 px-2 py-0.5 rounded-md"><%= proc.steps %> pasos</span>
-            <% } %>
-            <span class="text-xs font-bold px-2 py-0.5 rounded-full <%= badgeClass %>"><%= statusLabel %></span>
-          </div>
-        </div>
-
-        <!-- Name -->
-        <h3 class="text-base font-extrabold text-slate-900 leading-snug mb-2"><%= proc.name %></h3>
-        <p class="text-sm text-slate-500 leading-relaxed"><%= proc.description %></p>
-
-        <!-- CTA -->
-        <div class="mt-4 flex items-center gap-1.5">
-          <% if (isFlow) { %>
-          <span class="text-sm font-bold flex items-center gap-1" style="color:<%= section.color %>">
-            Ver flujo interactivo
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </span>
-          <% } else if (isRef) { %>
-          <span class="text-sm font-bold flex items-center gap-1" style="color:<%= section.color %>">
-            Ver referencia
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </span>
-          <% } else if (isWip) { %>
-          <span class="text-xs text-amber-500 font-semibold">En construcción — disponible pronto</span>
-          <% } else { %>
-          <span class="text-xs text-slate-400 font-medium">Próximamente</span>
-          <% } %>
-        </div>
-      </a>
-      <% }) %>
+      <div class="stats-bar-item flex-1 min-w-[120px]">
+        <%
+        const totalRef = encyclopedia.sections.reduce((a,s) => a + s.processes.filter(p => p.status === 'reference').length, 0);
+        const totalWip = encyclopedia.sections.reduce((a,s) => a + s.processes.filter(p => p.status === 'wip').length, 0);
+        %>
+        <span class="text-2xl font-black text-blue-600"><%= totalRef %></span>
+        <span class="text-xs font-semibold text-slate-400 mt-0.5">Páginas de referencia</span>
+      </div>
+      <div class="stats-bar-item flex-1 min-w-[120px]">
+        <span class="text-2xl font-black text-slate-900"><%= totalSteps %>+</span>
+        <span class="text-xs font-semibold text-slate-400 mt-0.5">Pasos documentados</span>
+      </div>
+      <% if (totalWip > 0) { %>
+      <div class="stats-bar-item flex-1 min-w-[120px]">
+        <span class="text-2xl font-black text-amber-500"><%= totalWip %></span>
+        <span class="text-xs font-semibold text-slate-400 mt-0.5">En desarrollo</span>
+      </div>
+      <% } %>
     </div>
   </div>
-  <% }) %>
+</div>
 
-  <!-- Empty search state -->
-  <div id="emptySearch" class="hidden text-center py-16">
-    <div class="text-4xl mb-3">🔍</div>
-    <div class="text-slate-600 font-semibold">No se encontraron procesos</div>
-    <div class="text-sm text-slate-400 mt-1">Intentá con otro término</div>
+<!-- ── Two-column layout: sidebar + main ──────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 py-10 flex gap-8">
+
+  <!-- Sticky sidebar (hidden on mobile) -->
+  <aside class="hidden lg:block w-56 flex-shrink-0">
+    <div class="sticky top-28 space-y-1">
+      <div class="text-xs font-bold uppercase tracking-widest text-slate-400 px-3 mb-3">Secciones</div>
+      <% encyclopedia.sections.forEach(section => { %>
+      <a href="#section-<%= section.id %>"
+         class="sidebar-nav-link"
+         style="--section-color:<%= section.color %>">
+        <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:<%= section.color %>"></span>
+        <span><%= section.name %></span>
+        <span class="ml-auto text-xs text-slate-400 font-medium"><%= section.processes.length %></span>
+      </a>
+      <% }) %>
+      <div class="pt-4 border-t border-slate-200 mt-2">
+        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 px-3 mb-2">Acceso rápido</div>
+        <% encyclopedia.sections.forEach(section => {
+             section.processes.filter(p => p.status === 'complete' || p.status === 'reference').forEach(proc => {
+               const href = flowList.includes(proc.id) ? `/sop/${proc.id}` : `/sop/ref/${proc.id}`;
+        %>
+        <a href="<%= href %>" class="sidebar-nav-link text-xs py-1.5 gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" style="background:<%= section.color %>"></span>
+          <%= proc.name.split(' ').slice(0,3).join(' ') %>
+        </a>
+        <% }) }) %>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="flex-1 space-y-12" id="sectionsContainer">
+    <% encyclopedia.sections.forEach(section => { %>
+    <div id="section-<%= section.id %>" class="section-block" data-section="<%= section.id %>">
+
+      <!-- Section header block -->
+      <div class="section-header-block mb-6"
+           style="--section-color:<%= section.color %>; --section-bg:<%= section.bg %>;">
+        <div class="flex items-start justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0"
+                 style="background:<%= section.bg %>; border: 1.5px solid <%= section.color %>22;">
+              <%= section.icon || '📄' %>
+            </div>
+            <div>
+              <h2 class="text-xl font-extrabold text-slate-900 leading-tight"><%= section.name %></h2>
+              <p class="text-sm text-slate-500 mt-0.5 max-w-lg"><%= section.description %></p>
+            </div>
+          </div>
+          <%
+            const sComplete = section.processes.filter(p => p.status === 'complete').length;
+            const sRef      = section.processes.filter(p => p.status === 'reference').length;
+            const sWip      = section.processes.filter(p => p.status === 'wip').length;
+            const sTotal    = section.processes.length;
+          %>
+          <div class="flex items-center gap-2 flex-wrap">
+            <% if (sComplete > 0) { %>
+            <span class="text-xs font-bold px-3 py-1.5 rounded-full badge-complete">
+              ✓ <%= sComplete %> flujo<%= sComplete !== 1 ? 's' : '' %>
+            </span>
+            <% } %>
+            <% if (sRef > 0) { %>
+            <span class="text-xs font-bold px-3 py-1.5 rounded-full badge-reference">
+              &#x1F4D6; <%= sRef %> ref.
+            </span>
+            <% } %>
+            <% if (sWip > 0) { %>
+            <span class="text-xs font-bold px-3 py-1.5 rounded-full badge-wip">
+              &#x1F527; <%= sWip %> WIP
+            </span>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cards grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+        <% section.processes.forEach(proc => {
+             const isFlow     = flowList.includes(proc.id);
+             const isRef      = proc.status === 'reference';
+             const isComplete = proc.status === 'complete';
+             const isPlanned  = proc.status === 'planned';
+             const isWip      = proc.status === 'wip';
+             const clickable  = isFlow || isRef;
+             const href       = isFlow ? `/sop/${proc.id}` : isRef ? `/sop/ref/${proc.id}` : '#';
+             const statusLabel  = { complete: 'Disponible', reference: 'Referencia', wip: 'En desarrollo', planned: 'Próximamente' }[proc.status] || '';
+             const badgeClass   = `badge-${proc.status}`;
+             const statusBg     = { complete: '#DCFCE7', reference: '#EFF6FF', wip: '#FEF9C3', planned: '#F1F5F9' }[proc.status] || '#F1F5F9';
+             const statusColor  = { complete: '#15803D', reference: '#1D4ED8', wip: '#A16207', planned: '#64748B' }[proc.status] || '#64748B';
+        %>
+        <a href="<%= href %>"
+           class="proc-card-v2 proc-item <%= clickable ? 'clickable' : '' %> p-5"
+           style="--card-color:<%= section.color %>;"
+           onclick="<%= isWip || isPlanned ? 'return false' : '' %>"
+           data-name="<%= proc.name.toLowerCase() %>"
+           data-desc="<%= proc.description.toLowerCase() %>">
+
+          <!-- Top row: status badge (prominent) + step count -->
+          <div class="flex items-start justify-between mb-4">
+            <span class="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-1.5"
+                  style="background:<%= statusBg %>; color:<%= statusColor %>">
+              <% if (isComplete) { %><span>&#x2714;</span><% } else if (isRef) { %><span>&#x1F4D6;</span><% } else if (isWip) { %><span>&#x1F527;</span><% } else { %><span>&#x23F3;</span><% } %>
+              <%= statusLabel %>
+            </span>
+            <% if (proc.steps) { %>
+            <span class="text-xs text-slate-400 font-bold bg-slate-100 px-2.5 py-1 rounded-lg"><%= proc.steps %> pasos</span>
+            <% } %>
+          </div>
+
+          <!-- Name -->
+          <h3 class="text-base font-extrabold text-slate-900 leading-snug mb-2"><%= proc.name %></h3>
+
+          <!-- Description (2 lines max) -->
+          <p class="text-sm text-slate-500 leading-relaxed line-clamp-2 mb-5" style="-webkit-line-clamp:2; display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden;"><%= proc.description %></p>
+
+          <!-- CTA -->
+          <div class="flex items-center gap-1.5 mt-auto pt-3 border-t border-slate-100">
+            <% if (isFlow) { %>
+            <span class="text-sm font-bold flex items-center gap-1.5" style="color:<%= section.color %>">
+              Ver flujo interactivo
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <% } else if (isRef) { %>
+            <span class="text-sm font-bold flex items-center gap-1.5" style="color:<%= section.color %>">
+              Ver referencia
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <% } else if (isWip) { %>
+            <span class="text-xs text-amber-500 font-semibold">En construcción — disponible pronto</span>
+            <% } else { %>
+            <span class="text-xs text-slate-400 font-medium">Próximamente</span>
+            <% } %>
+          </div>
+        </a>
+        <% }) %>
+      </div>
+    </div>
+    <% }) %>
+
+    <!-- Empty search state -->
+    <div id="emptySearch" class="hidden text-center py-16">
+      <div class="text-4xl mb-3">&#x1F50D;</div>
+      <div class="text-slate-600 font-semibold">No se encontraron procesos</div>
+      <div class="text-sm text-slate-400 mt-1">Intent&aacute; con otro t&eacute;rmino</div>
+    </div>
   </div>
 </div>
 

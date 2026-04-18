@@ -150,6 +150,13 @@
     .edge-arrow-handoff {
       fill: #f59e0b;
     }
+    .edge-parallel {
+      stroke: #94A3B8;
+      stroke-width: 1.5;
+      stroke-dasharray: 6,3;
+      fill: none;
+      opacity: 0.75;
+    }
 
     /* ── Detail panel ───────────────────────────────────────────────────────── */
     #detailPanel {
@@ -399,7 +406,97 @@
   </div>
 </div>
 
+<!-- View toggle tabs -->
+<div class="px-5 pb-4">
+  <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+    <button id="view-visual-btn" onclick="switchSopView('visual')"
+            class="px-4 py-2 rounded-lg text-sm font-bold transition-all bg-white shadow text-slate-900">
+      &#x1F5FA; Flujo Visual
+    </button>
+    <button id="view-written-btn" onclick="switchSopView('written')"
+            class="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">
+      &#x1F4C4; Procedimiento Escrito
+    </button>
+  </div>
+</div>
+
+<!-- Written procedure view -->
+<div id="sop-written-view" class="hidden max-w-4xl mx-auto px-5 py-8 space-y-8">
+  <% steps.forEach((step, idx) => { %>
+  <div id="written-step-<%= step.id %>" class="written-step bg-white rounded-2xl border border-slate-200 p-6 cursor-pointer hover:border-blue-300 transition-colors"
+       onclick="jumpToVisualStep('<%= step.id %>')"
+       style="border-left: 4px solid <%= step.laneColor %>">
+
+    <!-- Step number + title -->
+    <div class="flex items-start justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black text-white flex-shrink-0"
+              style="background: <%= step.laneColor %>"><%= idx+1 %></span>
+        <div>
+          <h2 class="text-lg font-extrabold text-slate-900"><%= step.label %></h2>
+          <p class="text-sm text-slate-500"><%= step.sublabel %></p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold"><%= step.time %></span>
+        <span class="text-xs text-blue-600 font-semibold hover:text-blue-800 cursor-pointer" onclick="event.stopPropagation(); jumpToVisualStep('<%= step.id %>')">&#x2192; Ver en flujo</span>
+      </div>
+    </div>
+
+    <p class="text-sm text-slate-700 leading-relaxed mb-4"><%= step.description %></p>
+
+    <% if (step.substeps && step.substeps.length) { %>
+    <div class="mb-4">
+      <div class="text-xs font-bold uppercase tracking-wide text-slate-400 mb-2">Pasos</div>
+      <ol class="space-y-1">
+        <% step.substeps.forEach((sub, si) => { %>
+        <li class="flex items-start gap-2 text-sm text-slate-700">
+          <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 flex-shrink-0 mt-0.5"><%= si+1 %></span>
+          <%= sub %>
+        </li>
+        <% }) %>
+      </ol>
+    </div>
+    <% } %>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+      <% if (step.inputs && step.inputs.length) { %>
+      <div class="bg-blue-50 rounded-lg p-3">
+        <div class="font-bold text-blue-700 mb-1">&#x1F4E5; Entradas</div>
+        <ul class="space-y-0.5 text-blue-600"><% step.inputs.forEach(inp => { %><li>• <%= inp %></li><% }) %></ul>
+      </div>
+      <% } %>
+      <% if (step.outputs && step.outputs.length) { %>
+      <div class="bg-green-50 rounded-lg p-3">
+        <div class="font-bold text-green-700 mb-1">&#x1F4E4; Salidas</div>
+        <ul class="space-y-0.5 text-green-600"><% step.outputs.forEach(out => { %><li>• <%= out %></li><% }) %></ul>
+      </div>
+      <% } %>
+      <% if (step.tools && step.tools.length) { %>
+      <div class="bg-slate-50 rounded-lg p-3">
+        <div class="font-bold text-slate-600 mb-1">&#x1F6E0; Herramientas</div>
+        <ul class="space-y-0.5 text-slate-500"><% step.tools.forEach(t => { %><li>• <%= t %></li><% }) %></ul>
+      </div>
+      <% } %>
+    </div>
+
+    <% const writtenHandoffs = step.handoffs || (step.handoff ? [{ role: step.handoff }] : []); %>
+    <% if (writtenHandoffs.length) { %>
+    <div class="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2">
+      <% writtenHandoffs.forEach(h => { %>
+      <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+        &#x1F501; Handoff &#x2192; <%= h.role %>
+        <% if (h.linkedProcess) { %><a href="/sop/<%= h.linkedProcess %>" class="underline ml-1" onclick="event.stopPropagation()">ver proceso &#x2192;</a><% } %>
+      </span>
+      <% }) %>
+    </div>
+    <% } %>
+  </div>
+  <% }) %>
+</div>
+
 <!-- Main swimlane canvas -->
+<div id="sop-visual-view">
 <div class="px-5 pb-8">
   <div class="sop-scroll-wrap" id="canvasWrap">
     <!-- Scroll hint gradient -->
@@ -456,24 +553,27 @@
           <marker id="arrowHandoff" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M0,0 L0,6 L8,3 z" class="edge-arrow-handoff"/>
           </marker>
+          <marker id="arrowParallel" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#94A3B8"/>
+          </marker>
         </defs>
 
         <% edges.forEach(edge => { %>
-        <% const isHandoff = edge.type === 'handoff'; %>
+        <% const isHandoff = edge.type === 'handoff'; const isParallel = edge.type === 'parallel'; %>
 
         <!-- Path definition (hidden, used as mpath ref) -->
         <path id="<%= edge.id %>" d="<%= edge.path %>" fill="none" stroke="none"/>
 
         <!-- Visible edge line -->
         <path d="<%= edge.path %>"
-              class="<%= isHandoff ? 'edge-handoff' : 'edge-normal' %>"
-              marker-end="url(#<%= isHandoff ? 'arrowHandoff' : 'arrowNormal' %>)"
+              class="<%= isHandoff ? 'edge-handoff' : isParallel ? 'edge-parallel' : 'edge-normal' %>"
+              marker-end="url(#<%= isHandoff ? 'arrowHandoff' : isParallel ? 'arrowParallel' : 'arrowNormal' %>)"
               <%- isHandoff ? 'filter="url(#glowAmber)"' : '' %> />
 
         <!-- Animated particle -->
-        <circle r="<%= isHandoff ? 5 : 3.5 %>" class="edge-particle"
-                fill="<%= isHandoff ? '#f59e0b' : '#94a3b8' %>"
-                opacity="<%= isHandoff ? 0.95 : 0.7 %>">
+        <circle r="<%= isHandoff ? 5 : isParallel ? 3 : 3.5 %>" class="edge-particle"
+                fill="<%= isHandoff ? '#f59e0b' : isParallel ? '#94A3B8' : '#94a3b8' %>"
+                opacity="<%= isHandoff ? 0.95 : isParallel ? 0.6 : 0.7 %>">
           <animateMotion dur="<%= edge.dur %>" repeatCount="indefinite" rotate="auto">
             <mpath href="#<%= edge.id %>"/>
           </animateMotion>
@@ -492,11 +592,22 @@
       </svg>
 
       <!-- Step cards -->
+      <%
+      const forkStepIds = new Set();
+      const edgeCountByFrom = {};
+      edges.forEach(e => { edgeCountByFrom[e.from] = (edgeCountByFrom[e.from]||0)+1; });
+      Object.entries(edgeCountByFrom).forEach(([id,cnt]) => { if(cnt > 1) forkStepIds.add(id); });
+      %>
       <% steps.forEach((s, i) => { %>
       <div class="step-card"
-           id="card-<%= s.id %>"
-           style="left: <%= s.bounds.left %>px; top: <%= s.bounds.top %>px; border-left-color: <%= s.laneColor %>;"
+           id="step-<%= s.id %>"
+           style="left: <%= s.bounds.left %>px; top: <%= s.bounds.top %>px; border-left-color: <%= s.laneColor %>; position: relative;"
            onclick="selectStep('<%= s.id %>')">
+
+        <!-- Fork badge (parallel branches) -->
+        <% if (forkStepIds.has(s.id)) { %>
+        <div class="absolute -top-1 -right-1 w-5 h-5 bg-violet-500 rounded-full flex items-center justify-center text-white text-[9px] font-black z-10" title="Este paso inicia flujos paralelos">&#x22D4;</div>
+        <% } %>
 
         <!-- Step number + handoff badge -->
         <div class="flex items-center justify-between">
@@ -542,8 +653,18 @@
       <span>Handoff de rol</span>
     </div>
     <div class="flex items-center gap-2">
+      <svg width="36" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6 3" opacity="0.75"/>
+        <polygon points="28,1 32,4 28,7" fill="#94A3B8"/>
+      </svg>
+      <span>Flujo paralelo</span>
+    </div>
+    <div class="flex items-center gap-2">
       <span class="card-handoff-badge">→ PM</span>
       <span>Traspaso explícito</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="w-5 h-5 bg-violet-500 rounded-full flex items-center justify-center text-white text-[9px] font-black">&#x22D4;</span>
+      <span>Fork paralelo</span>
     </div>
     <% lanes.forEach(l => { %>
     <div class="flex items-center gap-2">
@@ -553,6 +674,7 @@
     <% }) %>
   </div>
 </div>
+</div><!-- /sop-visual-view -->
 
 <!-- ── Detail Panel ──────────────────────────────────────────────────────────── -->
 <div id="detailPanel">
@@ -778,7 +900,7 @@ function closePanel() {
   document.getElementById('panelBackdrop').classList.remove('open');
   // Deselect card
   if (selectedId) {
-    document.getElementById('card-' + selectedId)?.classList.remove('selected');
+    document.getElementById('step-' +selectedId)?.classList.remove('selected');
     document.getElementById('dot-' + selectedId)?.classList.remove('active');
     selectedId = null;
     updateIndicator(null);
@@ -790,7 +912,7 @@ function closePanel() {
 function selectStep(stepId) {
   // Deselect previous
   if (selectedId && selectedId !== stepId) {
-    document.getElementById('card-' + selectedId)?.classList.remove('selected');
+    document.getElementById('step-' +selectedId)?.classList.remove('selected');
     document.getElementById('dot-' + selectedId)?.classList.remove('active');
   }
 
@@ -804,7 +926,7 @@ function selectStep(stepId) {
 
   // Visual card state
   STEPS.forEach(step => {
-    const card = document.getElementById('card-' + step.id);
+    const card = document.getElementById('step-' +step.id);
     if (!card) return;
     if (step.id === stepId) {
       card.classList.add('selected');
@@ -845,7 +967,7 @@ function selectStep(stepId) {
 
 function restoreAllCards() {
   STEPS.forEach(s => {
-    const card = document.getElementById('card-' + s.id);
+    const card = document.getElementById('step-' +s.id);
     if (card) card.classList.remove('dimmed', 'selected');
   });
   STEPS.forEach((s, i) => {
@@ -922,7 +1044,7 @@ function toggleChecklistMode() {
 
   // Add/remove check badges on each card
   STEPS.forEach(s => {
-    const card = document.getElementById('card-' + s.id);
+    const card = document.getElementById('step-' +s.id);
     if (!card) return;
     if (checklistMode) {
       if (!card.querySelector('.check-badge')) {
@@ -954,7 +1076,7 @@ function toggleCheck(stepId) {
     checkedSteps.add(stepId);
   }
   localStorage.setItem(CL_KEY, JSON.stringify([...checkedSteps]));
-  const card  = document.getElementById('card-' + stepId);
+  const card  = document.getElementById('step-' +stepId);
   const badge = card?.querySelector('.check-badge');
   if (badge) {
     badge.classList.toggle('checked', checkedSteps.has(stepId));
@@ -1028,6 +1150,46 @@ openPanel = function(stepId) {
 if (checkedSteps.size > 0) {
   updateProgress();
 }
+
+// ── Dual view: Visual / Written ───────────────────────────────────────────────
+function switchSopView(mode) {
+  const visual  = document.getElementById('sop-visual-view');
+  const written = document.getElementById('sop-written-view');
+  const vBtn    = document.getElementById('view-visual-btn');
+  const wBtn    = document.getElementById('view-written-btn');
+  if (mode === 'visual') {
+    visual.classList.remove('hidden');
+    written.classList.add('hidden');
+    vBtn.classList.add('bg-white','shadow','text-slate-900');
+    vBtn.classList.remove('text-slate-500');
+    wBtn.classList.remove('bg-white','shadow','text-slate-900');
+    wBtn.classList.add('text-slate-500');
+  } else {
+    written.classList.remove('hidden');
+    visual.classList.add('hidden');
+    wBtn.classList.add('bg-white','shadow','text-slate-900');
+    wBtn.classList.remove('text-slate-500');
+    vBtn.classList.remove('bg-white','shadow','text-slate-900');
+    vBtn.classList.add('text-slate-500');
+  }
+  localStorage.setItem('sopView', mode);
+}
+
+function jumpToVisualStep(stepId) {
+  switchSopView('visual');
+  setTimeout(() => {
+    const card = document.getElementById('step-' + stepId);
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.style.boxShadow = '0 0 0 3px #3B82F6, 0 0 20px rgba(59,130,246,0.4)';
+      setTimeout(() => { card.style.boxShadow = ''; }, 2000);
+    }
+  }, 100);
+}
+
+// On load: restore preferred view
+const savedView = localStorage.getItem('sopView');
+if (savedView) switchSopView(savedView);
 </script>
 
 </body>

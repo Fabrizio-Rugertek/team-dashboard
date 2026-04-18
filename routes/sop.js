@@ -12,7 +12,7 @@ const express  = require('express');
 const router   = express.Router();
 const { PROCESSES, ENCYCLOPEDIA, REFERENCE_PAGES } = require('../src/sop-data');
 
-const FLOW_PROCESSES = Object.keys(PROCESSES);   // have swimlane views
+const FLOW_PROCESSES = [...Object.keys(PROCESSES), 'organigrama'];
 const REF_PAGES      = Object.keys(REFERENCE_PAGES || {});
 
 // Process metadata for display
@@ -68,6 +68,18 @@ router.get('/ref/:pageId', (req, res) => {
   });
 });
 
+// ── Organigrama ───────────────────────────────────────────────────────────────
+router.get('/organigrama', (req, res) => {
+  const sopData = require('../src/sop-data');
+  const orgData = sopData.ORG_DATA || {};
+  res.render('sop/organigrama', {
+    title:       'Organigrama — Torus SOPs',
+    user:        req.user || null,
+    orgData,
+    orgDataJSON: JSON.stringify(orgData),
+  });
+});
+
 // ── Flow pages ────────────────────────────────────────────────────────────────
 router.get('/:processId', (req, res) => {
   const { processId } = req.params;
@@ -77,7 +89,12 @@ router.get('/:processId', (req, res) => {
     return res.redirect(`/sop/ref/${processId}`);
   }
 
-  if (!FLOW_PROCESSES.includes(processId)) {
+  // organigrama has its own route above; redirect if somehow caught here
+  if (processId === 'organigrama') {
+    return res.redirect('/sop/organigrama');
+  }
+
+  if (!FLOW_PROCESSES.includes(processId) || !PROCESSES[processId]) {
     return res.status(404).render('platform/404');
   }
 
