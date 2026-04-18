@@ -1,0 +1,254 @@
+{
+  "id": "desarrollo",
+  "name": "Desarrollo a Medida",
+  "description": "Pipeline técnico estándar para customizaciones y desarrollos.",
+  "lanes": [
+    {
+      "id": "pm",
+      "label": "PM / Funcional",
+      "color": "#8B5CF6",
+      "bg": "#F5F3FF",
+      "row": 0
+    },
+    {
+      "id": "dev",
+      "label": "Desarrollador",
+      "color": "#EC4899",
+      "bg": "#FDF2F8",
+      "row": 1
+    },
+    {
+      "id": "qa",
+      "label": "QA / Validación",
+      "color": "#10B981",
+      "bg": "#ECFDF5",
+      "row": 2
+    }
+  ],
+  "steps": [
+    {
+      "id": "d1",
+      "col": 1,
+      "lane": 0,
+      "label": "Especificación",
+      "sublabel": "Ticket + requerimiento",
+      "time": "1-2 días",
+      "stage": "DEF",
+      "description": "El PM o consultor funcional documenta el requerimiento técnico completo. Sin especificación aprobada, el desarrollador no comienza.",
+      "substeps": [
+        "Crear ticket en Odoo Proyectos (tipo: BUG / MEJORA / DEV)",
+        "Documentar: qué se necesita, por qué, qué debe hacer exactamente",
+        "Incluir mockups, ejemplos o capturas si aplica",
+        "Definir criterios de aceptación (cómo se sabe que está listo)",
+        "Revisar y aprobar la especificación con el PM y el cliente"
+      ],
+      "inputs": [
+        "Necesidad del cliente o bug identificado",
+        "Contexto del proceso"
+      ],
+      "outputs": [
+        "Ticket creado en Odoo",
+        "Especificación aprobada",
+        "Criterios de aceptación definidos"
+      ],
+      "tools": [
+        "Odoo Proyectos",
+        "Google Docs",
+        "Figma (si hay UI)"
+      ],
+      "tips": [
+        "El desarrollador tiene derecho a rechazar un ticket sin especificación clara",
+        "Criterios de aceptación claros = menos ciclos de revisión"
+      ],
+      "mistakes": [
+        "Dar instrucciones verbales sin documentar",
+        "Especificación ambigua que el dev interpreta a su criterio"
+      ]
+    },
+    {
+      "id": "d2",
+      "col": 2,
+      "lane": 1,
+      "label": "Desarrollo",
+      "sublabel": "Implementación técnica",
+      "time": "Según estimación",
+      "stage": "DEV",
+      "description": "El desarrollador implementa la funcionalidad siguiendo los estándares de Odoo y las buenas prácticas del equipo. Hace commits frecuentes.",
+      "substeps": [
+        "Crear branch de feature en Git",
+        "Implementar siguiendo la especificación",
+        "Probar localmente (unit test si aplica)",
+        "Hacer commits descriptivos con referencia al ticket",
+        "Abrir Pull Request para code review"
+      ],
+      "inputs": [
+        "Especificación aprobada",
+        "Acceso al repositorio",
+        "Ambiente de desarrollo local"
+      ],
+      "outputs": [
+        "Código implementado en branch",
+        "PR abierta para review"
+      ],
+      "tools": [
+        "VS Code / PyCharm",
+        "Git / GitHub",
+        "Odoo (local)"
+      ],
+      "tips": [
+        "Commits pequeños y frecuentes — facilitan el review y el rollback",
+        "Si hay duda sobre la especificación, preguntar al PM antes de implementar"
+      ],
+      "mistakes": [
+        "Trabajar en main/master directamente",
+        "Commits sin descripción",
+        "Implementar sin revisar la especificación completa"
+      ]
+    },
+    {
+      "id": "d3",
+      "col": 3,
+      "lane": 1,
+      "label": "Deploy Staging",
+      "sublabel": "Ambiente de pruebas",
+      "time": "< 1 día",
+      "stage": "DEPLOY stg",
+      "description": "Deploy del desarrollo en el ambiente de staging del cliente para validación funcional.",
+      "substeps": [
+        "Merge de PR aprobada a branch staging",
+        "Deploy en Odoo staging del cliente",
+        "Verificar que el módulo carga sin errores",
+        "Documentar en el ticket: versión deployed, pasos para probar",
+        "Notificar al consultor funcional para que inicie la validación"
+      ],
+      "inputs": [
+        "PR aprobada",
+        "Acceso al staging del cliente"
+      ],
+      "outputs": [
+        "Código en staging",
+        "Consultor funcional notificado para validar"
+      ],
+      "tools": [
+        "Git / GitHub",
+        "Odoo (staging)",
+        "Odoo Proyectos (ticket)"
+      ],
+      "tips": [
+        "Siempre verificar que el módulo instala correctamente antes de notificar",
+        "Incluir instrucciones de prueba en el ticket"
+      ],
+      "mistakes": [
+        "Deploy sin verificar instalación",
+        "No notificar al funcional para validar"
+      ]
+    },
+    {
+      "id": "d4",
+      "col": 4,
+      "lane": 2,
+      "label": "Validación",
+      "sublabel": "QA + cliente",
+      "time": "1-3 días",
+      "stage": "TEST",
+      "description": "El consultor funcional valida que el desarrollo cumple exactamente los criterios de aceptación. Si hay ajustes, el ciclo vuelve al desarrollo.",
+      "substeps": [
+        "Consultor funcional prueba el desarrollo con los criterios de aceptación",
+        "Si hay bugs o ajustes: documentar en el ticket y regresar a DEV",
+        "Si está OK: presentar al cliente para validación final",
+        "Cliente aprueba el desarrollo",
+        "Consultor firma off en el ticket: \"Validado — listo para producción\""
+      ],
+      "inputs": [
+        "Desarrollo en staging",
+        "Criterios de aceptación",
+        "Especificación original"
+      ],
+      "outputs": [
+        "Desarrollo validado por funcional y cliente",
+        "Sign-off en el ticket"
+      ],
+      "tools": [
+        "Odoo (staging)",
+        "Zoom (demo al cliente)",
+        "Odoo Proyectos"
+      ],
+      "tips": [
+        "Validar contra los criterios de aceptación, no contra lo que \"parece correcto\"",
+        "Si el cliente pide cambios nuevos durante la validación → nuevo ticket, no ampliar este"
+      ],
+      "mistakes": [
+        "Validar sin criterios formales",
+        "Aceptar scope creep durante la validación"
+      ],
+      "handoffs": [
+        {
+          "role": "Desarrollador",
+          "linkedStep": "d2",
+          "description": "Si hay ajustes, regresa al desarrollo con los comentarios específicos documentados"
+        }
+      ]
+    },
+    {
+      "id": "d5",
+      "col": 5,
+      "lane": 1,
+      "label": "Deploy Producción",
+      "sublabel": "Release final",
+      "time": "< 1 día",
+      "stage": "DEPLOY prod",
+      "description": "Deploy del desarrollo validado en el sistema productivo del cliente. Se verifica el funcionamiento y se cierra el ticket.",
+      "substeps": [
+        "Merge de staging a main/production branch",
+        "Deploy en Odoo producción del cliente",
+        "Verificar funcionamiento en producción",
+        "Notificar al cliente que la funcionalidad está disponible",
+        "Cerrar el ticket en Odoo Proyectos"
+      ],
+      "inputs": [
+        "Sign-off de validación",
+        "Acceso a producción del cliente"
+      ],
+      "outputs": [
+        "Funcionalidad en producción",
+        "Ticket cerrado",
+        "Cliente notificado"
+      ],
+      "tools": [
+        "Git / GitHub",
+        "Odoo (producción)",
+        "Email"
+      ],
+      "tips": [
+        "Deploy preferentemente en horario de baja actividad del cliente",
+        "Mantener el tag de la versión en Git para poder hacer rollback"
+      ],
+      "mistakes": [
+        "Deploy en horario pico del cliente",
+        "No notificar al cliente que el feature está disponible"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "d1",
+      "to": "d2",
+      "type": "handoff"
+    },
+    {
+      "from": "d2",
+      "to": "d3",
+      "type": "normal"
+    },
+    {
+      "from": "d3",
+      "to": "d4",
+      "type": "handoff"
+    },
+    {
+      "from": "d4",
+      "to": "d5",
+      "type": "normal"
+    }
+  ]
+}

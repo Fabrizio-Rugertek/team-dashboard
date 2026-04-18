@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+
+    /* ── Canvas ──────────────────────────────────────────────────────────────── */
+    #editor-canvas-wrap {
+      overflow-x: auto;
+      overflow-y: visible;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      position: relative;
+      min-height: 200px;
+    }
+    #sop-canvas {
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    /* ── Lane bands ──────────────────────────────────────────────────────────── */
+    .lane-band { position: absolute; left: 0; width: 100%; }
+    .lane-label {
+      position: absolute; left: 0;
+      display: flex; align-items: center; justify-content: center;
+      writing-mode: vertical-lr; transform: rotate(180deg);
+      font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase;
+      border-right: 1px solid #e2e8f0; cursor: pointer;
+    }
+    .lane-add-btn {
+      position: absolute; left: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: #94a3b8; cursor: pointer;
+      transition: color .15s;
+      writing-mode: horizontal-tb; transform: none;
+    }
+    .lane-add-btn:hover { color: #6366f1; }
+
+    /* ── Step cards ──────────────────────────────────────────────────────────── */
+    .sop-card {
+      position: absolute;
+      background: white;
+      border-radius: 10px;
+      border: 1.5px solid #e2e8f0;
+      border-left-width: 4px;
+      cursor: grab;
+      user-select: none;
+      transition: box-shadow .15s, transform .15s;
+      padding: 10px 12px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .sop-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.1); transform: translateY(-1px); }
+    .sop-card.selected { box-shadow: 0 0 0 2px #3B82F6, 0 4px 20px rgba(59,130,246,.25) !important; border-color: #3B82F6 !important; transform: translateY(-2px); }
+    .sop-card.dragging { opacity: 0.4; cursor: grabbing; }
+    .card-label { font-size: 12.5px; font-weight: 800; color: #0f172a; line-height: 1.2; }
+    .card-sublabel { font-size: 10px; color: #64748b; line-height: 1.3; flex: 1; }
+
+    /* ── SVG overlay ─────────────────────────────────────────────────────────── */
+    .svg-overlay {
+      position: absolute; top: 0; left: 0;
+      pointer-events: none; overflow: visible;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────────────── */
+    #editor-sidebar {
+      width: 300px; flex-shrink: 0;
+      background: white; border-left: 1px solid #e2e8f0;
+      height: calc(100vh - 120px); overflow-y: auto;
+      scrollbar-width: thin;
+      padding: 16px;
+    }
+    .sidebar-section { margin-bottom: 20px; }
+    .sidebar-section-title {
+      font-size: 10px; font-weight: 800; text-transform: uppercase;
+      letter-spacing: .06em; color: #94a3b8; margin-bottom: 8px;
+    }
+
+    /* ── Form controls ───────────────────────────────────────────────────────── */
+    .ed-input {
+      width: 100%; padding: 7px 10px; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; font-size: 13px; color: #1e293b; font-family: 'Inter', sans-serif;
+      transition: border-color .15s; outline: none;
+      background: white;
+    }
+    .ed-input:focus { border-color: #3B82F6; }
+    .ed-label { font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 4px; display: block; }
+    .ed-textarea {
+      width: 100%; padding: 7px 10px; border: 1.5px solid #e2e8f0;
+      border-radius: 8px; font-size: 12px; color: #1e293b; font-family: 'Inter', sans-serif;
+      transition: border-color .15s; outline: none; resize: vertical; min-height: 80px;
+      background: white;
+    }
+    .ed-textarea:focus { border-color: #3B82F6; }
+
+    /* ── Tabs ────────────────────────────────────────────────────────────────── */
+    .tab-btn {
+      flex: 1; padding: 8px 4px; border-radius: 8px; font-size: 12px; font-weight: 700;
+      cursor: pointer; transition: all .15s; text-align: center; border: none;
+      color: #64748b; background: transparent;
+    }
+    .tab-btn.active { background: white; color: #1e293b; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Bottom save bar ─────────────────────────────────────────────────────── */
+    #save-bar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+      background: white; border-top: 1px solid #e2e8f0;
+      padding: 12px 20px;
+      display: flex; align-items: center; gap-12px;
+    }
+
+    /* ── Edge table ──────────────────────────────────────────────────────────── */
+    .edge-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+    .edge-row:last-child { border-bottom: none; }
+
+    /* ── Lane manager ────────────────────────────────────────────────────────── */
+    .lane-row { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-bottom: 1px solid #f1f5f9; }
+    .lane-row:last-child { border-bottom: none; }
+    .lane-color-swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgba(0,0,0,.1); cursor: pointer; flex-shrink: 0; }
+
+    /* ── AI tab ──────────────────────────────────────────────────────────────── */
+    #ai-status { font-size: 12px; color: #64748b; margin-top: 6px; min-height: 18px; }
+
+    /* ── Written tab ─────────────────────────────────────────────────────────── */
+    .written-step-editor { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+    .written-step-editor:hover { border-color: #cbd5e1; }
+
+    /* ── Drag ghost ──────────────────────────────────────────────────────────── */
+    #drag-ghost {
+      position: fixed; pointer-events: none; z-index: 9999; opacity: 0.5;
+      background: white; border-radius: 10px; border: 2px dashed #3B82F6;
+      padding: 10px 12px; font-size: 12px; font-weight: 700; color: #1e293b;
+      box-shadow: 0 8px 24px rgba(59,130,246,.3);
+    }
+    .drop-indicator {
+      position: absolute; pointer-events: none; z-index: 10;
+      border: 2px dashed #3B82F6; border-radius: 10px;
+      background: rgba(59,130,246,.06);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen" style="padding-bottom: 64px;">
+
+<!-- Nav -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-full px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2 flex-wrap">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-7 w-auto">
+      <span class="text-slate-300">/</span>
+      <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600">Dashboard</a>
+      <span class="text-slate-300">/</span>
+      <a href="/sop" class="text-slate-400 text-sm font-medium hover:text-slate-600">SOPs</a>
+      <span class="text-slate-300">/</span>
+      <a href="/sop/<%= processId %>" class="text-slate-500 text-sm font-medium hover:text-slate-700"><%= processName %></a>
+      <span class="text-slate-300">/</span>
+      <span class="text-sm font-bold text-violet-700">Editor</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span id="dirty-badge" class="hidden text-xs font-bold px-2 py-1 rounded bg-amber-100 text-amber-700">Sin guardar</span>
+      <% if (typeof user !== 'undefined' && user) { %>
+      <span class="text-xs font-medium text-slate-600 hidden sm:block"><%= user.name || user.email %></span>
+      <% } %>
+    </div>
+  </div>
+</nav>
+
+<!-- Page header -->
+<div class="px-5 pt-5 pb-3 flex items-center justify-between flex-wrap gap-3">
+  <div>
+    <h1 class="text-xl font-black text-slate-900">Editor — <%= processName %></h1>
+    <p class="text-xs text-slate-500 mt-0.5">Arrastrá tarjetas para mover · Click para editar · Los cambios se guardan con el botón al pie</p>
+  </div>
+  <a href="/sop/<%= processId %>" class="text-xs font-bold px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors">
+    ← Ver proceso
+  </a>
+</div>
+
+<!-- Tab bar -->
+<div class="px-5 pb-3">
+  <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+    <button class="tab-btn active" id="tab-visual-btn" onclick="switchTab('visual')">&#x1F5FA; Visual</button>
+    <button class="tab-btn" id="tab-written-btn" onclick="switchTab('written')">&#x1F4C4; Escrito</button>
+    <button class="tab-btn" id="tab-ai-btn" onclick="switchTab('ai')">&#x1F916; IA</button>
+  </div>
+</div>
+
+<!-- ── VISUAL TAB ──────────────────────────────────────────────────────────── -->
+<div id="tab-visual" class="tab-panel active px-5">
+  <div class="flex gap-4 items-start">
+
+    <!-- Canvas area -->
+    <div class="flex-1 min-w-0">
+      <div id="editor-canvas-wrap">
+        <div id="sop-canvas"></div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div id="editor-sidebar">
+
+      <!-- Empty state -->
+      <div id="sidebar-empty" class="text-center py-10">
+        <div class="text-3xl mb-2">&#x1F4CB;</div>
+        <p class="text-sm text-slate-500 font-medium">Hacé click en una tarjeta para editarla</p>
+        <p class="text-xs text-slate-400 mt-1">O arrastrá tarjetas para reorganizar el flujo</p>
+      </div>
+
+      <!-- Step editor (hidden until card selected) -->
+      <div id="sidebar-step" class="hidden">
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">Paso seleccionado</div>
+          <div class="space-y-3">
+            <div>
+              <label class="ed-label">Etiqueta</label>
+              <input type="text" id="ed-label" class="ed-input" oninput="updateSelectedStep('label', this.value)">
+            </div>
+            <div>
+              <label class="ed-label">Sublabel</label>
+              <input type="text" id="ed-sublabel" class="ed-input" oninput="updateSelectedStep('sublabel', this.value)">
+            </div>
+            <div>
+              <label class="ed-label">Lane (carril)</label>
+              <select id="ed-lane" class="ed-input" onchange="updateSelectedStep('lane', parseInt(this.value))"></select>
+            </div>
+            <div>
+              <label class="ed-label">Columna (col)</label>
+              <input type="number" id="ed-col" class="ed-input" min="1" oninput="updateSelectedStep('col', parseInt(this.value)||1)">
+            </div>
+            <div>
+              <label class="ed-label">Descripción</label>
+              <textarea id="ed-desc" class="ed-textarea" rows="4" oninput="updateSelectedStep('description', this.value)"></textarea>
+            </div>
+          </div>
+        </div>
+        <button onclick="deleteSelectedStep()"
+                class="w-full py-2 rounded-lg bg-red-50 text-red-600 font-bold text-xs hover:bg-red-100 transition-colors border border-red-200">
+          Eliminar paso
+        </button>
+      </div>
+
+      <!-- Lane manager (always at bottom of sidebar) -->
+      <div class="sidebar-section mt-6">
+        <div class="sidebar-section-title">Carriles</div>
+        <div id="lane-manager"></div>
+        <button onclick="addLane()"
+                class="mt-3 w-full py-1.5 rounded-lg bg-slate-50 text-slate-600 font-bold text-xs hover:bg-slate-100 transition-colors border border-slate-200">
+          + Agregar carril
+        </button>
+      </div>
+
+    </div><!-- /sidebar -->
+  </div>
+
+  <!-- Edge manager -->
+  <div class="mt-4 bg-white rounded-xl border border-slate-200 p-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-xs font-bold uppercase tracking-wide text-slate-400">Conexiones (Edges)</div>
+      <button onclick="addEdge()"
+              class="text-xs font-bold px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors">
+        + Agregar
+      </button>
+    </div>
+    <div id="edge-manager"></div>
+  </div>
+</div>
+
+<!-- ── WRITTEN TAB ─────────────────────────────────────────────────────────── -->
+<div id="tab-written" class="tab-panel px-5">
+  <div class="max-w-3xl">
+    <p class="text-xs text-slate-500 mb-4">Editá las descripciones de cada paso del procedimiento escrito.</p>
+    <div id="written-editor"></div>
+  </div>
+</div>
+
+<!-- ── AI TAB ──────────────────────────────────────────────────────────────── -->
+<div id="tab-ai" class="tab-panel px-5">
+  <div class="max-w-2xl">
+    <p class="text-sm text-slate-600 mb-4 leading-relaxed">
+      Describí el proceso en lenguaje natural y la IA generará un diagrama de carriles completo.
+      Revisá el resultado antes de aplicarlo al proceso actual.
+    </p>
+    <div class="space-y-3">
+      <div>
+        <label class="ed-label">Descripción del proceso</label>
+        <textarea id="ai-description" class="ed-textarea" rows="7"
+                  placeholder="Ej: El proceso comienza cuando un cliente reporta un bug. El equipo de soporte lo recibe, clasifica la severidad y lo asigna al técnico correspondiente. El técnico lo reproduce en staging, aplica la corrección, la valida con el funcional y hace el deploy a producción..."></textarea>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="generateAI()" id="ai-btn"
+                class="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-colors flex items-center gap-2">
+          <span>&#x1F916;</span> Generar con IA
+        </button>
+        <div id="ai-status"></div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div id="ai-preview" class="hidden mt-6">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-sm font-bold text-slate-700">Vista previa generada</div>
+        <button onclick="applyAI()"
+                class="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors flex items-center gap-2">
+          &#x2713; Aplicar al proceso
+        </button>
+      </div>
+      <div class="bg-white border border-slate-200 rounded-xl overflow-x-auto p-3">
+        <div id="ai-canvas-container"></div>
+      </div>
+      <p class="text-xs text-slate-400 mt-2">Revisá el diagrama antes de aplicar. Esta acción reemplaza los pasos, carriles y conexiones actuales.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Save bar ────────────────────────────────────────────────────────────── -->
+<div id="save-bar" class="flex items-center gap-3 px-5 py-3">
+  <button id="save-btn" onclick="save()"
+          class="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-white font-bold text-sm transition-colors flex items-center gap-2">
+    <span>&#x1F4BE;</span> Guardar cambios
+  </button>
+  <span id="save-status" class="text-xs text-slate-500"></span>
+  <div class="flex-1"></div>
+  <span class="text-xs text-slate-400">Proceso: <strong class="text-slate-600"><%= processId %></strong></span>
+</div>
+
+<!-- Drag ghost -->
+<div id="drag-ghost" style="display:none;"></div>
+
+<!-- ─────────────────────────────────────────────────────────────────────────── -->
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const LANE_W = 120;
+const COL_W  = 180;
+const ROW_H  = 170;
+const CARD_W = 148;
+const CARD_H = 120;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let sopData       = JSON.parse('<%- rawJSON %>');
+let selectedStepId = null;
+let isDirty       = false;
+let dragState     = null;
+let previewData   = null;
+let currentTab    = 'visual';
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function markDirty() {
+  isDirty = true;
+  document.getElementById('dirty-badge').classList.remove('hidden');
+}
+
+function esc(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Card position math ────────────────────────────────────────────────────────
+function cardLeft(col) { return LANE_W + (col - 1) * COL_W + (COL_W - CARD_W) / 2; }
+function cardTop(lane) { return lane * ROW_H + (ROW_H - CARD_H) / 2; }
+function cardCx(col)   { return cardLeft(col)  + CARD_W / 2; }
+function cardCy(lane)  { return cardTop(lane)  + CARD_H / 2; }
+
+function canvasSize(steps, lanes) {
+  const maxCol  = Math.max(...steps.map(s => s.col), 1);
+  return {
+    W: LANE_W + maxCol * COL_W + 20,
+    H: lanes.length * ROW_H,
+  };
+}
+
+// ── SVG edge path ─────────────────────────────────────────────────────────────
+function edgePath(fromStep, toStep) {
+  const x1 = cardLeft(fromStep.col) + CARD_W;
+  const y1 = cardCy(fromStep.lane);
+  const x2 = cardLeft(toStep.col);
+  const y2 = cardCy(toStep.lane);
+  if (fromStep.lane === toStep.lane) return `M ${x1} ${y1} L ${x2} ${y2}`;
+  const mx = Math.round((x1 + x2) / 2);
+  return `M ${x1} ${y1} C ${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`;
+}
+
+// ── Render canvas ─────────────────────────────────────────────────────────────
+function renderCanvas(data, containerId, editable) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const { W, H } = canvasSize(data.steps, data.lanes);
+  const stepMap = {};
+  data.steps.forEach(s => { stepMap[s.id] = s; });
+
+  // Build HTML
+  let html = `<div id="${editable ? 'sop-canvas' : 'ai-sop-canvas'}" style="position:relative;width:${W}px;height:${H}px;flex-shrink:0;">`;
+
+  // Lane bands
+  data.lanes.forEach((lane, li) => {
+    html += `<div class="lane-band" style="top:${li*ROW_H}px;height:${ROW_H}px;background:${lane.bg};opacity:0.6;"></div>`;
+  });
+
+  // Lane grid lines
+  for (let li = 1; li < data.lanes.length; li++) {
+    html += `<div style="position:absolute;left:0;right:0;top:${li*ROW_H}px;height:1px;background:#e2e8f0;"></div>`;
+  }
+
+  // Column divider after lane label area
+  html += `<div style="position:absolute;top:0;bottom:0;left:${LANE_W}px;width:1px;background:#e2e8f0;"></div>`;
+
+  // Lane labels
+  data.lanes.forEach((lane, li) => {
+    if (editable) {
+      html += `<div class="lane-label" style="top:${li*ROW_H}px;height:${ROW_H}px;width:${LANE_W}px;color:${lane.color};background:${lane.bg};" title="Click: editar carril">${esc(lane.label)}</div>`;
+      // Add step button (small + badge at bottom of lane sidebar)
+      html += `<div class="lane-add-btn" style="top:${li*ROW_H + ROW_H - 30}px;height:24px;width:${LANE_W}px;" onclick="addStep(${li})" title="Agregar paso en este carril">＋</div>`;
+    } else {
+      html += `<div class="lane-label" style="top:${li*ROW_H}px;height:${ROW_H}px;width:${LANE_W}px;color:${lane.color};background:${lane.bg};">${esc(lane.label)}</div>`;
+    }
+  });
+
+  // SVG edges
+  html += `<svg style="position:absolute;top:0;left:0;overflow:visible;pointer-events:none;" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  html += `<defs>
+    <marker id="${editable?'ed':'ai'}arrowNormal" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#cbd5e1"/>
+    </marker>
+    <marker id="${editable?'ed':'ai'}arrowHandoff" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="${editable?'ed':'ai'}arrowParallel" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#94A3B8"/>
+    </marker>
+  </defs>`;
+
+  data.edges.forEach(edge => {
+    const from = stepMap[edge.from];
+    const to   = stepMap[edge.to];
+    if (!from || !to) return;
+    const d = edgePath(from, to);
+    const prefix = editable ? 'ed' : 'ai';
+    if (edge.type === 'handoff') {
+      html += `<path d="${d}" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" marker-end="url(#${prefix}arrowHandoff)"/>`;
+    } else if (edge.type === 'parallel') {
+      html += `<path d="${d}" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.75" marker-end="url(#${prefix}arrowParallel)"/>`;
+    } else {
+      html += `<path d="${d}" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 6" marker-end="url(#${prefix}arrowNormal)"/>`;
+    }
+  });
+  html += `</svg>`;
+
+  // Step cards
+  data.steps.forEach(step => {
+    const lane = data.lanes[step.lane] || {};
+    const l    = cardLeft(step.col);
+    const t    = cardTop(step.lane);
+    const selClass = (editable && step.id === selectedStepId) ? ' selected' : '';
+    const evts = editable
+      ? `onmousedown="onCardMousedown(event,'${step.id}')" onclick="selectStep('${step.id}')" data-id="${step.id}"`
+      : '';
+    html += `<div class="sop-card${selClass}" id="card-${step.id}" ${evts}
+      style="left:${l}px;top:${t}px;width:${CARD_W}px;height:${CARD_H}px;border-left-color:${lane.color||'#e2e8f0'};">
+      <div class="card-label">${esc(step.label)}</div>
+      <div class="card-sublabel">${esc(step.sublabel||'')}</div>
+    </div>`;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+// ── Full re-render ─────────────────────────────────────────────────────────────
+function renderAll() {
+  renderCanvas(sopData, 'editor-canvas-wrap', true);
+  renderEdgeManager();
+  renderLaneManager();
+  if (currentTab === 'written') renderWrittenEditor();
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.getElementById('tab-' + tab + '-btn').classList.add('active');
+  if (tab === 'written') renderWrittenEditor();
+}
+
+// ── Step selection ────────────────────────────────────────────────────────────
+function selectStep(stepId) {
+  if (selectedStepId === stepId) {
+    selectedStepId = null;
+    renderAll();
+    showSidebarEmpty();
+    return;
+  }
+  selectedStepId = stepId;
+  renderAll();
+  renderSidebar();
+}
+
+function showSidebarEmpty() {
+  document.getElementById('sidebar-empty').classList.remove('hidden');
+  document.getElementById('sidebar-step').classList.add('hidden');
+}
+
+function renderSidebar() {
+  const step = sopData.steps.find(s => s.id === selectedStepId);
+  if (!step) { showSidebarEmpty(); return; }
+
+  document.getElementById('sidebar-empty').classList.add('hidden');
+  document.getElementById('sidebar-step').classList.remove('hidden');
+
+  document.getElementById('ed-label').value   = step.label    || '';
+  document.getElementById('ed-sublabel').value = step.sublabel || '';
+  document.getElementById('ed-desc').value     = step.description || '';
+  document.getElementById('ed-col').value      = step.col;
+
+  // Populate lane select
+  const laneSelect = document.getElementById('ed-lane');
+  laneSelect.innerHTML = sopData.lanes.map((l, i) =>
+    `<option value="${i}" ${step.lane === i ? 'selected' : ''}>${l.label}</option>`
+  ).join('');
+}
+
+function updateSelectedStep(field, value) {
+  const step = sopData.steps.find(s => s.id === selectedStepId);
+  if (!step) return;
+  step[field] = value;
+  markDirty();
+  // Re-render canvas (but not sidebar to avoid cursor loss)
+  renderCanvas(sopData, 'editor-canvas-wrap', true);
+  renderEdgeManager();
+  renderLaneManager();
+}
+
+function deleteSelectedStep() {
+  if (!selectedStepId) return;
+  if (!confirm('¿Eliminar este paso? También se eliminarán sus conexiones.')) return;
+  sopData.steps  = sopData.steps.filter(s => s.id !== selectedStepId);
+  sopData.edges  = sopData.edges.filter(e => e.from !== selectedStepId && e.to !== selectedStepId);
+  selectedStepId = null;
+  markDirty();
+  renderAll();
+  showSidebarEmpty();
+}
+
+// ── Add step ──────────────────────────────────────────────────────────────────
+function addStep(laneIndex) {
+  const stepsInLane = sopData.steps.filter(s => s.lane === laneIndex);
+  const col = stepsInLane.length > 0 ? Math.max(...stepsInLane.map(s => s.col)) + 1 : 1;
+  const id  = 's' + Date.now();
+  sopData.steps.push({ id, label: 'Nuevo paso', sublabel: '', lane: laneIndex, col, description: '' });
+  selectedStepId = id;
+  markDirty();
+  renderAll();
+  renderSidebar();
+}
+
+// ── Lane manager ──────────────────────────────────────────────────────────────
+function renderLaneManager() {
+  const container = document.getElementById('lane-manager');
+  if (!container) return;
+  let html = '';
+  sopData.lanes.forEach((lane, i) => {
+    const stepsInLane = sopData.steps.filter(s => s.lane === i).length;
+    html += `<div class="lane-row">
+      <input type="color" value="${lane.color}" title="Color principal"
+             onchange="updateLane(${i},'color',this.value);updateLaneBg(${i},this.value)"
+             class="lane-color-swatch" style="background:${lane.color};border:none;padding:0;cursor:pointer;">
+      <input type="text" value="${esc(lane.label)}" class="ed-input flex-1" style="font-size:12px;padding:4px 7px;"
+             oninput="updateLane(${i},'label',this.value)" placeholder="Nombre del carril">
+      <button onclick="moveLaneUp(${i})" title="Subir" class="text-slate-400 hover:text-slate-700 text-xs px-1" ${i===0?'disabled':''}>&#x25B2;</button>
+      <button onclick="moveLaneDown(${i})" title="Bajar" class="text-slate-400 hover:text-slate-700 text-xs px-1" ${i===sopData.lanes.length-1?'disabled':''}>&#x25BC;</button>
+      <button onclick="deleteLane(${i})" title="Eliminar${stepsInLane>0?' (tiene pasos)':''}"
+              class="text-red-300 hover:text-red-600 text-xs px-1 ${stepsInLane>0?'opacity-40 cursor-not-allowed':''}"
+              ${stepsInLane>0?'disabled':''}>&#x2715;</button>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function updateLane(index, field, value) {
+  if (!sopData.lanes[index]) return;
+  sopData.lanes[index][field] = value;
+  markDirty();
+  renderCanvas(sopData, 'editor-canvas-wrap', true);
+}
+
+function updateLaneBg(index, colorHex) {
+  // Auto-generate a light bg from the chosen color by blending with white
+  // We just keep the existing bg unless user changes it
+  markDirty();
+}
+
+function moveLaneUp(index) {
+  if (index === 0) return;
+  [sopData.lanes[index-1], sopData.lanes[index]] = [sopData.lanes[index], sopData.lanes[index-1]];
+  // Update step lane indices
+  sopData.steps.forEach(s => {
+    if (s.lane === index)   s.lane = index - 1;
+    else if (s.lane === index - 1) s.lane = index;
+  });
+  markDirty(); renderAll();
+}
+
+function moveLaneDown(index) {
+  if (index >= sopData.lanes.length - 1) return;
+  [sopData.lanes[index], sopData.lanes[index+1]] = [sopData.lanes[index+1], sopData.lanes[index]];
+  sopData.steps.forEach(s => {
+    if (s.lane === index)   s.lane = index + 1;
+    else if (s.lane === index + 1) s.lane = index;
+  });
+  markDirty(); renderAll();
+}
+
+function deleteLane(index) {
+  if (sopData.steps.some(s => s.lane === index)) {
+    alert('No se puede eliminar un carril que tiene pasos. Movelos o eliminlos primero.');
+    return;
+  }
+  sopData.lanes.splice(index, 1);
+  // Re-number lanes for steps above the removed one
+  sopData.steps.forEach(s => { if (s.lane > index) s.lane--; });
+  markDirty(); renderAll();
+}
+
+function addLane() {
+  const colors = ['#3B82F6','#D97706','#8B5CF6','#10B981','#EC4899','#64748B'];
+  const bgs    = ['#EFF6FF','#FFFBEB','#F5F3FF','#ECFDF5','#FDF2F8','#F8FAFC'];
+  const i      = sopData.lanes.length % colors.length;
+  const id     = 'lane' + Date.now();
+  sopData.lanes.push({ id, label: 'Nuevo carril', color: colors[i], bg: bgs[i], row: sopData.lanes.length });
+  markDirty(); renderAll();
+}
+
+// ── Edge manager ──────────────────────────────────────────────────────────────
+function renderEdgeManager() {
+  const container = document.getElementById('edge-manager');
+  if (!container) return;
+
+  const stepOptions = sopData.steps.map(s =>
+    `<option value="${s.id}">${esc(s.label)}</option>`
+  ).join('');
+
+  if (sopData.edges.length === 0) {
+    container.innerHTML = '<p class="text-xs text-slate-400 py-2">No hay conexiones. Agregá una con el botón +</p>';
+    return;
+  }
+
+  let html = '';
+  sopData.edges.forEach((edge, i) => {
+    html += `<div class="edge-row">
+      <select class="ed-input flex-1" style="font-size:11px;padding:3px 6px;" onchange="updateEdge(${i},'from',this.value)">
+        ${sopData.steps.map(s => `<option value="${s.id}" ${s.id===edge.from?'selected':''}>${esc(s.label)}</option>`).join('')}
+      </select>
+      <span class="text-slate-400 text-xs flex-shrink-0">→</span>
+      <select class="ed-input flex-1" style="font-size:11px;padding:3px 6px;" onchange="updateEdge(${i},'to',this.value)">
+        ${sopData.steps.map(s => `<option value="${s.id}" ${s.id===edge.to?'selected':''}>${esc(s.label)}</option>`).join('')}
+      </select>
+      <select class="ed-input" style="font-size:11px;padding:3px 6px;width:90px;" onchange="updateEdge(${i},'type',this.value)">
+        <option value="normal"   ${edge.type==='normal'  ?'selected':''}>normal</option>
+        <option value="handoff"  ${edge.type==='handoff' ?'selected':''}>handoff</option>
+        <option value="parallel" ${edge.type==='parallel'?'selected':''}>paralelo</option>
+      </select>
+      <button onclick="deleteEdge(${i})" class="text-red-300 hover:text-red-600 text-sm flex-shrink-0 ml-1">&#x2715;</button>
+    </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function updateEdge(index, field, value) {
+  if (!sopData.edges[index]) return;
+  sopData.edges[index][field] = value;
+  markDirty();
+  renderCanvas(sopData, 'editor-canvas-wrap', true);
+}
+
+function deleteEdge(index) {
+  sopData.edges.splice(index, 1);
+  markDirty();
+  renderCanvas(sopData, 'editor-canvas-wrap', true);
+  renderEdgeManager();
+}
+
+function addEdge() {
+  if (sopData.steps.length < 2) { alert('Necesitás al menos 2 pasos para agregar una conexión.'); return; }
+  sopData.edges.push({ from: sopData.steps[0].id, to: sopData.steps[1].id, type: 'normal' });
+  markDirty();
+  renderCanvas(sopData, 'editor-canvas-wrap', true);
+  renderEdgeManager();
+}
+
+// ── Written editor ────────────────────────────────────────────────────────────
+function renderWrittenEditor() {
+  const container = document.getElementById('written-editor');
+  if (!container) return;
+
+  const sorted = [...sopData.steps].sort((a, b) =>
+    a.lane !== b.lane ? a.lane - b.lane : a.col - b.col
+  );
+
+  let html = '';
+  sorted.forEach((step) => {
+    const lane = sopData.lanes[step.lane] || {};
+    html += `<div class="written-step-editor" style="border-left: 4px solid ${lane.color||'#e2e8f0'};">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-black flex-shrink-0"
+              style="background:${lane.color||'#94a3b8'}">${esc(step.col)}</span>
+        <span class="font-bold text-sm text-slate-900">${esc(step.label)}</span>
+        <span class="text-xs text-slate-400">(${esc(lane.label||'')})</span>
+      </div>
+      <textarea class="ed-textarea" rows="3" style="font-size:12px;"
+                placeholder="Descripción de lo que ocurre en este paso..."
+                oninput="updateStepField('${step.id}','description',this.value)">${esc(step.description||'')}</textarea>
+    </div>`;
+  });
+
+  container.innerHTML = html || '<p class="text-xs text-slate-400">No hay pasos.</p>';
+}
+
+function updateStepField(stepId, field, value) {
+  const step = sopData.steps.find(s => s.id === stepId);
+  if (!step) return;
+  step[field] = value;
+  markDirty();
+}
+
+// ── Drag and drop ─────────────────────────────────────────────────────────────
+let _clickThreshold = 5;
+let _mouseDownPos   = null;
+
+function onCardMousedown(e, stepId) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  _mouseDownPos = { x: e.clientX, y: e.clientY, stepId };
+
+  const card = document.getElementById('card-' + stepId);
+  if (!card) return;
+  const rect = card.getBoundingClientRect();
+
+  dragState = {
+    stepId,
+    offsetX: e.clientX - rect.left,
+    offsetY: e.clientY - rect.top,
+    started: false,
+    ghost:   null,
+  };
+
+  document.addEventListener('mousemove', onDocMouseMove, { once: false });
+  document.addEventListener('mouseup',   onDocMouseUp,   { once: true });
+}
+
+function onDocMouseMove(e) {
+  if (!dragState) return;
+
+  const dx = Math.abs(e.clientX - _mouseDownPos.x);
+  const dy = Math.abs(e.clientY - _mouseDownPos.y);
+
+  if (!dragState.started && (dx > _clickThreshold || dy > _clickThreshold)) {
+    dragState.started = true;
+    // Create ghost
+    const step = sopData.steps.find(s => s.id === dragState.stepId);
+    const ghost = document.getElementById('drag-ghost');
+    ghost.textContent = step ? step.label : '';
+    ghost.style.display = 'block';
+    ghost.style.width = CARD_W + 'px';
+    ghost.style.height = CARD_H + 'px';
+    dragState.ghost = ghost;
+    // Dim original card
+    const card = document.getElementById('card-' + dragState.stepId);
+    if (card) card.classList.add('dragging');
+  }
+
+  if (dragState.started && dragState.ghost) {
+    dragState.ghost.style.left = (e.clientX - dragState.offsetX) + 'px';
+    dragState.ghost.style.top  = (e.clientY - dragState.offsetY) + 'px';
+  }
+}
+
+function onDocMouseUp(e) {
+  document.removeEventListener('mousemove', onDocMouseMove);
+
+  if (!dragState) return;
+  const wasStarted = dragState.started;
+
+  if (dragState.ghost) {
+    dragState.ghost.style.display = 'none';
+  }
+
+  // Un-dim
+  const card = document.getElementById('card-' + dragState.stepId);
+  if (card) card.classList.remove('dragging');
+
+  if (wasStarted) {
+    // Drop: compute new lane/col from mouse position relative to canvas wrap
+    const canvasWrap = document.getElementById('editor-canvas-wrap');
+    const rect = canvasWrap.getBoundingClientRect();
+    // Offset for scroll
+    const relX = e.clientX - rect.left + canvasWrap.scrollLeft - dragState.offsetX + CARD_W / 2;
+    const relY = e.clientY - rect.top  + canvasWrap.scrollTop  - dragState.offsetY + CARD_H / 2;
+
+    const newCol  = Math.max(1, Math.round((relX - LANE_W) / COL_W) + 1);
+    const newLane = Math.max(0, Math.min(sopData.lanes.length - 1, Math.floor(relY / ROW_H)));
+
+    // Check collision
+    const collision = sopData.steps.find(s =>
+      s.id !== dragState.stepId && s.lane === newLane && s.col === newCol
+    );
+
+    if (!collision) {
+      const step = sopData.steps.find(s => s.id === dragState.stepId);
+      if (step) {
+        step.lane = newLane;
+        step.col  = newCol;
+        markDirty();
+        renderAll();
+        if (selectedStepId === dragState.stepId) renderSidebar();
+      }
+    }
+  }
+  // If not started — click was handled by onclick
+
+  dragState = null;
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function save() {
+  const btn    = document.getElementById('save-btn');
+  const status = document.getElementById('save-status');
+  btn.disabled = true;
+  btn.innerHTML = '&#x23F3; Guardando...';
+  status.textContent = '';
+
+  try {
+    const res = await fetch('/api/sop/<%= processId %>/raw', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(sopData),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Error al guardar');
+
+    isDirty = false;
+    document.getElementById('dirty-badge').classList.add('hidden');
+    btn.innerHTML = '&#x2713; Guardado';
+    btn.style.background = '#10b981';
+    status.textContent = 'Guardado correctamente';
+    setTimeout(() => {
+      btn.innerHTML    = '&#x1F4BE; Guardar cambios';
+      btn.style.background = '';
+      btn.disabled     = false;
+      status.textContent = '';
+    }, 2200);
+  } catch (e) {
+    btn.innerHTML    = '&#x2715; Error';
+    btn.style.background = '#ef4444';
+    status.textContent   = e.message;
+    setTimeout(() => {
+      btn.innerHTML    = '&#x1F4BE; Guardar cambios';
+      btn.style.background = '';
+      btn.disabled     = false;
+    }, 3000);
+  }
+}
+
+// ── AI generation ─────────────────────────────────────────────────────────────
+async function generateAI() {
+  const desc   = document.getElementById('ai-description').value.trim();
+  if (!desc) { alert('Escribí una descripción del proceso primero.'); return; }
+  const btn    = document.getElementById('ai-btn');
+  const status = document.getElementById('ai-status');
+  btn.disabled = true;
+  btn.innerHTML = '&#x23F3; Generando...';
+  status.textContent = '';
+  document.getElementById('ai-preview').classList.add('hidden');
+
+  try {
+    const res = await fetch('/api/sop/ai-generate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ description: desc, lanes: sopData.lanes }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+
+    previewData = json.generated;
+    const container = document.getElementById('ai-canvas-container');
+    container.innerHTML = '';
+    renderCanvas(previewData, 'ai-canvas-container', false);
+    document.getElementById('ai-preview').classList.remove('hidden');
+    status.textContent = '✓ Generado — revisá el diagrama antes de aplicar';
+    status.style.color = '#10b981';
+  } catch (e) {
+    status.textContent = '✗ Error: ' + e.message;
+    status.style.color = '#ef4444';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '&#x1F916; Generar con IA';
+  }
+}
+
+function applyAI() {
+  if (!previewData) return;
+  if (!confirm('¿Reemplazar los pasos, carriles y conexiones actuales con el resultado de la IA?')) return;
+  sopData.lanes = previewData.lanes;
+  sopData.steps = previewData.steps;
+  sopData.edges = previewData.edges;
+  selectedStepId = null;
+  previewData    = null;
+  markDirty();
+  renderAll();
+  showSidebarEmpty();
+  switchTab('visual');
+}
+
+// ── Keyboard shortcuts ────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { selectedStepId = null; renderAll(); showSidebarEmpty(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(); }
+});
+
+// ── Warn before leaving with unsaved changes ──────────────────────────────────
+window.addEventListener('beforeunload', e => {
+  if (isDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderAll();
+showSidebarEmpty();
+</script>
+</body>
+</html>

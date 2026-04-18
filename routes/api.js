@@ -222,4 +222,100 @@ router.get('/equipo/scrum', async (req, res) => {
   }
 });
 
+// ── SOP Editor API ────────────────────────────────────────────────────────────
+const { requireRole } = require('../middleware/requireAuth');
+const sopLoader = require('../src/sop-loader');
+
+// GET raw SOP data (for editor)
+router.get('/sop/:id/raw', (req, res) => {
+  const raw = sopLoader.loadRaw(req.params.id);
+  if (!raw) return res.status(404).json({ error: 'Not found' });
+  res.json(raw);
+});
+
+// PUT save SOP data
+router.put('/sop/:id/raw', requireRole('director'), express.json(), (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = req.body;
+    if (!data || !data.steps || !data.lanes || !data.edges) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    sopLoader.saveRaw(id, { ...data, id });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[SOP API] save error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST AI generation
+router.post('/sop/ai-generate', requireRole('director'), express.json(), async (req, res) => {
+  try {
+    const { description, lanes } = req.body;
+    if (!description) return res.status(400).json({ error: 'description required' });
+
+    const lanesContext = lanes ? JSON.stringify(lanes) : '[]';
+    const prompt = `You are a business process designer. Convert this description into a swimlane flowchart JSON.
+
+Process description: ${description}
+
+${lanes && lanes.length > 0 ? `Existing lanes (keep these if appropriate): ${lanesContext}` : ''}
+
+Return ONLY valid JSON (no markdown, no explanation) matching this exact schema:
+{
+  "lanes": [
+    {"id": "role1", "label": "Role Name", "color": "#3B82F6", "bg": "#EFF6FF", "row": 0}
+  ],
+  "steps": [
+    {"id": "s1", "label": "Step Name", "sublabel": "Tool or note", "lane": 0, "col": 1, "description": "What happens in this step"}
+  ],
+  "edges": [
+    {"from": "s1", "to": "s2", "type": "normal"}
+  ]
+}
+
+Rules:
+- lane is the row INDEX (0-based integer matching lanes array index)
+- col starts at 1 (1-based integer, no two steps can share same lane+col)
+- Edge types: "normal" (same lane), "handoff" (lane change), "parallel" (dashed, concurrent/optional)
+- Use 4-8 steps max, keep it concise
+- Use professional Spanish for labels
+- Colors: blue #3B82F6/#EFF6FF, orange #D97706/#FFFBEB, purple #8B5CF6/#F5F3FF, green #10B981/#ECFDF5, pink #EC4899/#FDF2F8`;
+
+    const response = await fetch('http://localhost:18789/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        max_tokens: 2000,
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`OpenClaw error ${response.status}: ${err.slice(0, 200)}`);
+    }
+
+    const aiRes = await response.json();
+    const text = aiRes.choices?.[0]?.message?.content || '';
+
+    // Extract JSON from response (handle if wrapped in markdown)
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No JSON in AI response');
+
+    const generated = JSON.parse(jsonMatch[0]);
+    if (!generated.lanes || !generated.steps || !generated.edges) {
+      throw new Error('Invalid structure in AI response');
+    }
+
+    res.json({ ok: true, generated });
+  } catch (e) {
+    console.error('[SOP AI] error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

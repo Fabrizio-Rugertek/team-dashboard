@@ -1,0 +1,317 @@
+{
+  "id": "scrum",
+  "name": "Scrum Sprint Cycle",
+  "description": "Ciclo de sprint Scrum: refinamiento, planning, daily, review, retro.",
+  "lanes": [
+    {
+      "id": "sm",
+      "label": "Scrum Master / PM",
+      "color": "#8B5CF6",
+      "bg": "#F5F3FF",
+      "row": 0
+    },
+    {
+      "id": "dev",
+      "label": "Dev Team / Consultores",
+      "color": "#3B82F6",
+      "bg": "#EFF6FF",
+      "row": 1
+    },
+    {
+      "id": "po",
+      "label": "Product Owner / Cliente",
+      "color": "#10B981",
+      "bg": "#ECFDF5",
+      "row": 2
+    }
+  ],
+  "steps": [
+    {
+      "id": "sc1",
+      "col": 1,
+      "lane": 0,
+      "label": "Refinamiento",
+      "sublabel": "Backlog grooming pre-sprint",
+      "time": "1-2h / semana",
+      "stage": "Pre-Sprint",
+      "description": "El PM/Scrum Master trabaja con el Product Owner para preparar el backlog del próximo sprint. Se priorizan historias, se estiman story points y se definen criterios de aceptación antes de la planning.",
+      "substeps": [
+        "Revisar el backlog en Odoo: historias sin story points o criterios incompletos",
+        "Reunión de refinamiento: SM + PO + (opcionally) Dev Team (max 1-2h)",
+        "Asignar story points usando escala Fibonacci: 1, 2, 3, 5, 8, 13",
+        "Definir criterios de aceptación (Definition of Done) para cada historia",
+        "Priorizar el backlog: las más importantes arriba, listas para la planning",
+        "Identificar dependencias entre historias y bloqueos potenciales"
+      ],
+      "inputs": [
+        "Backlog de Odoo sin refinar",
+        "Roadmap del producto",
+        "Feedback de sprints anteriores"
+      ],
+      "outputs": [
+        "Backlog priorizado y refinado",
+        "Story points asignados",
+        "Criterios de aceptación definidos"
+      ],
+      "tools": [
+        "Odoo Proyectos (Sprint Board)",
+        "Google Meet",
+        "Tablero físico o digital"
+      ],
+      "tips": [
+        "Refinar solo el backlog de las próximas 2-3 semanas — no más",
+        "Si una historia tarda más de 5 minutos en estimarse, dividirla en historias más pequeñas",
+        "La Definition of Done del equipo aplica a TODAS las historias"
+      ],
+      "mistakes": [
+        "Refinar y estimar en la misma reunión que la Planning (congela el equipo)",
+        "Historias sin criterios de aceptación claros entran al sprint — siempre resulta en retrabajo"
+      ]
+    },
+    {
+      "id": "sc2",
+      "col": 2,
+      "lane": 0,
+      "label": "Sprint Planning",
+      "sublabel": "Goal + commitment del equipo",
+      "time": "1-2h",
+      "stage": "Inicio Sprint",
+      "description": "El equipo selecciona las historias del backlog que puede completar en el sprint, define el sprint goal y se compromete. La capacidad del equipo es la guía — no las expectativas externas.",
+      "substeps": [
+        "SM facilita: calcular capacity del equipo (días disponibles × horas/día)",
+        "PO presenta las historias prioritarias del backlog refinado",
+        "Dev team selecciona historias que caben en la capacity (sin sobrecargarse)",
+        "Definir el Sprint Goal: una frase que resume el objetivo del sprint",
+        "Crear las tareas de Odoo dentro de cada historia si no están creadas",
+        "Confirmar asignación de responsables por historia o tarea"
+      ],
+      "inputs": [
+        "Backlog refinado y priorizado",
+        "Capacity del equipo calculada",
+        "Sprint goal propuesto por PO"
+      ],
+      "outputs": [
+        "Sprint backlog comprometido",
+        "Sprint goal definido",
+        "Sprint creado en Odoo",
+        "Equipo alineado"
+      ],
+      "tools": [
+        "Odoo (Sprint Board)",
+        "Google Meet"
+      ],
+      "tips": [
+        "Capacity real = días hábiles × horas/día × 0.7 (descuenta reuniones, imprevistos)",
+        "El Sprint Goal debe ser alcanzable incluso si no se completan todas las historias",
+        "El Dev Team no acepta presión externa para sobrecargarse — el SM protege esto"
+      ],
+      "mistakes": [
+        "Aceptar más historias de las que caben en la capacity por presión del PO/cliente",
+        "Sprint sin Sprint Goal claro — el equipo pierde el foco",
+        "Planning de más de 2 horas — señal de backlog sin refinar"
+      ]
+    },
+    {
+      "id": "sc3",
+      "col": 3,
+      "lane": 1,
+      "label": "Daily Standup",
+      "sublabel": "15 min, 3 preguntas",
+      "time": "15 min / día",
+      "stage": "Durante Sprint",
+      "description": "Reunión diaria del Dev Team para sincronizar avances e identificar bloqueos. El SM facilita, el PO puede escuchar pero no participar activamente. Foco en el Sprint Goal, no en reportar al jefe.",
+      "substeps": [
+        "Misma hora y lugar cada día (ej: 9:15am, 15 min exactos)",
+        "Cada miembro responde 3 preguntas: ¿Qué hice ayer? ¿Qué haré hoy? ¿Tengo bloqueos?",
+        "SM anota bloqueos y se compromete a resolverlos después del standup",
+        "Actualizar el sprint board en Odoo (mover tareas entre columnas)",
+        "Si el sprint está en riesgo: SM avisa al PO inmediatamente después del daily"
+      ],
+      "inputs": [
+        "Sprint board actualizado",
+        "Estado del Sprint Goal"
+      ],
+      "outputs": [
+        "Bloqueos identificados y en gestión",
+        "Sprint board actualizado",
+        "Equipo sincronizado"
+      ],
+      "tools": [
+        "Odoo Sprint Board",
+        "Google Meet (si remoto)",
+        "Tablero físico (si presencial)"
+      ],
+      "tips": [
+        "Daily es para el Dev Team, no para el SM ni el PO — ellos escuchan",
+        "Si una discusión técnica surge, cortarla: \"Lo seguimos después del daily\"",
+        "Registrar horas en Odoo diariamente — no esperar al viernes"
+      ],
+      "mistakes": [
+        "Daily convertido en reunión de estado/reporte al manager",
+        "Más de 15 minutos — señal de que se está resolviendo en vez de solo identificar",
+        "No actualizar el sprint board — pierde sentido la ceremonia"
+      ]
+    },
+    {
+      "id": "sc4",
+      "col": 4,
+      "lane": 1,
+      "label": "Ejecución",
+      "sublabel": "Work in progress",
+      "time": "1-2 semanas",
+      "stage": "Durante Sprint",
+      "description": "El Dev Team trabaja en las historias comprometidas. El SM remueve bloqueos activamente. El equipo no acepta trabajo nuevo a mitad de sprint sin el consentimiento del SM y evaluación de impacto.",
+      "substeps": [
+        "Dev Team trabaja en las historias: una a la vez, sin multitasking entre historias",
+        "Registrar horas en Odoo diariamente por tarea (obligatorio)",
+        "WIP limit: máximo 2-3 tareas en \"In Progress\" por persona",
+        "SM monitorea el burndown: ¿el equipo va a completar el Sprint Goal?",
+        "Bloqueos escalan inmediatamente al SM — nunca esperar el daily",
+        "Si hay scope creep (PO quiere agregar cosas): SM evalúa impacto y puede rechazar"
+      ],
+      "inputs": [
+        "Sprint backlog comprometido",
+        "Capacity disponible del equipo"
+      ],
+      "outputs": [
+        "Historias completadas (Definition of Done cumplida)",
+        "Horas registradas en Odoo",
+        "Burndown actualizado"
+      ],
+      "tools": [
+        "Odoo Proyectos (Sprint Board)",
+        "Git / GitHub",
+        "VS Code"
+      ],
+      "tips": [
+        "Una historia está \"hecha\" cuando cumple la Definition of Done — no antes",
+        "Alerta 48hs: cualquier bloqueo que no puedas resolver en 48h → SM lo gestiona",
+        "No empezar nuevas historias si hay bloqueadas — resolver primero los bloqueos"
+      ],
+      "mistakes": [
+        "Marcar historias como \"Done\" sin cumplir la DoD",
+        "Aceptar trabajo nuevo a mitad del sprint sin análisis de impacto",
+        "Dejar los bloqueos para el daily en lugar de escalar inmediatamente"
+      ],
+      "handoffs": [
+        {
+          "role": "Desarrollo",
+          "linkedProcess": "desarrollo",
+          "description": "Las tareas técnicas dentro del sprint siguen el pipeline estándar: DEV → DEPLOY stg → TEST → FIX → DEPLOY prod"
+        }
+      ]
+    },
+    {
+      "id": "sc5",
+      "col": 5,
+      "lane": 2,
+      "label": "Sprint Review",
+      "sublabel": "Demo + validación del PO",
+      "time": "1h",
+      "stage": "Fin Sprint",
+      "description": "El Dev Team demuestra el trabajo completado al Product Owner y stakeholders. El PO acepta o rechaza cada historia según los criterios de aceptación. No es una reunión de status — es una demo real del incremento.",
+      "substeps": [
+        "Dev Team prepara demo del incremento (en producción o staging según acuerdo)",
+        "SM facilita: presenta el Sprint Goal y si se alcanzó",
+        "Dev Team demuestra cada historia completada con datos reales",
+        "PO acepta o rechaza cada historia (sin términos medios)",
+        "Historias rechazadas vuelven al backlog con feedback claro",
+        "PO actualiza el backlog según lo aprendido en la review"
+      ],
+      "inputs": [
+        "Incremento completado (historias que cumplen DoD)",
+        "Sprint Goal",
+        "Criterios de aceptación"
+      ],
+      "outputs": [
+        "Historias aceptadas / rechazadas",
+        "Feedback del PO incorporado al backlog",
+        "Velocity del sprint calculada"
+      ],
+      "tools": [
+        "Odoo (producción/staging)",
+        "Google Meet",
+        "Odoo Sprint Board"
+      ],
+      "tips": [
+        "Solo demostrar funcionalidades TERMINADAS — nunca demostrar trabajo en progreso",
+        "La review no es para ajustar expectativas — es para validar el incremento real",
+        "Calcular velocity del sprint: SP completados y aceptados (no los rechazados)"
+      ],
+      "mistakes": [
+        "Demostrar work in progress o funcionalidades no terminadas",
+        "PO ausente en la review — sin validación no hay ciclo cerrado",
+        "Mezclar la review con la retrospectiva — son ceremonias distintas"
+      ]
+    },
+    {
+      "id": "sc6",
+      "col": 6,
+      "lane": 0,
+      "label": "Retrospectiva",
+      "sublabel": "Mejora continua · ↺ vuelve a Refinamiento",
+      "time": "1h",
+      "stage": "Fin Sprint",
+      "description": "El Dev Team y SM reflexionan sobre el proceso del sprint para identificar mejoras concretas. Es una reunión del equipo — confidencial, sin presencia del PO ni management externo. Los action items se implementan en el próximo sprint.",
+      "substeps": [
+        "SM facilita en ambiente seguro — lo que se dice en retro queda en retro",
+        "Formato: Start / Stop / Continue (o Keep / Drop / Add)",
+        "Cada persona comparte 1-2 puntos por categoría",
+        "El equipo vota las mejoras más importantes",
+        "Seleccionar 1-3 action items concretos y asignar responsable",
+        "Action items entran como tareas al próximo sprint (no son opcionales)"
+      ],
+      "inputs": [
+        "Sprint completado y revisado",
+        "Métricas del sprint (velocity, bloqueos, burndown)"
+      ],
+      "outputs": [
+        "Action items concretos para el próximo sprint",
+        "Proceso mejorado",
+        "Equipo más cohesionado"
+      ],
+      "tools": [
+        "Google Meet",
+        "FunRetro / Miro (opcional)",
+        "Odoo (para action items)"
+      ],
+      "tips": [
+        "La retro es del equipo y para el equipo — no una sesión de quejas al management",
+        "Máximo 3 action items por sprint — más es ruido que no se implementa",
+        "Revisar al inicio de la próxima retro si los action items se cumplieron"
+      ],
+      "mistakes": [
+        "No hacer retro por \"falta de tiempo\" — es la ceremonia más importante para mejorar",
+        "Action items sin responsable ni fecha — no se implementan",
+        "Management presente en la retro — el equipo no habla con honestidad"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "sc1",
+      "to": "sc2",
+      "type": "normal"
+    },
+    {
+      "from": "sc2",
+      "to": "sc3",
+      "type": "handoff"
+    },
+    {
+      "from": "sc3",
+      "to": "sc4",
+      "type": "parallel"
+    },
+    {
+      "from": "sc4",
+      "to": "sc5",
+      "type": "handoff"
+    },
+    {
+      "from": "sc5",
+      "to": "sc6",
+      "type": "handoff"
+    }
+  ]
+}

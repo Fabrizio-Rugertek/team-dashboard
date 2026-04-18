@@ -1,0 +1,312 @@
+{
+  "id": "tareas",
+  "name": "Gestión de Tareas Odoo",
+  "description": "Proceso de creación, ejecución, validación y cierre de tareas en Odoo.",
+  "lanes": [
+    {
+      "id": "pm",
+      "label": "PM / Responsable",
+      "color": "#8B5CF6",
+      "bg": "#F5F3FF",
+      "row": 0
+    },
+    {
+      "id": "consul",
+      "label": "Consultor / Dev",
+      "color": "#3B82F6",
+      "bg": "#EFF6FF",
+      "row": 1
+    },
+    {
+      "id": "qa",
+      "label": "QA / Validador",
+      "color": "#10B981",
+      "bg": "#ECFDF5",
+      "row": 2
+    }
+  ],
+  "steps": [
+    {
+      "id": "ta1",
+      "col": 1,
+      "lane": 0,
+      "label": "Crear Tarea",
+      "sublabel": "Campos obligatorios en Odoo",
+      "time": "5-10 min",
+      "stage": "Creación",
+      "description": "El PM o consultor crea la tarea en Odoo con todos los campos requeridos antes de comenzar a trabajar. Una tarea sin campos completos no puede comenzar. La calidad de la creación determina la calidad del trabajo.",
+      "substeps": [
+        "Acceder al proyecto correcto en Odoo → Proyectos",
+        "Crear tarea con nombre descriptivo: VERBO + QUÉ + para QUIÉN/PROYECTO",
+        "Completar campos obligatorios: Tipo (BUG/MEJORA/DEV/CONSULTA), Proyecto, Asignado",
+        "Establecer Prioridad: Normal / Alta / Muy Alta (Muy Alta = sistema bloqueado)",
+        "Asignar horas estimadas en el campo \"Horas planificadas\"",
+        "Agregar descripción: contexto, qué se necesita exactamente, links relevantes",
+        "Para tareas técnicas: crear subtareas estándar (DEV → DEPLOY stg → TEST → DEPLOY prod)"
+      ],
+      "inputs": [
+        "Necesidad identificada (bug, mejora, solicitud de cliente)",
+        "Proyecto existente en Odoo"
+      ],
+      "outputs": [
+        "Tarea creada con todos los campos completos",
+        "Subtareas creadas si es técnica"
+      ],
+      "tools": [
+        "Odoo Proyectos",
+        "Google Docs (especificación si aplica)"
+      ],
+      "tips": [
+        "Nombre de tarea: \"Configurar módulo de inventario para Motor Haus\" — claro y accionable",
+        "Si la tarea va a tomar más de 8h, dividirla en subtareas o en varias tareas",
+        "Las tareas técnicas (DEV) siempre necesitan las 5 subtareas del pipeline"
+      ],
+      "mistakes": [
+        "Tareas sin horas estimadas — imposible medir avance",
+        "Descripción vacía o \"ver con Fulano\" — no es accionable",
+        "Tipo no asignado — imposible categorizar el trabajo del equipo"
+      ]
+    },
+    {
+      "id": "ta2",
+      "col": 2,
+      "lane": 0,
+      "label": "Especificar",
+      "sublabel": "Criterios de aceptación claros",
+      "time": "15-30 min",
+      "stage": "Definición",
+      "description": "Antes de asignar, el PM valida que la tarea tenga todo lo necesario para que quien la reciba pueda ejecutarla sin preguntas adicionales. El desarrollador/consultor tiene derecho a rechazar una tarea sin especificación.",
+      "substeps": [
+        "Revisar: ¿La descripción responde a QUÉ, POR QUÉ y CÓMO se valida?",
+        "Definir criterios de aceptación: \"Listo cuando X hace Y y el resultado es Z\"",
+        "Agregar mockups, capturas de pantalla o ejemplos si aplica",
+        "Para bugs: incluir pasos para reproducir + comportamiento esperado vs actual",
+        "Para DEV: incluir especificación técnica antes de que el desarrollador comience",
+        "Estimar con el consultor si las horas planificadas son realistas"
+      ],
+      "inputs": [
+        "Tarea creada",
+        "Contexto del cliente o proyecto"
+      ],
+      "outputs": [
+        "Especificación completa en la descripción",
+        "Criterios de aceptación definidos",
+        "Horas validadas"
+      ],
+      "tools": [
+        "Odoo Proyectos",
+        "Figma (si hay UI)",
+        "Loom (si necesita explicación en video)"
+      ],
+      "tips": [
+        "Una tarea bien especificada tarda 5 min en especificar y 0 min en preguntar durante la ejecución",
+        "El consultor que va a ejecutar puede y debe pedir clarificaciones antes de empezar",
+        "Criterios de aceptación concretos = menos ciclos de revisión"
+      ],
+      "mistakes": [
+        "Pasar tarea a \"En Proceso\" sin criterios de aceptación",
+        "Especificación técnica verbal sin documentar — siempre se pierde información",
+        "Aceptar \"lo mismo que antes\" como especificación"
+      ]
+    },
+    {
+      "id": "ta3",
+      "col": 3,
+      "lane": 1,
+      "label": "Ejecutar",
+      "sublabel": "Horas diarias + avance",
+      "time": "Según estimación",
+      "stage": "Ejecución",
+      "description": "El consultor o desarrollador ejecuta la tarea. Registra horas diariamente en Odoo. Actualiza el estado y las notas de progreso. Si surge un bloqueo que no puede resolver en 48h, aplica el protocolo de alerta.",
+      "substeps": [
+        "Mover la tarea a etapa \"En Proceso\" en Odoo",
+        "Trabajar siguiendo la especificación — si hay dudas, preguntar ANTES de implementar",
+        "Registrar horas en Odoo al final de cada día (no al final de la semana)",
+        "Actualizar la descripción con notas de progreso si es una tarea larga",
+        "Para tareas técnicas: seguir el pipeline DEV → DEPLOY stg → TEST → FIX → DEPLOY prod",
+        "Alerta 48hs: si hay bloqueo que no se puede resolver → notificar al PM inmediatamente"
+      ],
+      "inputs": [
+        "Tarea especificada y asignada",
+        "Acceso a los sistemas necesarios"
+      ],
+      "outputs": [
+        "Avance documentado en Odoo",
+        "Horas registradas diariamente",
+        "Tarea completada según criterios"
+      ],
+      "tools": [
+        "Odoo Proyectos",
+        "Git / GitHub (si es DEV)",
+        "Odoo (staging/producción)"
+      ],
+      "tips": [
+        "Regla de oro: horas del día = registradas hoy, nunca mañana",
+        "Si vas a exceder las horas estimadas en más del 20%, avisar al PM antes de continuar",
+        "Una tarea \"En Proceso\" no debe quedarse ahí más de X días sin actualización (X = estimación)"
+      ],
+      "mistakes": [
+        "Registrar horas en lote al final de la semana — pierde trazabilidad",
+        "Superar el 100% de las horas estimadas sin avisar al PM",
+        "Cambiar el alcance de la tarea durante la ejecución sin actualizar la especificación"
+      ]
+    },
+    {
+      "id": "ta4",
+      "col": 4,
+      "lane": 1,
+      "label": "Alerta 48hs",
+      "sublabel": "⚠ Solo si hay bloqueo",
+      "time": "< 48h de detectado",
+      "stage": "Escalamiento",
+      "description": "Si una situación no puede resolverse por decisión propia del consultor en menos de 48 horas, se registra en el Risk Log de Odoo y se notifica al PM. No esperar a que sea crisis. Es un protocolo de protección, no de penalización.",
+      "substeps": [
+        "Identificar: ¿El bloqueo puede resolverse solo en menos de 48h? → Si no, escalar",
+        "Registrar alerta en Odoo: módulo project_alert o nota interna en la tarea",
+        "Categorizar: Riesgo futuro / Problema activo / Cambio de alcance / Bloqueo/Dependencia",
+        "Notificar al PM con: descripción del bloqueo, impacto en entrega, opciones propuestas",
+        "PM responde con plan de acción: resolver, escalar, posponer, o cambiar alcance",
+        "Comunicar al cliente si el bloqueo impacta la fecha de entrega (PM decide el mensaje)"
+      ],
+      "inputs": [
+        "Bloqueo identificado en la ejecución",
+        "Tarea en riesgo de no cumplir deadline"
+      ],
+      "outputs": [
+        "Alerta registrada en Odoo",
+        "PM notificado",
+        "Plan de resolución acordado"
+      ],
+      "tools": [
+        "Odoo (Risk Log / project_alert)",
+        "WhatsApp / Google Chat (notificación urgente)"
+      ],
+      "tips": [
+        "La alerta es un protocolo de equipo — no es un fracaso personal",
+        "Mejor avisar 1 día antes que pedir disculpas 1 semana después",
+        "Si el bloqueo es del cliente (no entrega información, no valida), documentarlo siempre"
+      ],
+      "mistakes": [
+        "Esperar a que el bloqueo sea crisis para escalar",
+        "Resolver el bloqueo solo tomando decisiones fuera de alcance",
+        "No documentar el bloqueo en Odoo — queda sin trazabilidad"
+      ]
+    },
+    {
+      "id": "ta5",
+      "col": 5,
+      "lane": 2,
+      "label": "Validar",
+      "sublabel": "QA funcional o cliente",
+      "time": "1-4h",
+      "stage": "Validación",
+      "description": "El QA funcional (consultor senior o PM) valida que la tarea cumple los criterios de aceptación antes de presentarla al cliente. Si el cliente valida directamente, el consultor acompaña la sesión.",
+      "substeps": [
+        "QA revisa la tarea contra los criterios de aceptación definidos al inicio",
+        "Probar en staging con datos reales si es posible",
+        "Si hay ajustes: documentarlos en el ticket y regresar a Ejecutar (no cerrar el ciclo)",
+        "Si está OK: presentar al cliente o al PM para validación final",
+        "El cliente o PM firma off en el ticket: \"Validado — OK para cerrar\"",
+        "Para tareas técnicas: validar en producción tras deploy final"
+      ],
+      "inputs": [
+        "Tarea ejecutada",
+        "Criterios de aceptación originales",
+        "Acceso a staging/producción"
+      ],
+      "outputs": [
+        "Tarea validada con sign-off",
+        "Ajustes documentados (si los hay)",
+        "Listo para cierre"
+      ],
+      "tools": [
+        "Odoo (staging/producción)",
+        "Odoo Proyectos (ticket)",
+        "Zoom (demo al cliente)"
+      ],
+      "tips": [
+        "Validar siempre contra los criterios de aceptación del inicio — no contra lo que \"parece bien\"",
+        "Si el cliente pide cambios durante la validación → nuevo ticket, no ampliar este",
+        "Regresión básica: verificar que la tarea no rompió nada más"
+      ],
+      "mistakes": [
+        "Dar por validado sin que el cliente o PM firme off explícitamente",
+        "Aceptar scope creep durante la validación",
+        "Validar en producción sin haber probado en staging"
+      ]
+    },
+    {
+      "id": "ta6",
+      "col": 6,
+      "lane": 0,
+      "label": "Cerrar Tarea",
+      "sublabel": "Campos de cierre en Odoo",
+      "time": "5-10 min",
+      "stage": "Cierre",
+      "description": "El PM o el consultor responsable cierra formalmente la tarea en Odoo completando todos los campos de cierre. Una tarea cerrada sin los campos completos no es válida para el registro histórico del proyecto.",
+      "substeps": [
+        "Verificar que las horas efectivas están registradas correctamente",
+        "Comparar horas efectivas vs horas planificadas — anotar diferencia si >20%",
+        "Agregar nota de resolución: qué se hizo, cómo quedó, links o archivos relevantes",
+        "Mover la tarea a la etapa final (Done / Cerrado) en Odoo",
+        "Si es bug: documentar causa raíz para evitar recurrencia",
+        "Si las horas excedieron mucho el estimado: actualizar template de estimación para el futuro"
+      ],
+      "inputs": [
+        "Tarea validada con sign-off",
+        "Horas registradas durante la ejecución"
+      ],
+      "outputs": [
+        "Tarea cerrada en Odoo",
+        "Nota de resolución documentada",
+        "Horas finales registradas",
+        "Historial del proyecto actualizado"
+      ],
+      "tools": [
+        "Odoo Proyectos"
+      ],
+      "tips": [
+        "La nota de resolución es para el siguiente consultor que encuentre el mismo problema",
+        "Si cerrar la tarea activa una factura (hito), notificar a Administración antes de cerrar",
+        "Tareas con horas muy desviadas del estimado = retroalimentación para el proceso de estimación"
+      ],
+      "mistakes": [
+        "Cerrar la tarea sin nota de resolución",
+        "Dejar horas sin registrar al cerrar",
+        "Cerrar sin verificar que el cliente o PM firmó off"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "ta1",
+      "to": "ta2",
+      "type": "normal"
+    },
+    {
+      "from": "ta2",
+      "to": "ta3",
+      "type": "handoff"
+    },
+    {
+      "from": "ta3",
+      "to": "ta4",
+      "type": "parallel"
+    },
+    {
+      "from": "ta3",
+      "to": "ta5",
+      "type": "handoff"
+    },
+    {
+      "from": "ta4",
+      "to": "ta5",
+      "type": "handoff"
+    },
+    {
+      "from": "ta5",
+      "to": "ta6",
+      "type": "handoff"
+    }
+  ]
+}

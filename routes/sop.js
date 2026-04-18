@@ -3,14 +3,20 @@
  * /sop — Interactive SOP Encyclopedia.
  *
  * Routes:
- *   GET /sop                       → encyclopedia hub
- *   GET /sop/:processId            → swimlane flow for a specific process
- *   GET /sop/ref/:pageId           → rich reference pages (organigrama, roles, metodologia, catalogo-torus)
+ *   GET /sop                          → encyclopedia hub
+ *   GET /sop/editor/:processId        → visual editor (director+ only)
+ *   GET /sop/:processId               → swimlane flow for a specific process
+ *   GET /sop/ref/:pageId              → rich reference pages (organigrama, roles, metodologia, catalogo-torus)
  */
 
 const express  = require('express');
 const router   = express.Router();
-const { PROCESSES, ENCYCLOPEDIA, REFERENCE_PAGES } = require('../src/sop-data');
+const { requireRole } = require('../middleware/requireAuth');
+const sopLoader = require('../src/sop-loader');
+const { ENCYCLOPEDIA, REFERENCE_PAGES } = sopLoader;
+
+// Keep PROCESSES for the flow-process list (keys only); loader handles actual data
+const { PROCESSES } = require('../src/sop-data');
 
 const FLOW_PROCESSES = [...Object.keys(PROCESSES), 'organigrama'];
 const REF_PAGES      = Object.keys(REFERENCE_PAGES || {});
@@ -80,6 +86,23 @@ router.get('/organigrama', (req, res) => {
   });
 });
 
+// ── Editor (director+ only) ───────────────────────────────────────────────────
+router.get('/editor/:processId', requireRole('director'), (req, res) => {
+  const { processId } = req.params;
+  const raw = sopLoader.loadRaw(processId);
+  if (!raw) return res.status(404).render('platform/404');
+  const meta = PROCESS_META[processId] || { name: processId, color: '#64748B' };
+  res.render('sop/editor', {
+    title:        `Editor — ${meta.name}`,
+    user:         req.user || null,
+    processId,
+    processName:  meta.name,
+    processColor: meta.color,
+    rawJSON:      JSON.stringify(raw),
+    odooUrl:      process.env.ODOO_URL || 'https://www.torus.dev',
+  });
+});
+
 // ── Flow pages ────────────────────────────────────────────────────────────────
 router.get('/:processId', (req, res) => {
   const { processId } = req.params;
@@ -98,7 +121,10 @@ router.get('/:processId', (req, res) => {
     return res.status(404).render('platform/404');
   }
 
-  const process = PROCESSES[processId];
+  // Use loader so JSON overrides are respected
+  const compiled = sopLoader.loadProcess(processId);
+  if (!compiled) return res.status(404).render('platform/404');
+
   const meta    = PROCESS_META[processId] || { name: processId, color: '#64748b' };
 
   const section = ENCYCLOPEDIA.sections.find(s =>
@@ -112,13 +138,13 @@ router.get('/:processId', (req, res) => {
     processName:    meta.name,
     processColor:   meta.color,
     sectionName:    section ? section.name : '',
-    steps:          process.steps,
-    edges:          process.edges,
-    lanes:          process.lanes,
-    canvas:         process.canvas,
-    stepsJSON:      JSON.stringify(process.steps),
-    edgesJSON:      JSON.stringify(process.edges),
-    lanesJSON:      JSON.stringify(process.lanes),
+    steps:          compiled.steps,
+    edges:          compiled.edges,
+    lanes:          compiled.lanes,
+    canvas:         compiled.canvas,
+    stepsJSON:      JSON.stringify(compiled.steps),
+    edgesJSON:      JSON.stringify(compiled.edges),
+    lanesJSON:      JSON.stringify(compiled.lanes),
     flowProcesses:  FLOW_PROCESSES,
     processMeta:    PROCESS_META,
   });

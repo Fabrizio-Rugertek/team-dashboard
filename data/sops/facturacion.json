@@ -1,0 +1,323 @@
+{
+  "id": "facturacion",
+  "name": "Facturación y Cobros",
+  "description": "Proceso de facturación, cobros y cierre contable mensual.",
+  "lanes": [
+    {
+      "id": "admin",
+      "label": "Administración",
+      "color": "#EC4899",
+      "bg": "#FDF2F8",
+      "row": 0
+    },
+    {
+      "id": "cfo",
+      "label": "CFO / Contable",
+      "color": "#8B5CF6",
+      "bg": "#F5F3FF",
+      "row": 1
+    }
+  ],
+  "steps": [
+    {
+      "id": "f1",
+      "col": 1,
+      "lane": 0,
+      "label": "Configuración",
+      "sublabel": "Recibir condiciones del Closer",
+      "time": "1 día",
+      "stage": "Setup",
+      "description": "Admin recibe el brief de cierre del Closer con todas las condiciones de pago acordadas y configura el ciclo de facturación en Odoo.",
+      "substeps": [
+        "Recibir brief de cierre: modalidad, cuotas, fechas, contacto de facturación del cliente",
+        "Validar que la OV en Odoo refleja exactamente las condiciones acordadas",
+        "Confirmar contacto de facturación del cliente (nombre, email, RUC)",
+        "Configurar las líneas de facturación en Odoo según el plan de pagos"
+      ],
+      "inputs": [
+        "Brief de cierre del Closer",
+        "OV confirmada en Odoo",
+        "Condiciones de pago acordadas"
+      ],
+      "outputs": [
+        "Ciclo de facturación configurado",
+        "Contacto de facturación confirmado"
+      ],
+      "tools": [
+        "Odoo Facturación",
+        "Odoo Ventas"
+      ],
+      "tips": [
+        "Nunca asumir condiciones — siempre confirmar por escrito con el Closer",
+        "Si la OV no coincide con lo acordado, corregir antes de facturar"
+      ],
+      "mistakes": [
+        "Facturar sin validar la OV",
+        "No confirmar RUC del cliente para SIFEN"
+      ]
+    },
+    {
+      "id": "f2",
+      "col": 2,
+      "lane": 0,
+      "label": "Anticipo",
+      "sublabel": "Primera factura",
+      "time": "1-2 días",
+      "stage": "Facturación",
+      "description": "Emitir y enviar la factura de anticipo al cliente. El proyecto no puede comenzar hasta que el anticipo esté confirmado.",
+      "substeps": [
+        "Crear factura de anticipo en Odoo (25-50% del total)",
+        "Enviar factura al contacto de facturación del cliente",
+        "Registrar en Odoo como \"Enviada\"",
+        "Hacer seguimiento hasta confirmación de pago",
+        "Al cobrar: registrar pago en Odoo y notificar al PM para que inicie el proyecto"
+      ],
+      "inputs": [
+        "OV confirmada",
+        "Contacto de facturación del cliente"
+      ],
+      "outputs": [
+        "Factura de anticipo enviada",
+        "Pago registrado en Odoo",
+        "PM notificado para comenzar"
+      ],
+      "tools": [
+        "Odoo Facturación",
+        "SIFEN",
+        "Email"
+      ],
+      "tips": [
+        "PM no debe comenzar el proyecto hasta que el anticipo esté cobrado",
+        "El timbrado SIFEN debe estar configurado antes de emitir la primera factura"
+      ],
+      "mistakes": [
+        "Permitir que el proyecto empiece sin anticipo cobrado",
+        "No registrar el pago en Odoo inmediatamente"
+      ]
+    },
+    {
+      "id": "f3",
+      "col": 3,
+      "lane": 0,
+      "label": "Plan de Cuotas",
+      "sublabel": "Calendario de cobros",
+      "time": "1 día",
+      "stage": "Planificación",
+      "description": "Crear y documentar el calendario de facturación completo según las condiciones acordadas. Incluir fechas de vencimiento y alertas.",
+      "substeps": [
+        "Definir fechas exactas de cada cuota según el contrato",
+        "Crear las facturas futuras en Odoo (o agendar recordatorios)",
+        "Registrar en el calendario de Administration las fechas de cobro",
+        "Comunicar el calendario al cliente (confirmar que están de acuerdo)"
+      ],
+      "inputs": [
+        "Condiciones de pago acordadas",
+        "Anticipo cobrado"
+      ],
+      "outputs": [
+        "Calendario de facturación documentado",
+        "Cliente confirma el plan"
+      ],
+      "tools": [
+        "Odoo Facturación",
+        "Google Calendar"
+      ],
+      "tips": [
+        "Siempre documentar el calendario — evitar sorpresas al cliente",
+        "Para proyectos por hitos: coordinar con PM cuándo se alcanza cada hito"
+      ],
+      "mistakes": [
+        "Facturar cuotas sin calendario definido",
+        "No alinear hitos de facturación con avance real del proyecto"
+      ]
+    },
+    {
+      "id": "f4",
+      "col": 4,
+      "lane": 0,
+      "label": "Facturación Recurrente",
+      "sublabel": "Por hito o mensual",
+      "time": "Según plan",
+      "stage": "Ejecución",
+      "description": "Emitir facturas según el plan acordado: por hitos de avance del proyecto o mensualmente. Siempre coordinar con PM antes de facturar por hito.",
+      "substeps": [
+        "Confirmar con PM que el hito fue completado y validado por el cliente",
+        "Emitir factura en Odoo y enviar al cliente",
+        "Registrar como Enviada en Odoo",
+        "Seguimiento de pago: primer recordatorio a los 5 días hábiles",
+        "Segundo recordatorio a los 10 días hábiles (escalar a CFO si no hay respuesta)"
+      ],
+      "inputs": [
+        "Confirmación del PM de hito completado",
+        "Plan de facturación"
+      ],
+      "outputs": [
+        "Factura emitida y enviada",
+        "Cobro registrado en Odoo"
+      ],
+      "tools": [
+        "Odoo Facturación",
+        "SIFEN",
+        "Email"
+      ],
+      "tips": [
+        "Nunca facturar un hito sin confirmar con el PM que fue validado por el cliente",
+        "Llevar control de vencimientos en el CXC semanalmente"
+      ],
+      "mistakes": [
+        "Facturar hito antes de que el cliente lo valide",
+        "Olvidar hacer seguimiento de facturas vencidas"
+      ]
+    },
+    {
+      "id": "f5",
+      "col": 5,
+      "lane": 0,
+      "label": "Cobro y Conciliación",
+      "sublabel": "Registrar pagos",
+      "time": "Según vencimiento",
+      "stage": "Cobro",
+      "description": "Registrar cada pago recibido en Odoo y conciliar con las facturas emitidas. Mantener el CXC actualizado.",
+      "substeps": [
+        "Confirmar recepción del pago (banco / transferencia)",
+        "Registrar pago en Odoo contra la factura correspondiente",
+        "Emitir recibo si el cliente lo solicita",
+        "Actualizar estado del proyecto: hito pagado → siguiente hito desbloqueado",
+        "Reportar al CFO cualquier pago parcial o discrepancia"
+      ],
+      "inputs": [
+        "Comprobante de pago del cliente",
+        "Factura emitida en Odoo"
+      ],
+      "outputs": [
+        "Pago registrado en Odoo",
+        "CXC actualizado",
+        "Hito desbloqueado"
+      ],
+      "tools": [
+        "Odoo Facturación",
+        "Online Banking",
+        "Odoo CXC"
+      ],
+      "tips": [
+        "Registrar el pago en Odoo el mismo día que se recibe",
+        "Nunca aplicar un pago a la factura incorrecta"
+      ],
+      "mistakes": [
+        "Registrar pagos con días de demora",
+        "Confundir pagos de distintos clientes"
+      ]
+    },
+    {
+      "id": "f6",
+      "col": 6,
+      "lane": 1,
+      "label": "Revisión CFO",
+      "sublabel": "Control de revenue",
+      "time": "Mensual",
+      "stage": "Control",
+      "description": "El CFO revisa mensualmente el estado del CXC, la conciliación de pagos y el revenue reconocido vs. facturado.",
+      "substeps": [
+        "Revisar CXC: facturas pendientes por antigüedad (0-30, 31-60, 60+ días)",
+        "Validar que todos los pagos recibidos están correctamente registrados",
+        "Revisar revenue reconocido del mes vs. proyectado",
+        "Escalar cuentas vencidas >30 días al Closer responsable",
+        "Aprobar el cierre contable del mes"
+      ],
+      "inputs": [
+        "CXC del mes",
+        "Pagos registrados por Admin",
+        "Revenue proyectado"
+      ],
+      "outputs": [
+        "Informe mensual de CXC",
+        "Cuentas vencidas gestionadas",
+        "Cierre contable aprobado"
+      ],
+      "tools": [
+        "Odoo Contabilidad",
+        "Dashboard Finanzas"
+      ],
+      "tips": [
+        "CXC vencido >30% del total es señal de alerta — revisar política de cobros",
+        "Coordinar con Closer para casos de morosidad — el Closer tiene la relación con el cliente"
+      ],
+      "mistakes": [
+        "Esperar al fin de mes para revisar CXC",
+        "No escalar cuentas vencidas oportunamente"
+      ]
+    },
+    {
+      "id": "f7",
+      "col": 7,
+      "lane": 1,
+      "label": "Cierre Contable",
+      "sublabel": "Reporting mensual",
+      "time": "1-2 días",
+      "stage": "Cierre",
+      "description": "Cerrar el período contable en Odoo, generar reportes de revenue y preparar información para el dashboard ejecutivo.",
+      "substeps": [
+        "Verificar que todas las facturas del mes están emitidas y registradas",
+        "Conciliar cuentas bancarias con Odoo",
+        "Generar reporte de EERR (Estado de Resultados) del mes",
+        "Actualizar dashboard de finanzas con datos del mes",
+        "Compartir summary ejecutivo con CEO/COO"
+      ],
+      "inputs": [
+        "Todos los pagos del mes registrados",
+        "CXC conciliado",
+        "Aprobación CFO"
+      ],
+      "outputs": [
+        "EERR del mes",
+        "Dashboard actualizado",
+        "Summary ejecutivo enviado"
+      ],
+      "tools": [
+        "Odoo Contabilidad",
+        "Dashboard Finanzas",
+        "Google Sheets"
+      ],
+      "tips": [
+        "El cierre debe hacerse en los primeros 3 días hábiles del mes siguiente",
+        "Guardar una copia del EERR mensual en Google Drive"
+      ],
+      "mistakes": [
+        "Cerrar el mes sin verificar todas las facturas",
+        "No comunicar el resultado mensual al equipo directivo"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "f1",
+      "to": "f2",
+      "type": "normal"
+    },
+    {
+      "from": "f2",
+      "to": "f3",
+      "type": "normal"
+    },
+    {
+      "from": "f3",
+      "to": "f4",
+      "type": "normal"
+    },
+    {
+      "from": "f4",
+      "to": "f5",
+      "type": "normal"
+    },
+    {
+      "from": "f5",
+      "to": "f6",
+      "type": "handoff"
+    },
+    {
+      "from": "f6",
+      "to": "f7",
+      "type": "normal"
+    }
+  ]
+}

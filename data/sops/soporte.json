@@ -1,0 +1,293 @@
+{
+  "id": "soporte",
+  "name": "Soporte y Mantenimiento",
+  "description": "Gestión de tickets de soporte y mantenimiento post go-live.",
+  "lanes": [
+    {
+      "id": "client",
+      "label": "Cliente",
+      "color": "#64748B",
+      "bg": "#F8FAFC",
+      "row": 0
+    },
+    {
+      "id": "support",
+      "label": "Soporte Nivel 1",
+      "color": "#10B981",
+      "bg": "#ECFDF5",
+      "row": 1
+    },
+    {
+      "id": "pm",
+      "label": "PM / Nivel 2",
+      "color": "#8B5CF6",
+      "bg": "#F5F3FF",
+      "row": 2
+    }
+  ],
+  "steps": [
+    {
+      "id": "sp1",
+      "col": 1,
+      "lane": 0,
+      "label": "Solicitud",
+      "sublabel": "Cliente reporta incidencia",
+      "time": "< 1h",
+      "stage": "Entrada",
+      "description": "El cliente reporta una incidencia, pregunta o mejora a través del canal acordado. El primer nivel registra y clasifica.",
+      "substeps": [
+        "Cliente envía solicitud por el canal acordado (email, WhatsApp, helpdesk)",
+        "Nivel 1 recibe y registra ticket en Odoo Helpdesk",
+        "Clasificar: BUG / CONSULTA / MEJORA / CONFIGURACIÓN",
+        "Asignar severidad: Crítico / Alto / Moderado / Bajo",
+        "Confirmar recepción al cliente con número de ticket"
+      ],
+      "inputs": [
+        "Reporte del cliente (email/WhatsApp/helpdesk)",
+        "Contexto del error o consulta"
+      ],
+      "outputs": [
+        "Ticket creado en Odoo Helpdesk",
+        "Severidad asignada",
+        "Cliente notificado"
+      ],
+      "tools": [
+        "Odoo Helpdesk",
+        "Email",
+        "WhatsApp"
+      ],
+      "tips": [
+        "Confirmar recepción siempre en menos de 30 minutos hábiles",
+        "Pedir captura de pantalla o video si el cliente puede proveerlo"
+      ],
+      "mistakes": [
+        "Dejar tickets sin clasificar",
+        "No confirmar recepción al cliente"
+      ]
+    },
+    {
+      "id": "sp2",
+      "col": 2,
+      "lane": 1,
+      "label": "Diagnóstico",
+      "sublabel": "Nivel 1 analiza",
+      "time": "Según SLA",
+      "stage": "Análisis",
+      "description": "El consultor de Nivel 1 analiza la incidencia. Si puede resolverla, lo hace. Si no, escala al Nivel 2.",
+      "substeps": [
+        "Reproducir el error en staging si es posible",
+        "Revisar si es un error de configuración, de uso, o un bug real",
+        "Si es consulta de uso: responder directamente al cliente",
+        "Si es configuración: corregir y confirmar al cliente",
+        "Si es bug o desarrollo: escalar al Nivel 2 / PM"
+      ],
+      "inputs": [
+        "Ticket clasificado",
+        "Acceso al sistema del cliente (si aplica)"
+      ],
+      "outputs": [
+        "Incidencia resuelta (si es Nivel 1)",
+        "Ticket escalado con diagnóstico (si no)"
+      ],
+      "tools": [
+        "Odoo (producción cliente)",
+        "Odoo Helpdesk",
+        "Zoom"
+      ],
+      "tips": [
+        "Si se puede resolver en <30 min, resolver ahora y documentar",
+        "Documentar el diagnóstico aunque se escale — el Nivel 2 no debe re-hacer el análisis"
+      ],
+      "mistakes": [
+        "Escalar sin diagnóstico documentado",
+        "Resolver sin documentar la solución"
+      ]
+    },
+    {
+      "id": "sp3",
+      "col": 3,
+      "lane": 2,
+      "label": "Escalamiento N2",
+      "sublabel": "PM / Técnico analiza",
+      "time": "Según SLA",
+      "stage": "Escalamiento",
+      "description": "El PM o consultor senior recibe el escalamiento y determina si es un bug, una mejora, o requiere desarrollo. Coordina la solución.",
+      "substeps": [
+        "Revisar diagnóstico del Nivel 1",
+        "Determinar causa raíz (bug de Odoo, bug de customización, mala configuración)",
+        "Si es bug de customización: crear ticket de desarrollo",
+        "Si es mejora: evaluar si está en el alcance del contrato o requiere cotización",
+        "Comunicar al cliente: causa, solución propuesta y ETA"
+      ],
+      "inputs": [
+        "Ticket escalado con diagnóstico",
+        "Acceso completo al sistema"
+      ],
+      "outputs": [
+        "Plan de resolución",
+        "Ticket de desarrollo creado (si aplica)",
+        "ETA comunicado al cliente"
+      ],
+      "tools": [
+        "Odoo Proyectos",
+        "Git",
+        "Zoom",
+        "Odoo Helpdesk"
+      ],
+      "tips": [
+        "Comunicar ETA al cliente aunque no tengas la solución todavía — la incertidumbre es peor",
+        "Si la mejora requiere horas adicionales → cotizar antes de hacer"
+      ],
+      "mistakes": [
+        "Hacer mejoras sin validar si están en el contrato",
+        "No comunicar ETA al cliente"
+      ],
+      "handoffs": [
+        {
+          "role": "Desarrollo",
+          "linkedProcess": "desarrollo",
+          "description": "Si se detecta un bug de customización, se crea un ticket en el pipeline técnico"
+        }
+      ]
+    },
+    {
+      "id": "sp4",
+      "col": 4,
+      "lane": 2,
+      "label": "Resolución",
+      "sublabel": "Corrección + testing",
+      "time": "Según SLA",
+      "stage": "Resolución",
+      "description": "Se implementa la corrección y se valida en staging antes de aplicar en producción del cliente.",
+      "substeps": [
+        "Implementar corrección o configuración en staging",
+        "Probar que la corrección resuelve el problema",
+        "Validar que no rompió nada más (regression testing básico)",
+        "Aplicar corrección en producción del cliente",
+        "Verificar con el cliente que el problema fue resuelto"
+      ],
+      "inputs": [
+        "Plan de resolución",
+        "Acceso a staging + producción"
+      ],
+      "outputs": [
+        "Corrección aplicada en producción",
+        "Cliente confirma resolución"
+      ],
+      "tools": [
+        "Odoo (staging y producción)",
+        "Git"
+      ],
+      "tips": [
+        "Siempre testear en staging primero — nunca corregir directo en producción",
+        "Pedir al cliente que confirme que está OK antes de cerrar el ticket"
+      ],
+      "mistakes": [
+        "Corregir directo en producción sin staging",
+        "Cerrar el ticket sin confirmación del cliente"
+      ]
+    },
+    {
+      "id": "sp5",
+      "col": 5,
+      "lane": 1,
+      "label": "Cierre de Ticket",
+      "sublabel": "Documentar y cerrar",
+      "time": "< 1h",
+      "stage": "Cierre",
+      "description": "El Nivel 1 documenta la solución, cierra el ticket en Odoo y actualiza la base de conocimiento si aplica.",
+      "substeps": [
+        "Registrar la solución implementada en el ticket",
+        "Actualizar la base de conocimiento si es un error recurrente",
+        "Marcar ticket como Resuelto y enviar encuesta de satisfacción",
+        "Informar al cliente el cierre con resumen de la solución"
+      ],
+      "inputs": [
+        "Resolución confirmada por el cliente"
+      ],
+      "outputs": [
+        "Ticket cerrado en Odoo",
+        "Conocimiento documentado",
+        "Encuesta enviada"
+      ],
+      "tools": [
+        "Odoo Helpdesk",
+        "Email"
+      ],
+      "tips": [
+        "Si el mismo error ocurre 3 veces → proponer mejora estructural al PM",
+        "Documentar casos recurrentes reduce tiempo de resolución futura"
+      ],
+      "mistakes": [
+        "Cerrar el ticket sin documentar la solución",
+        "No enviar confirmación al cliente"
+      ]
+    },
+    {
+      "id": "sp6",
+      "col": 6,
+      "lane": 2,
+      "label": "Revisión Mensual",
+      "sublabel": "Health check proactivo",
+      "time": "1h / mes",
+      "stage": "Proactivo",
+      "description": "El PM hace una revisión mensual proactiva con el cliente para revisar el estado general, identificar mejoras y detectar oportunidades de expansión.",
+      "substeps": [
+        "Preparar informe de tickets del mes (cantidad, severidad, tiempos)",
+        "Reunión de health check con el SPoC del cliente",
+        "Revisar uso del sistema: módulos subutilizados, errores frecuentes",
+        "Proponer mejoras o nuevos módulos si corresponde",
+        "Confirmar que el cliente está satisfecho con el soporte"
+      ],
+      "inputs": [
+        "Resumen de tickets del mes",
+        "Historial del cliente en Odoo"
+      ],
+      "outputs": [
+        "Informe mensual entregado",
+        "Nuevas oportunidades identificadas",
+        "Relación fortalecida"
+      ],
+      "tools": [
+        "Odoo Helpdesk",
+        "Dashboard Equipo",
+        "Zoom"
+      ],
+      "tips": [
+        "No esperar que el cliente tenga problemas — el health check previene insatisfacción",
+        "Cada revisión mensual es una oportunidad de venta — llevar propuestas concretas"
+      ],
+      "mistakes": [
+        "No hacer la revisión mensual por \"falta de tiempo\"",
+        "Revisión solo reactiva a tickets"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "sp1",
+      "to": "sp2",
+      "type": "normal"
+    },
+    {
+      "from": "sp2",
+      "to": "sp3",
+      "type": "handoff"
+    },
+    {
+      "from": "sp3",
+      "to": "sp4",
+      "type": "normal"
+    },
+    {
+      "from": "sp4",
+      "to": "sp5",
+      "type": "handoff"
+    },
+    {
+      "from": "sp5",
+      "to": "sp6",
+      "type": "normal"
+    }
+  ]
+}

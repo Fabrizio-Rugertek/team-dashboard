@@ -522,15 +522,22 @@
 
 <!-- View toggle tabs -->
 <div class="px-5 pb-4 mobile-hidden">
-  <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
-    <button id="view-visual-btn" onclick="switchSopView('visual')"
-            class="px-4 py-2 rounded-lg text-sm font-bold transition-all bg-white shadow text-slate-900">
-      &#x1F5FA; Flujo Visual
-    </button>
-    <button id="view-written-btn" onclick="switchSopView('written')"
-            class="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">
-      &#x1F4C4; Procedimiento Escrito
-    </button>
+  <div class="flex items-center gap-3 flex-wrap">
+    <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+      <button id="view-visual-btn" onclick="switchSopView('visual')"
+              class="px-4 py-2 rounded-lg text-sm font-bold transition-all bg-white shadow text-slate-900">
+        &#x1F5FA; Flujo Visual
+      </button>
+      <button id="view-written-btn" onclick="switchSopView('written')"
+              class="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">
+        &#x1F4C4; Procedimiento Escrito
+      </button>
+    </div>
+    <% if (typeof user !== 'undefined' && user && (user.role === 'director' || user.role === 'admin')) { %>
+    <a href="/sop/editor/<%= processId %>" class="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors">
+      &#x270F; Editar proceso
+    </a>
+    <% } %>
   </div>
 </div>
 

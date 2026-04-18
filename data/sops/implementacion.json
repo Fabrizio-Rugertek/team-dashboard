@@ -1,0 +1,402 @@
+{
+  "id": "implementacion",
+  "name": "Implementación Odoo",
+  "description": "Pipeline de implementación Odoo: análisis, configuración, go-live.",
+  "lanes": [
+    {
+      "id": "pm",
+      "label": "PM",
+      "color": "#8B5CF6",
+      "bg": "#F5F3FF",
+      "row": 0
+    },
+    {
+      "id": "funcional",
+      "label": "Funcional",
+      "color": "#3B82F6",
+      "bg": "#EFF6FF",
+      "row": 1
+    },
+    {
+      "id": "tecnico",
+      "label": "Técnico",
+      "color": "#EC4899",
+      "bg": "#FDF2F8",
+      "row": 2
+    }
+  ],
+  "steps": [
+    {
+      "id": "i1",
+      "col": 1,
+      "lane": 0,
+      "label": "Análisis",
+      "sublabel": "Relevamiento de procesos",
+      "time": "1-2 semanas",
+      "stage": "Fase 1",
+      "description": "El PM y el consultor funcional realizan el relevamiento detallado de los procesos del cliente para mapear con las funcionalidades de Odoo.",
+      "substeps": [
+        "Reunión de análisis con el SPoC y usuarios clave del cliente",
+        "Documentar procesos AS-IS (cómo trabajan hoy)",
+        "Mapear procesos TO-BE (cómo trabajarán con Odoo)",
+        "Identificar GAPs y requerimientos de customización",
+        "Firmar acta de análisis con el cliente"
+      ],
+      "inputs": [
+        "Acta de kick-off",
+        "Documento de alcance",
+        "Acceso al sistema actual del cliente"
+      ],
+      "outputs": [
+        "Documento AS-IS / TO-BE",
+        "Lista de GAPs",
+        "Acta de análisis firmada"
+      ],
+      "tools": [
+        "Odoo (demo)",
+        "Google Docs",
+        "Zoom"
+      ],
+      "tips": [
+        "Involucrar a usuarios operativos, no solo al SPoC",
+        "Fotografiar o copiar formularios actuales del cliente"
+      ],
+      "mistakes": [
+        "Asumir procesos sin entrevistar a los usuarios",
+        "No documentar los GAPs — son la base para los tickets de desarrollo"
+      ],
+      "handoffs": [
+        {
+          "role": "Técnico",
+          "linkedProcess": "desarrollo",
+          "description": "Los GAPs identificados generan tickets de desarrollo customizado"
+        }
+      ]
+    },
+    {
+      "id": "i2",
+      "col": 2,
+      "lane": 1,
+      "label": "Configuración Base",
+      "sublabel": "CORE + LOC",
+      "time": "3-5 días",
+      "stage": "Fase 2a",
+      "description": "El consultor funcional configura los módulos base de Odoo: empresa, usuarios, localización Paraguay, cuentas contables y parámetros generales.",
+      "substeps": [
+        "Crear empresa en Odoo (nombre, RUC, logo, dirección)",
+        "Configurar localización Paraguay (SIFEN, impuestos, moneda)",
+        "Crear usuarios y asignar permisos",
+        "Configurar plan de cuentas contables",
+        "Configurar métodos de pago y bancos"
+      ],
+      "inputs": [
+        "Acta de análisis",
+        "Datos legales del cliente (RUC, razón social)",
+        "Lista de usuarios"
+      ],
+      "outputs": [
+        "Empresa configurada en Odoo",
+        "Usuarios con acceso",
+        "Base contable lista"
+      ],
+      "tools": [
+        "Odoo (staging)",
+        "SIFEN (timbrado)"
+      ],
+      "tips": [
+        "Hacer esto en staging primero — nunca configurar directo en producción",
+        "Validar el timbrado SIFEN antes de avanzar con módulos"
+      ],
+      "mistakes": [
+        "Configurar en producción antes de validar en staging",
+        "Usuarios con permisos incorrectos"
+      ]
+    },
+    {
+      "id": "i3",
+      "col": 3,
+      "lane": 1,
+      "label": "Módulos Funcionales",
+      "sublabel": "SALES, SCM, HR, etc.",
+      "time": "2-8 semanas",
+      "stage": "Fase 2b",
+      "description": "Configuración de los módulos funcionales del alcance: ventas, compras, inventario, RRHH, proyectos, web, etc. Un sprint por módulo.",
+      "substeps": [
+        "Sprint por módulo: configurar → demo al cliente → ajustar → validar",
+        "Cargar catálogos de productos, clientes, proveedores",
+        "Configurar flujos de aprobación si aplica",
+        "Configurar reportes y vistas personalizadas",
+        "Firmar acta de validación al cerrar cada módulo"
+      ],
+      "inputs": [
+        "Base configurada",
+        "Documento TO-BE por módulo",
+        "Catálogos del cliente"
+      ],
+      "outputs": [
+        "Módulos configurados y validados",
+        "Actas de validación por módulo"
+      ],
+      "tools": [
+        "Odoo (staging)",
+        "Zoom",
+        "Google Docs"
+      ],
+      "tips": [
+        "Nunca pasar al siguiente módulo sin acta firmada del anterior",
+        "Los ajustes post-validación deben tener orden de cambio documentada"
+      ],
+      "mistakes": [
+        "Validar todo junto al final",
+        "Hacer ajustes sin orden de cambio"
+      ]
+    },
+    {
+      "id": "i4",
+      "col": 4,
+      "lane": 2,
+      "label": "Desarrollo Custom",
+      "sublabel": "Tickets técnicos",
+      "time": "Según alcance",
+      "stage": "Fase 2c",
+      "description": "El equipo técnico implementa las customizaciones identificadas en el análisis. Sigue el pipeline técnico estándar: DEV → DEPLOY staging → TEST → FIX → DEPLOY producción.",
+      "substeps": [
+        "PM crea tickets de desarrollo en Odoo (tipo: BUG / MEJORA / DEV)",
+        "Desarrollador implementa según especificación",
+        "Deploy en staging para validación",
+        "Consultor funcional valida con el cliente",
+        "Si OK: deploy en producción. Si hay ajustes: ciclo FIX"
+      ],
+      "inputs": [
+        "Lista de GAPs del análisis",
+        "Especificaciones técnicas",
+        "Staging configurado"
+      ],
+      "outputs": [
+        "Customizaciones implementadas y validadas",
+        "Módulo custom en staging"
+      ],
+      "tools": [
+        "Odoo (staging)",
+        "Git",
+        "GitHub",
+        "Odoo Proyectos"
+      ],
+      "tips": [
+        "Pipeline técnico estándar: DEV → DEPLOY stg → TEST → FIX → DEPLOY prod",
+        "Toda customización debe tener especificación antes de que el desarrollador empiece"
+      ],
+      "mistakes": [
+        "Desarrollar sin especificación clara",
+        "Hacer deploy en producción sin validación funcional"
+      ],
+      "handoffs": [
+        {
+          "role": "Funcional",
+          "linkedStep": "i3",
+          "description": "Una vez validadas las customizaciones, volver a validar integración con módulos funcionales"
+        }
+      ]
+    },
+    {
+      "id": "i5",
+      "col": 5,
+      "lane": 0,
+      "label": "Capacitación",
+      "sublabel": "Usuarios entrenados",
+      "time": "1-2 semanas",
+      "stage": "Fase 3",
+      "description": "Capacitación formal por módulo a los usuarios del cliente. El PM coordina el plan de capacitación con el SPoC.",
+      "substeps": [
+        "Coordinar plan de capacitación con SPoC (fechas, grupos, módulos)",
+        "Capacitación por módulo: demo → práctica supervisada → ejercicios",
+        "Material de capacitación entregado (guía rápida por módulo)",
+        "Firma de acta de capacitación por módulo",
+        "Identificar usuarios \"champions\" que servirán de referentes internos"
+      ],
+      "inputs": [
+        "Módulos configurados y validados",
+        "Plan de capacitación",
+        "Material de capacitación"
+      ],
+      "outputs": [
+        "Usuarios capacitados por módulo",
+        "Actas de capacitación firmadas",
+        "Champions identificados"
+      ],
+      "tools": [
+        "Odoo (staging)",
+        "Zoom / presencial",
+        "Google Docs"
+      ],
+      "tips": [
+        "Capacitar en grupos pequeños (max 8 personas) por módulo",
+        "Identificar usuarios \"power users\" que puedan ayudar a sus compañeros"
+      ],
+      "mistakes": [
+        "Capacitación masiva de todos los módulos en una sola sesión",
+        "No dejar material escrito al cliente"
+      ]
+    },
+    {
+      "id": "i6",
+      "col": 6,
+      "lane": 0,
+      "label": "UAT",
+      "sublabel": "Pruebas de aceptación",
+      "time": "1-2 semanas",
+      "stage": "Fase 4",
+      "description": "Los usuarios clave del cliente prueban el sistema con datos reales. El equipo de Torus acompaña y registra incidencias para corregir antes del go-live.",
+      "substeps": [
+        "Preparar plan de pruebas UAT con el SPoC (casos de prueba)",
+        "Usuarios clave ejecutan pruebas con datos reales en staging",
+        "Equipo Torus registra incidencias encontradas",
+        "Priorizar y corregir incidencias (Críticas → antes de go-live)",
+        "Cliente firma acta UAT cuando todas las críticas están resueltas"
+      ],
+      "inputs": [
+        "Sistema configurado con customizaciones",
+        "Usuarios capacitados",
+        "Plan de pruebas"
+      ],
+      "outputs": [
+        "Acta UAT firmada por el cliente",
+        "Incidencias críticas resueltas"
+      ],
+      "tools": [
+        "Odoo (staging)",
+        "Odoo Proyectos (tickets)",
+        "Zoom"
+      ],
+      "tips": [
+        "UAT debe durar al menos una semana completa de trabajo real",
+        "No pasar a go-live sin acta UAT firmada — es el principal bloqueante"
+      ],
+      "mistakes": [
+        "Hacer UAT en producción",
+        "Pasar a go-live sin acta firmada"
+      ]
+    },
+    {
+      "id": "i7",
+      "col": 7,
+      "lane": 1,
+      "label": "Migración de Datos",
+      "sublabel": "Datos históricos",
+      "time": "3-7 días",
+      "stage": "Fase 5a",
+      "description": "Migración de datos históricos del sistema anterior al Odoo del cliente. El funcional valida calidad de datos, el técnico ejecuta los scripts.",
+      "substeps": [
+        "Cliente entrega datos a migrar (clientes, proveedores, saldos, inventario)",
+        "Validar calidad y formato de los datos (limpieza)",
+        "Desarrollar y probar scripts de migración en staging",
+        "Ejecutar migración en staging y validar con cliente",
+        "Cliente aprueba la migración con firma"
+      ],
+      "inputs": [
+        "Acta UAT firmada",
+        "Datos del cliente en formato acordado"
+      ],
+      "outputs": [
+        "Datos migrados y validados en staging",
+        "Migración aprobada por cliente"
+      ],
+      "tools": [
+        "Python / scripts",
+        "Odoo (staging)",
+        "Excel"
+      ],
+      "tips": [
+        "Nunca migrar sin que el cliente revise y apruebe los datos migrados",
+        "Guardar los scripts de migración en el repositorio del proyecto"
+      ],
+      "mistakes": [
+        "Migrar datos sin limpieza previa",
+        "No tener validación del cliente antes de migrar a producción"
+      ]
+    },
+    {
+      "id": "i8",
+      "col": 8,
+      "lane": 0,
+      "label": "Go-Live",
+      "sublabel": "Cut-over a producción",
+      "time": "1-3 días",
+      "stage": "Fase 5b",
+      "description": "Activación del sistema en producción. El PM coordina el cut-over con el equipo y el cliente para minimizar interrupción operativa.",
+      "substeps": [
+        "Confirmar que staging está congelado y en el estado final",
+        "Ejecutar migración de datos a producción",
+        "Activar usuarios en producción y comunicar al equipo del cliente",
+        "PM disponible durante las primeras 48 horas para soporte inmediato",
+        "Firma de acta de Go-Live",
+        "Activar período de estabilización (30 días soporte activo)"
+      ],
+      "inputs": [
+        "Staging congelado y aprobado",
+        "Datos migrados a producción",
+        "Equipo disponible"
+      ],
+      "outputs": [
+        "Odoo en producción activo",
+        "Acta de Go-Live firmada",
+        "Período de estabilización iniciado"
+      ],
+      "tools": [
+        "Odoo (producción)",
+        "Slack / WhatsApp (comunicación de emergencia)"
+      ],
+      "tips": [
+        "Go-live siempre lunes o martes para tener equipo full disponible",
+        "Tener plan de rollback documentado por si hay que volver al sistema anterior"
+      ],
+      "mistakes": [
+        "Go-live viernes",
+        "No tener plan de rollback",
+        "PM no disponible las primeras 48 horas"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "i1",
+      "to": "i2",
+      "type": "handoff"
+    },
+    {
+      "from": "i2",
+      "to": "i3",
+      "type": "normal"
+    },
+    {
+      "from": "i1",
+      "to": "i4",
+      "type": "parallel"
+    },
+    {
+      "from": "i3",
+      "to": "i5",
+      "type": "normal"
+    },
+    {
+      "from": "i4",
+      "to": "i5",
+      "type": "handoff"
+    },
+    {
+      "from": "i5",
+      "to": "i6",
+      "type": "normal"
+    },
+    {
+      "from": "i6",
+      "to": "i7",
+      "type": "handoff"
+    },
+    {
+      "from": "i7",
+      "to": "i8",
+      "type": "normal"
+    }
+  ]
+}
