@@ -61,6 +61,7 @@ const equipoRoutes    = require('../routes/equipo');
 const finanzasRoutes  = require('../routes/finanzas');
 const ejecutivoRoutes = require('../routes/ejecutivo');
 const crmRoutes       = require('../routes/crm');
+const sopRoutes       = require('../routes/sop');
 const apiRoutes       = require('../routes/api');
 const adminRoutes     = require('../routes/admin');
 
@@ -75,6 +76,9 @@ app.use('/ejecutivo', requireView('ejecutivo'), ejecutivoRoutes);
 
 // /crm — directors and admins
 app.use('/crm',       requireView('crm'),       crmRoutes);
+
+// /sop — all authenticated users (open to all roles)
+app.use('/sop', requireAuth, sopRoutes);
 
 // /api — authenticated only
 app.use('/api', requireAuth, apiRoutes);
@@ -102,6 +106,10 @@ app.get('/', requireAuth, (req, res) => {
     dashboards.push({ id: 'crm', name: 'CRM',
       description: 'Pipeline, win rate, hunters, tendencia mensual y análisis de fuentes',
       icon: '💼', color: '#D97706', href: '/crm', status: 'active' });
+  // SOP is visible to all authenticated users
+  dashboards.push({ id: 'sop', name: 'SOPs Interactivos',
+    description: 'Procesos estándar con flujo visual: ventas, implementación y soporte',
+    icon: '🗺️', color: '#0EA5E9', href: '/sop', status: 'active' });
   if (hasViewAccess(req.user, 'admin'))
     dashboards.push({ id: 'admin', name: 'Administración',
       description: 'Gestión de usuarios, roles y permisos de acceso',

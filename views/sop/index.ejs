@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+
+    /* ── Canvas wrapper ─────────────────────────────────────────────────────── */
+    .sop-scroll-wrap {
+      overflow-x: auto;
+      overflow-y: visible;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      position: relative;
+    }
+    .sop-canvas {
+      position: relative;
+      width: <%= canvas.W %>px;
+      height: <%= canvas.H %>px;
+      flex-shrink: 0;
+    }
+
+    /* ── SVG overlay ────────────────────────────────────────────────────────── */
+    .svg-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    /* ── Lane bands ─────────────────────────────────────────────────────────── */
+    .lane-band {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      transition: opacity .2s;
+    }
+
+    /* ── Lane labels ────────────────────────────────────────────────────────── */
+    .lane-label {
+      position: absolute;
+      left: 0;
+      width: <%= canvas.LANE_W %>px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      writing-mode: vertical-lr;
+      transform: rotate(180deg);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      border-right: 1px solid #e2e8f0;
+    }
+
+    /* ── Step cards ─────────────────────────────────────────────────────────── */
+    .step-card {
+      position: absolute;
+      width: <%= canvas.CARD_W %>px;
+      height: <%= canvas.CARD_H %>px;
+      background: white;
+      border-radius: 12px;
+      border: 1.5px solid #e2e8f0;
+      border-left-width: 4px;
+      cursor: pointer;
+      transition: box-shadow .18s, border-color .18s, transform .18s;
+      padding: 14px 14px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      user-select: none;
+    }
+    .step-card:hover {
+      box-shadow: 0 4px 20px rgba(0,0,0,.12);
+      transform: translateY(-2px);
+    }
+    .step-card.selected {
+      box-shadow: 0 0 0 3px #fbbf24, 0 8px 32px rgba(251,191,36,.3);
+      border-color: #fbbf24 !important;
+      transform: translateY(-3px);
+    }
+    .step-card.dimmed {
+      opacity: .35;
+    }
+
+    /* ── Card internals ─────────────────────────────────────────────────────── */
+    .card-step-num {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      opacity: .55;
+    }
+    .card-label {
+      font-size: 13.5px;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.2;
+    }
+    .card-sublabel {
+      font-size: 10.5px;
+      color: #64748b;
+      line-height: 1.3;
+      flex: 1;
+    }
+    .card-time {
+      font-size: 10px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .card-handoff-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 100px;
+      background: #fef3c7;
+      color: #92400e;
+      letter-spacing: .04em;
+    }
+
+    /* ── Edges SVG ──────────────────────────────────────────────────────────── */
+    .edge-normal {
+      fill: none;
+      stroke: #cbd5e1;
+      stroke-width: 1.5;
+      stroke-dasharray: 4 6;
+    }
+    .edge-handoff {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+    }
+    .edge-arrow {
+      fill: #cbd5e1;
+    }
+    .edge-arrow-handoff {
+      fill: #f59e0b;
+    }
+
+    /* ── Detail panel ───────────────────────────────────────────────────────── */
+    #detailPanel {
+      position: fixed;
+      right: 0;
+      top: 0;
+      height: 100vh;
+      width: 400px;
+      background: white;
+      box-shadow: -8px 0 48px rgba(0,0,0,.18);
+      z-index: 60;
+      transform: translateX(100%);
+      transition: transform .32s cubic-bezier(.4,0,.2,1);
+      display: flex;
+      flex-direction: column;
+    }
+    #detailPanel.open {
+      transform: translateX(0);
+    }
+    #panelBackdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.25);
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .32s;
+    }
+    #panelBackdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .panel-content {
+      flex: 1;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    /* ── Step indicator ─────────────────────────────────────────────────────── */
+    .step-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid #e2e8f0;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+    .step-dot.active {
+      border-color: #fbbf24;
+      background: #fbbf24;
+      color: white;
+      box-shadow: 0 0 0 3px rgba(251,191,36,.25);
+    }
+    .step-dot.visited {
+      background: #f1f5f9;
+      color: #64748b;
+      border-color: #cbd5e1;
+    }
+    .step-dot-connector {
+      flex: 1;
+      height: 2px;
+      background: #e2e8f0;
+      min-width: 8px;
+    }
+    .step-dot-connector.done {
+      background: #fbbf24;
+    }
+
+    /* ── AI advisor pulse ───────────────────────────────────────────────────── */
+    @keyframes pulse-amber {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,.4); }
+      50%       { box-shadow: 0 0 0 8px rgba(251,191,36,0); }
+    }
+    .ai-btn { animation: pulse-amber 2.5s infinite; }
+
+    /* ── Scroll hint ────────────────────────────────────────────────────────── */
+    .scroll-hint {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 80px;
+      background: linear-gradient(to right, transparent, rgba(248,250,252,.85));
+      pointer-events: none;
+      border-radius: 0 16px 16px 0;
+      z-index: 5;
+    }
+
+    /* ── Animated particle on edges ─────────────────────────────────────────── */
+    .edge-particle { pointer-events: none; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Backdrop -->
+<div id="panelBackdrop" onclick="closePanel()"></div>
+
+<!-- Nav -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-full px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-7 w-auto">
+      <span class="text-slate-300 text-sm">/</span>
+      <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600 transition-colors">Dashboard Platform</a>
+      <span class="text-slate-300 text-sm">/</span>
+      <span class="text-slate-700 text-sm font-semibold">SOPs</span>
+      <span class="text-slate-300 text-sm">/</span>
+      <span class="text-amber-600 text-sm font-bold"><%= processName %></span>
+    </div>
+    <% if (typeof user !== 'undefined' && user) { %>
+    <div class="flex items-center gap-3">
+      <% if (user.picture) { %>
+      <img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt="">
+      <% } else { %>
+      <div class="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">
+        <%= (user.name || user.email).slice(0,1).toUpperCase() %>
+      </div>
+      <% } %>
+      <span class="text-xs font-medium text-slate-600 hidden sm:block"><%= user.name || user.email %></span>
+      <form action="/auth/logout" method="POST" class="inline">
+        <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors">Salir</button>
+      </form>
+    </div>
+    <% } %>
+  </div>
+</nav>
+
+<!-- Page header -->
+<div class="max-w-full px-5 pt-7 pb-4">
+  <div class="flex items-start justify-between flex-wrap gap-4">
+    <div>
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-xs font-bold uppercase tracking-widest text-amber-500">Proceso</span>
+        <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+        <span class="text-xs text-slate-400 font-medium">Interactivo</span>
+      </div>
+      <h1 class="text-2xl font-black text-slate-900"><%= processName %></h1>
+      <p class="mt-1 text-sm text-slate-500">Haz clic en cualquier etapa para ver el detalle completo · Flujo de 10 pasos · 4 roles</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <!-- Process selector -->
+      <% validProcesses.forEach(p => { %>
+      <a href="/sop/<%= p %>"
+         class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors <%- p === processId ? 'bg-amber-500 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600' %>">
+        <%= p.charAt(0).toUpperCase() + p.slice(1) %>
+      </a>
+      <% }) %>
+      <span class="w-px h-5 bg-slate-200 mx-1"></span>
+      <a href="/" class="text-xs font-semibold text-slate-400 hover:text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">← Hub</a>
+    </div>
+  </div>
+</div>
+
+<!-- Step progress indicator -->
+<div class="max-w-full px-5 pb-5">
+  <div class="bg-white border border-slate-200 rounded-2xl px-5 py-3.5 flex items-center gap-1.5 overflow-x-auto">
+    <% steps.forEach((s, i) => { %>
+    <div class="step-dot" id="dot-<%= s.id %>" onclick="selectStep('<%= s.id %>')"
+         title="<%= s.label %>">
+      <%= i + 1 %>
+    </div>
+    <% if (i < steps.length - 1) { %>
+    <div class="step-dot-connector" id="conn-<%= i %>"></div>
+    <% } %>
+    <% }) %>
+    <div class="ml-3 pl-3 border-l border-slate-200 flex-shrink-0">
+      <div id="indicatorLabel" class="text-xs font-semibold text-slate-500">Selecciona una etapa</div>
+      <div id="indicatorSub" class="text-xs text-slate-400 mt-0.5 hidden"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Main swimlane canvas -->
+<div class="px-5 pb-8">
+  <div class="sop-scroll-wrap" id="canvasWrap">
+    <!-- Scroll hint gradient -->
+    <div class="scroll-hint" id="scrollHint"></div>
+
+    <div class="sop-canvas" id="sopCanvas">
+
+      <!-- Lane bands (behind everything) -->
+      <% lanes.forEach((lane, li) => { %>
+      <div class="lane-band" style="top: <%= li * canvas.ROW_H %>px; height: <%= canvas.ROW_H %>px; background: <%= lane.bg %>; opacity: 0.6;"></div>
+      <% }) %>
+
+      <!-- Lane grid lines -->
+      <% for (let li = 1; li < lanes.length; li++) { %>
+      <div style="position:absolute; left:0; right:0; top: <%= li * canvas.ROW_H %>px; height:1px; background:#e2e8f0;"></div>
+      <% } %>
+
+      <!-- Column dividers (subtle) -->
+      <% for (let ci = 0; ci <= 10; ci++) { %>
+      <div style="position:absolute; top:0; bottom:0; left: <%= canvas.LANE_W + ci * canvas.COL_W %>px; width:1px; background: <%= ci === 0 ? '#e2e8f0' : 'rgba(226,232,240,0.4)' %>;"></div>
+      <% } %>
+
+      <!-- Column step numbers -->
+      <% steps.forEach((s, i) => { %>
+      <div style="position:absolute; top:4px; left:<%= canvas.LANE_W + (s.col-1)*canvas.COL_W %>px; width:<%= canvas.COL_W %>px; text-align:center; font-size:10px; color:#cbd5e1; font-weight:700; letter-spacing:.06em; pointer-events:none;">
+        <%= String(i+1).padStart(2,'0') %>
+      </div>
+      <% }) %>
+
+      <!-- Lane labels -->
+      <% lanes.forEach((lane, li) => { %>
+      <div class="lane-label" style="top: <%= li * canvas.ROW_H %>px; height: <%= canvas.ROW_H %>px; color: <%= lane.color %>; background: <%= lane.bg %>;">
+        <%= lane.label %>
+      </div>
+      <% }) %>
+
+      <!-- SVG: edges + animated particles -->
+      <svg class="svg-overlay" width="<%= canvas.W %>" height="<%= canvas.H %>"
+           viewBox="0 0 <%= canvas.W %> <%= canvas.H %>"
+           xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="glowAmber" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <filter id="glowSlate" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+          <!-- Arrowhead markers -->
+          <marker id="arrowNormal" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" class="edge-arrow"/>
+          </marker>
+          <marker id="arrowHandoff" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" class="edge-arrow-handoff"/>
+          </marker>
+        </defs>
+
+        <% edges.forEach(edge => { %>
+        <% const isHandoff = edge.type === 'handoff'; %>
+
+        <!-- Path definition (hidden, used as mpath ref) -->
+        <path id="<%= edge.id %>" d="<%= edge.path %>" fill="none" stroke="none"/>
+
+        <!-- Visible edge line -->
+        <path d="<%= edge.path %>"
+              class="<%= isHandoff ? 'edge-handoff' : 'edge-normal' %>"
+              marker-end="url(#<%= isHandoff ? 'arrowHandoff' : 'arrowNormal' %>)"
+              <%- isHandoff ? 'filter="url(#glowAmber)"' : '' %> />
+
+        <!-- Animated particle -->
+        <circle r="<%= isHandoff ? 5 : 3.5 %>" class="edge-particle"
+                fill="<%= isHandoff ? '#f59e0b' : '#94a3b8' %>"
+                opacity="<%= isHandoff ? 0.95 : 0.7 %>">
+          <animateMotion dur="<%= edge.dur %>" repeatCount="indefinite" rotate="auto">
+            <mpath href="#<%= edge.id %>"/>
+          </animateMotion>
+        </circle>
+
+        <% if (isHandoff) { %>
+        <!-- Second particle on handoff for extra depth -->
+        <circle r="2.5" class="edge-particle" fill="white" opacity="0.8">
+          <animateMotion dur="<%= edge.dur %>" begin="0.3s" repeatCount="indefinite" rotate="auto">
+            <mpath href="#<%= edge.id %>"/>
+          </animateMotion>
+        </circle>
+        <% } %>
+
+        <% }) %>
+      </svg>
+
+      <!-- Step cards -->
+      <% steps.forEach((s, i) => { %>
+      <div class="step-card"
+           id="card-<%= s.id %>"
+           style="left: <%= s.bounds.left %>px; top: <%= s.bounds.top %>px; border-left-color: <%= s.laneColor %>;"
+           onclick="selectStep('<%= s.id %>')">
+
+        <!-- Step number + handoff badge -->
+        <div class="flex items-center justify-between">
+          <span class="card-step-num" style="color: <%= s.laneColor %>">Paso <%= i+1 %></span>
+          <% if (s.handoff) { %>
+          <span class="card-handoff-badge">→ <%= s.handoff %></span>
+          <% } %>
+        </div>
+
+        <!-- Label -->
+        <div class="card-label"><%= s.label %></div>
+
+        <!-- Sublabel -->
+        <div class="card-sublabel"><%= s.sublabel %></div>
+
+        <!-- Time -->
+        <div class="card-time">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <circle cx="5" cy="5" r="4" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M5 2.5V5L6.5 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          <%= s.time %>
+        </div>
+      </div>
+      <% }) %>
+
+    </div><!-- /sop-canvas -->
+  </div><!-- /sop-scroll-wrap -->
+</div>
+
+<!-- Legend -->
+<div class="px-5 pb-6">
+  <div class="flex flex-wrap items-center gap-6 text-xs text-slate-500">
+    <div class="flex items-center gap-2">
+      <svg width="32" height="8"><line x1="0" y1="4" x2="32" y2="4" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 6"/></svg>
+      <span>Flujo normal</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <svg width="32" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+        <polygon points="28,1 32,4 28,7" fill="#f59e0b"/>
+      </svg>
+      <span>Handoff de rol</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="card-handoff-badge">→ PM</span>
+      <span>Traspaso explícito</span>
+    </div>
+    <% lanes.forEach(l => { %>
+    <div class="flex items-center gap-2">
+      <span class="w-3 h-3 rounded-full flex-shrink-0" style="background: <%= l.color %>"></span>
+      <span><%= l.label %></span>
+    </div>
+    <% }) %>
+  </div>
+</div>
+
+<!-- ── Detail Panel ──────────────────────────────────────────────────────────── -->
+<div id="detailPanel">
+  <!-- Panel header (colored by lane) -->
+  <div id="panelHeader" class="p-6 border-b border-slate-100 relative flex-shrink-0">
+    <button onclick="closePanel()"
+            class="absolute top-4 right-4 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-colors text-lg leading-none font-light">
+      ×
+    </button>
+    <div id="panelLaneBadge" class="text-xs font-bold uppercase tracking-widest mb-1 opacity-80"></div>
+    <h2 id="panelTitle" class="text-xl font-black text-slate-900 pr-8"></h2>
+    <p id="panelSublabel" class="text-sm text-slate-500 mt-0.5"></p>
+    <div class="flex flex-wrap items-center gap-2 mt-3">
+      <span id="panelTime" class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600"></span>
+      <span id="panelStage" class="text-xs font-semibold px-2.5 py-1 rounded-full text-white"></span>
+    </div>
+  </div>
+
+  <!-- Scrollable content -->
+  <div class="panel-content p-5 space-y-5">
+    <!-- Description -->
+    <p id="panelDesc" class="text-sm text-slate-700 leading-relaxed"></p>
+
+    <!-- Substeps -->
+    <div id="panelSubstepsBlock">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-4 h-0.5 rounded" id="panelSubstepsLine"></div>
+        <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Pasos a seguir</span>
+      </div>
+      <ol id="panelSubsteps" class="space-y-2.5"></ol>
+    </div>
+
+    <!-- Inputs / Outputs -->
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-slate-50 rounded-xl p-3.5">
+        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2.5">Entradas</div>
+        <ul id="panelInputs" class="space-y-1.5"></ul>
+      </div>
+      <div class="bg-slate-50 rounded-xl p-3.5">
+        <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2.5">Salidas</div>
+        <ul id="panelOutputs" class="space-y-1.5"></ul>
+      </div>
+    </div>
+
+    <!-- Tools -->
+    <div id="panelToolsBlock">
+      <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2.5">Herramientas</div>
+      <div id="panelTools" class="flex flex-wrap gap-2"></div>
+    </div>
+
+    <!-- Tips -->
+    <div id="panelTipsBlock">
+      <div class="text-xs font-bold uppercase tracking-widest text-green-500 mb-2.5">Buenas Practicas</div>
+      <ul id="panelTips" class="space-y-2"></ul>
+    </div>
+
+    <!-- Common mistakes -->
+    <div id="panelMistakesBlock">
+      <div class="text-xs font-bold uppercase tracking-widest text-red-400 mb-2.5">Errores Comunes</div>
+      <ul id="panelMistakes" class="space-y-2"></ul>
+    </div>
+
+    <!-- Handoff notice -->
+    <div id="panelHandoffBlock" class="hidden rounded-xl p-4 border-l-4 border-amber-400 bg-amber-50">
+      <div class="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">Handoff de Rol</div>
+      <p id="panelHandoffText" class="text-sm text-amber-800"></p>
+    </div>
+  </div>
+
+  <!-- Panel footer -->
+  <div class="flex-shrink-0 p-4 border-t border-slate-100 bg-slate-50 flex gap-2">
+    <button onclick="openAiAdvisor()"
+            class="ai-btn flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="white" stroke-width="1.5"/>
+        <path d="M5 5.5C5 4.4 5.9 3.5 7 3.5s2 .9 2 2c0 1-1 1.5-1.5 2.2" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="7" cy="10" r=".8" fill="white"/>
+      </svg>
+      Consultar AI Advisor
+    </button>
+    <a id="panelOdooLink" href="https://www.torus.dev/odoo/crm" target="_blank"
+       class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 text-slate-500 hover:text-slate-700 text-xs font-bold transition-colors">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M5 2H2a1 1 0 00-1 1v7a1 1 0 001 1h7a1 1 0 001-1V7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        <path d="M8 1h3v3M11 1L6 6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Odoo
+    </a>
+  </div>
+</div>
+
+<!-- AI Advisor toast (placeholder) -->
+<div id="aiToast"
+     class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-sm font-medium px-5 py-3 rounded-2xl shadow-xl z-[70] opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2">
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="7" stroke="#fbbf24" stroke-width="1.5"/>
+    <path d="M6 6.5C6 5.4 6.9 4.5 8 4.5s2 .9 2 2c0 1-1 1.5-1.5 2.2" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="8" cy="11" r=".8" fill="#fbbf24"/>
+  </svg>
+  AI Advisor — proximamente disponible
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────────────────── -->
+<script>
+// ── Data from server ──────────────────────────────────────────────────────────
+const STEPS  = <%- stepsJSON %>;
+const LANES  = <%- lanesJSON %>;
+const stepMap = {};
+STEPS.forEach(s => { stepMap[s.id] = s; });
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let selectedId = null;
+
+// ── Panel helpers ─────────────────────────────────────────────────────────────
+function openPanel(stepId) {
+  const s    = stepMap[stepId];
+  if (!s) return;
+  const lane = LANES[s.lane];
+
+  // Header
+  document.getElementById('panelHeader').style.background =
+    `linear-gradient(135deg, ${lane.bg} 0%, white 80%)`;
+  document.getElementById('panelLaneBadge').textContent  = lane.label;
+  document.getElementById('panelLaneBadge').style.color  = lane.color;
+  document.getElementById('panelTitle').textContent      = s.label;
+  document.getElementById('panelSublabel').textContent   = s.sublabel;
+  document.getElementById('panelTime').textContent       = s.time;
+  const stageEl = document.getElementById('panelStage');
+  stageEl.textContent        = s.stage;
+  stageEl.style.background   = lane.color;
+
+  // Description
+  document.getElementById('panelDesc').textContent = s.description;
+
+  // Substeps line color
+  document.getElementById('panelSubstepsLine').style.background = lane.color;
+
+  // Substeps
+  const ol = document.getElementById('panelSubsteps');
+  ol.innerHTML = '';
+  (s.substeps || []).forEach((sub, i) => {
+    const li = document.createElement('li');
+    li.className = 'flex gap-3 items-start';
+    li.innerHTML = `
+      <span class="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold mt-0.5"
+            style="background: ${lane.color}">${i+1}</span>
+      <span class="text-sm text-slate-700 leading-relaxed">${sub}</span>`;
+    ol.appendChild(li);
+  });
+
+  // Inputs
+  const ul = document.getElementById('panelInputs');
+  ul.innerHTML = '';
+  (s.inputs || []).forEach(inp => {
+    const li = document.createElement('li');
+    li.className = 'flex items-start gap-2 text-xs text-slate-600';
+    li.innerHTML = `<span class="w-1 h-1 rounded-full bg-slate-400 mt-1.5 flex-shrink-0"></span>${inp}`;
+    ul.appendChild(li);
+  });
+
+  // Outputs
+  const ul2 = document.getElementById('panelOutputs');
+  ul2.innerHTML = '';
+  (s.outputs || []).forEach(out => {
+    const li = document.createElement('li');
+    li.className = 'flex items-start gap-2 text-xs text-slate-600';
+    li.innerHTML = `<span class="w-1 h-1 rounded-full flex-shrink-0 mt-1.5" style="background:${lane.color}"></span>${out}`;
+    ul2.appendChild(li);
+  });
+
+  // Tools
+  const toolsDiv = document.getElementById('panelTools');
+  toolsDiv.innerHTML = '';
+  (s.tools || []).forEach(t => {
+    const span = document.createElement('span');
+    span.className = 'text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 border border-slate-200';
+    span.textContent = t;
+    toolsDiv.appendChild(span);
+  });
+
+  // Tips
+  const tipsList = document.getElementById('panelTips');
+  tipsList.innerHTML = '';
+  (s.tips || []).forEach(tip => {
+    const li = document.createElement('li');
+    li.className = 'flex gap-2 items-start text-xs text-slate-700';
+    li.innerHTML = `<span class="text-green-500 mt-0.5 flex-shrink-0 font-bold">✓</span>${tip}`;
+    tipsList.appendChild(li);
+  });
+
+  // Mistakes
+  const mistakesList = document.getElementById('panelMistakes');
+  mistakesList.innerHTML = '';
+  (s.mistakes || []).forEach(m => {
+    const li = document.createElement('li');
+    li.className = 'flex gap-2 items-start text-xs text-slate-700';
+    li.innerHTML = `<span class="text-red-400 mt-0.5 flex-shrink-0 font-bold">✕</span>${m}`;
+    mistakesList.appendChild(li);
+  });
+
+  // Handoff
+  const handoffBlock = document.getElementById('panelHandoffBlock');
+  const handoffText  = document.getElementById('panelHandoffText');
+  if (s.handoff) {
+    handoffBlock.classList.remove('hidden');
+    handoffText.textContent = `Al completar esta etapa, el proceso pasa al rol ${s.handoff}. Asegurate de hacer el handoff con contexto completo antes de cerrar esta fase.`;
+  } else {
+    handoffBlock.classList.add('hidden');
+  }
+
+  // Open
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('panelBackdrop').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('panelBackdrop').classList.remove('open');
+  // Deselect card
+  if (selectedId) {
+    document.getElementById('card-' + selectedId)?.classList.remove('selected');
+    document.getElementById('dot-' + selectedId)?.classList.remove('active');
+    selectedId = null;
+    updateIndicator(null);
+    restoreAllCards();
+  }
+}
+
+// ── Step selection ────────────────────────────────────────────────────────────
+function selectStep(stepId) {
+  // Deselect previous
+  if (selectedId && selectedId !== stepId) {
+    document.getElementById('card-' + selectedId)?.classList.remove('selected');
+    document.getElementById('dot-' + selectedId)?.classList.remove('active');
+  }
+
+  if (selectedId === stepId) {
+    closePanel();
+    return;
+  }
+
+  selectedId = stepId;
+  const s = stepMap[stepId];
+
+  // Visual card state
+  STEPS.forEach(step => {
+    const card = document.getElementById('card-' + step.id);
+    if (!card) return;
+    if (step.id === stepId) {
+      card.classList.add('selected');
+      card.classList.remove('dimmed');
+    } else {
+      card.classList.remove('selected');
+      card.classList.add('dimmed');
+    }
+  });
+
+  // Dot state
+  STEPS.forEach((step, i) => {
+    const dot  = document.getElementById('dot-' + step.id);
+    const conn = document.getElementById('conn-' + i);
+    if (!dot) return;
+    dot.classList.remove('active', 'visited');
+    if (step.id === stepId) {
+      dot.classList.add('active');
+      dot.style.background   = s.laneColor;
+      dot.style.borderColor  = s.laneColor;
+      dot.style.color        = 'white';
+      dot.style.boxShadow    = `0 0 0 3px ${s.laneColor}33`;
+    }
+    if (conn) conn.classList.remove('done');
+  });
+
+  // Scroll canvas to the selected card
+  const wrap = document.getElementById('canvasWrap');
+  const targetX = s.bounds.left - 100;
+  wrap.scrollTo({ left: Math.max(0, targetX), behavior: 'smooth' });
+
+  // Update indicator
+  updateIndicator(s);
+
+  // Open detail panel
+  openPanel(stepId);
+}
+
+function restoreAllCards() {
+  STEPS.forEach(s => {
+    const card = document.getElementById('card-' + s.id);
+    if (card) card.classList.remove('dimmed', 'selected');
+  });
+  STEPS.forEach((s, i) => {
+    const dot  = document.getElementById('dot-' + s.id);
+    const conn = document.getElementById('conn-' + i);
+    if (dot) {
+      dot.classList.remove('active', 'visited');
+      dot.style.background   = '';
+      dot.style.borderColor  = '';
+      dot.style.color        = '';
+      dot.style.boxShadow    = '';
+    }
+    if (conn) conn.classList.remove('done');
+  });
+}
+
+function updateIndicator(step) {
+  const label = document.getElementById('indicatorLabel');
+  const sub   = document.getElementById('indicatorSub');
+  if (!step) {
+    label.textContent = 'Selecciona una etapa';
+    label.style.color = '';
+    sub.classList.add('hidden');
+  } else {
+    label.textContent = step.label;
+    label.style.color = step.laneColor;
+    sub.textContent   = step.sublabel;
+    sub.classList.remove('hidden');
+  }
+}
+
+// ── AI advisor placeholder ────────────────────────────────────────────────────
+function openAiAdvisor() {
+  const toast = document.getElementById('aiToast');
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateX(-50%) translateY(0)';
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(8px)';
+  }, 2800);
+}
+
+// ── Scroll hint ───────────────────────────────────────────────────────────────
+const wrap = document.getElementById('canvasWrap');
+const hint = document.getElementById('scrollHint');
+wrap.addEventListener('scroll', () => {
+  const atEnd = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 10;
+  hint.style.opacity = atEnd ? '0' : '1';
+});
+
+// ── Keyboard navigation ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closePanel(); return; }
+  if (!selectedId) return;
+  const idx = STEPS.findIndex(s => s.id === selectedId);
+  if (e.key === 'ArrowRight' && idx < STEPS.length - 1) selectStep(STEPS[idx + 1].id);
+  if (e.key === 'ArrowLeft'  && idx > 0)                selectStep(STEPS[idx - 1].id);
+});
+</script>
+
+</body>
+</html>
