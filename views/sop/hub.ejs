@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .process-card {
+      transition: all .2s cubic-bezier(.4,0,.2,1);
+    }
+    .process-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+    }
+    .status-complete  { background: #DCFCE7; color: #166534; }
+    .status-wip       { background: #FEF9C3; color: #854D0E; }
+    .status-reference { background: #EFF6FF; color: #1E40AF; }
+    .status-planned   { background: #F1F5F9; color: #64748B; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Nav -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-7 w-auto">
+      <span class="text-slate-300 text-sm">/</span>
+      <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600">Dashboard Platform</a>
+      <span class="text-slate-300 text-sm">/</span>
+      <span class="text-slate-700 text-sm font-bold">SOPs</span>
+    </div>
+    <% if (typeof user !== 'undefined' && user) { %>
+    <div class="flex items-center gap-3">
+      <% if (user.picture) { %>
+      <img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt="">
+      <% } else { %>
+      <div class="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">
+        <%= (user.name || user.email).slice(0,1).toUpperCase() %>
+      </div>
+      <% } %>
+      <span class="text-xs font-medium text-slate-600 hidden sm:block"><%= user.name || user.email %></span>
+      <form action="/auth/logout" method="POST" class="inline">
+        <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50">Salir</button>
+      </form>
+    </div>
+    <% } %>
+  </div>
+</nav>
+
+<!-- Hero header -->
+<div class="bg-white border-b border-slate-200">
+  <div class="max-w-7xl mx-auto px-5 py-10">
+    <div class="flex items-start justify-between flex-wrap gap-4">
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Torus</span>
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+          <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Enciclopedia Operacional</span>
+        </div>
+        <h1 class="text-3xl font-black text-slate-900">SOPs &amp; Procesos</h1>
+        <p class="mt-2 text-slate-500 max-w-2xl leading-relaxed">
+          Flujos interactivos, roles, metodologías y procedimientos estándar de la empresa.
+          Haz clic en cualquier proceso para explorarlo con animaciones y detalle completo.
+        </p>
+      </div>
+      <div class="flex items-center gap-3 mt-2">
+        <div class="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100 rounded-lg px-3 py-2">
+          <span class="w-2 h-2 rounded-full bg-green-400"></span>
+          <span class="font-semibold"><%= encyclopedia.sections.reduce((a,s) => a + s.processes.filter(p => p.status === 'complete').length, 0) %> procesos completos</span>
+        </div>
+        <div class="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100 rounded-lg px-3 py-2">
+          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span class="font-semibold"><%= encyclopedia.sections.reduce((a,s) => a + s.processes.filter(p => p.status === 'wip' || p.status === 'planned').length, 0) %> en desarrollo</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Process quick-jump bar -->
+<div class="bg-white border-b border-slate-100 overflow-x-auto">
+  <div class="max-w-7xl mx-auto px-5">
+    <div class="flex items-center gap-1 py-3 min-w-max">
+      <% encyclopedia.sections.forEach(section => { %>
+      <a href="#section-<%= section.id %>"
+         class="text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors whitespace-nowrap"
+         style="--c: <%= section.color %>">
+        <%= section.name %>
+      </a>
+      <% if (section !== encyclopedia.sections[encyclopedia.sections.length - 1]) { %>
+      <span class="w-px h-4 bg-slate-200 mx-1"></span>
+      <% } %>
+      <% }) %>
+    </div>
+  </div>
+</div>
+
+<!-- Sections -->
+<div class="max-w-7xl mx-auto px-5 py-10 space-y-14">
+  <% encyclopedia.sections.forEach(section => { %>
+  <div id="section-<%= section.id %>">
+    <!-- Section header -->
+    <div class="flex items-center gap-4 mb-6">
+      <div class="w-1 h-10 rounded-full" style="background: <%= section.color %>"></div>
+      <div>
+        <h2 class="text-xl font-extrabold text-slate-900"><%= section.name %></h2>
+        <p class="text-sm text-slate-500 mt-0.5"><%= section.description %></p>
+      </div>
+    </div>
+
+    <!-- Process cards grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <% section.processes.forEach(proc => { %>
+      <%
+        const isFlow    = flowProcesses.includes(proc.id);
+        const isWip     = proc.status === 'wip';
+        const isPlanned = proc.status === 'planned';
+        const isRef     = proc.status === 'reference';
+        const href      = isFlow ? `/sop/${proc.id}` : '#';
+        const statusLabel = { complete: 'Disponible', wip: 'En desarrollo', reference: 'Referencia', planned: 'Próximamente' }[proc.status] || 'N/D';
+        const statusClass = `status-${proc.status}`;
+      %>
+      <a href="<%= href %>"
+         class="process-card block bg-white rounded-2xl border border-slate-200 border-l-4 p-5 <%= isWip || isPlanned ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer' %>"
+         style="border-left-color: <%= section.color %>;"
+         onclick="<%= isWip || isPlanned ? 'return false' : '' %>">
+
+        <!-- Status badge + steps count -->
+        <div class="flex items-center justify-between mb-4">
+          <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= statusClass %>">
+            <%= statusLabel %>
+          </span>
+          <% if (proc.steps) { %>
+          <span class="text-xs text-slate-400 font-semibold"><%= proc.steps %> pasos</span>
+          <% } %>
+        </div>
+
+        <!-- Process name -->
+        <h3 class="text-base font-extrabold text-slate-900 leading-snug"><%= proc.name %></h3>
+        <p class="mt-2 text-sm text-slate-500 leading-relaxed"><%= proc.description %></p>
+
+        <!-- CTA -->
+        <% if (isFlow) { %>
+        <div class="mt-4 flex items-center gap-1.5 text-sm font-bold" style="color: <%= section.color %>">
+          Ver flujo interactivo
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <% } else if (isRef) { %>
+        <div class="mt-4 text-xs text-slate-400 font-medium">Solo referencia — sin flujo interactivo</div>
+        <% } else { %>
+        <div class="mt-4 text-xs text-slate-400 font-medium">Disponible próximamente</div>
+        <% } %>
+      </a>
+      <% }) %>
+    </div>
+  </div>
+  <% }) %>
+</div>
+
+<!-- Legend / how to use -->
+<div class="max-w-7xl mx-auto px-5 pb-12">
+  <div class="bg-white rounded-2xl border border-slate-200 p-6">
+    <h3 class="text-sm font-extrabold text-slate-700 mb-4">Como usar esta enciclopedia</h3>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 text-sm text-slate-600">
+      <div class="flex gap-3">
+        <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#D97706" stroke-width="1.5"/>
+            <path d="M5 8h6M8 5l3 3-3 3" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-semibold text-slate-800">Flujos interactivos</div>
+          <div class="text-xs text-slate-500 mt-1 leading-relaxed">Haz clic en cualquier etapa del flujo para ver el detalle completo: pasos, entradas, salidas, herramientas y errores comunes.</div>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8l3 3 7-7" stroke="#8B5CF6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-semibold text-slate-800">Handoffs vinculados</div>
+          <div class="text-xs text-slate-500 mt-1 leading-relaxed">Cuando una etapa pasa la responsabilidad a otro proceso (Facturación, Desarrollo, Soporte), hay un link directo al flujo de ese proceso.</div>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#3B82F6" stroke-width="1.5"/>
+            <path d="M8 5v3l2 2" stroke="#3B82F6" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="font-semibold text-slate-800">Vivo y actualizable</div>
+          <div class="text-xs text-slate-500 mt-1 leading-relaxed">Esta enciclopedia evoluciona con la empresa. Los procesos "En desarrollo" se irán completando gradualmente con el equipo.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="text-center text-xs text-slate-400 py-6 border-t border-slate-200">
+  Torus Dashboard Platform · <%= new Date().getFullYear() %> · SOPs &amp; Procesos
+</footer>
+
+</body>
+</html>

@@ -85,7 +85,7 @@
     if (clients.top3Pct > 70) insights.push({ type: 'warn', text: `Concentración alta: top 3 clientes = ${clients.top3Pct}% del revenue. Riesgo de dependencia.` });
   }
   if (overdue > cxc.total * 0.3) insights.push({ type: 'bad', text: `${Math.round(overdue/cxc.total*100)}% del CXC está vencido (${gsM(overdue)}). Gestión de cobros urgente.` });
-  if (crm.staleCount > 0) insights.push({ type: 'warn', text: `${crm.staleCount} oportunidades CRM sin movimiento en +30 días.` });
+  // CRM stale insight removed — check /crm dashboard for pipeline health
   if (totalIngMgnPct >= 50) insights.push({ type: 'good', text: `Margen de contribución saludable: ${totalIngMgnPct}%` });
   else if (totalIngMgnPct < 25) insights.push({ type: 'bad', text: `Margen de contribución bajo: ${totalIngMgnPct}%. Revisar estructura de costos.` });
   if (closingRate.rate !== null && closingRate.rate < 30) insights.push({ type: 'warn', text: `Tasa de cierre baja: ${closingRate.rate}% en últimos 90 días.` });
@@ -296,12 +296,12 @@
         <div class="text-[11px] text-orange-500 font-semibold mt-1"><%= cxp.count %> facturas prov.</div>
       </div>
 
-      <!-- Pipeline CRM -->
+      <!-- Cotizaciones Pipeline -->
       <div class="bg-slate-50 rounded-xl border-2 border-blue-200 p-4 cursor-pointer hover:bg-blue-50 transition"
            onclick="switchTab('pipeline')">
-        <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Pipeline CRM</div>
-        <div class="text-xl font-black text-blue-700"><%- amt(crm.totalWeighted || pipeline.total) %></div>
-        <div class="text-[11px] text-blue-500 font-semibold mt-1"><%= crm.count || pipeline.count %> oport. · <%= closingRate.rate !== null ? closingRate.rate + '% cierre' : '' %></div>
+        <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Cotizaciones</div>
+        <div class="text-xl font-black text-blue-700"><%- amt(pipeline.total) %></div>
+        <div class="text-[11px] text-blue-500 font-semibold mt-1"><%= pipeline.count %> cotiz. · <%= closingRate.rate !== null ? closingRate.rate + '% cierre' : '' %></div>
       </div>
 
     </div>

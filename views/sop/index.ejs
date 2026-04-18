@@ -261,9 +261,13 @@
       <span class="text-slate-300 text-sm">/</span>
       <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600 transition-colors">Dashboard Platform</a>
       <span class="text-slate-300 text-sm">/</span>
-      <span class="text-slate-700 text-sm font-semibold">SOPs</span>
+      <a href="/sop" class="text-slate-500 text-sm font-medium hover:text-slate-700 transition-colors">SOPs</a>
+      <% if (sectionName) { %>
       <span class="text-slate-300 text-sm">/</span>
-      <span class="text-amber-600 text-sm font-bold"><%= processName %></span>
+      <span class="text-slate-500 text-sm font-medium"><%= sectionName %></span>
+      <% } %>
+      <span class="text-slate-300 text-sm">/</span>
+      <span class="text-sm font-bold" style="color: <%= processColor %>"><%= processName %></span>
     </div>
     <% if (typeof user !== 'undefined' && user) { %>
     <div class="flex items-center gap-3">
@@ -295,16 +299,18 @@
       <h1 class="text-2xl font-black text-slate-900"><%= processName %></h1>
       <p class="mt-1 text-sm text-slate-500">Haz clic en cualquier etapa para ver el detalle completo · Flujo de 10 pasos · 4 roles</p>
     </div>
-    <div class="flex items-center gap-2">
-      <!-- Process selector -->
-      <% validProcesses.forEach(p => { %>
-      <a href="/sop/<%= p %>"
-         class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors <%- p === processId ? 'bg-amber-500 text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:border-amber-300 hover:text-amber-600' %>">
-        <%= p.charAt(0).toUpperCase() + p.slice(1) %>
+    <div class="flex items-center gap-2 flex-wrap">
+      <a href="/sop"
+         class="text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:border-slate-400 transition-colors">
+        Todos los procesos
       </a>
-      <% }) %>
-      <span class="w-px h-5 bg-slate-200 mx-1"></span>
-      <a href="/" class="text-xs font-semibold text-slate-400 hover:text-slate-600 px-2 py-1.5 rounded-lg hover:bg-slate-100 transition-colors">← Hub</a>
+      <% if (typeof flowProcesses !== 'undefined') { flowProcesses.forEach(p => { %>
+      <a href="/sop/<%= p %>"
+         class="text-xs font-bold px-3 py-1.5 rounded-lg transition-colors <%- p === processId ? 'text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-500 hover:border-slate-300' %>"
+         style="<%= p === processId ? `background: ${processColor}` : '' %>">
+        <%= processMeta[p] ? processMeta[p].name.split(' ')[0] + (processMeta[p].name.split(' ').length > 2 ? '…' : ' ' + (processMeta[p].name.split(' ')[1] || '')) : p %>
+      </a>
+      <% }) } %>
     </div>
   </div>
 </div>
@@ -430,8 +436,9 @@
         <!-- Step number + handoff badge -->
         <div class="flex items-center justify-between">
           <span class="card-step-num" style="color: <%= s.laneColor %>">Paso <%= i+1 %></span>
-          <% if (s.handoff) { %>
-          <span class="card-handoff-badge">→ <%= s.handoff %></span>
+          <% const handoffs = s.handoffs || (s.handoff ? [{ role: s.handoff }] : []); %>
+          <% if (handoffs.length > 0) { %>
+          <span class="card-handoff-badge">→ <%= handoffs.map(h => h.role).join(' · ') %></span>
           <% } %>
         </div>
 
@@ -543,11 +550,8 @@
       <ul id="panelMistakes" class="space-y-2"></ul>
     </div>
 
-    <!-- Handoff notice -->
-    <div id="panelHandoffBlock" class="hidden rounded-xl p-4 border-l-4 border-amber-400 bg-amber-50">
-      <div class="text-xs font-bold uppercase tracking-widest text-amber-600 mb-1">Handoff de Rol</div>
-      <p id="panelHandoffText" class="text-sm text-amber-800"></p>
-    </div>
+    <!-- Handoff notices (one per handoff) -->
+    <div id="panelHandoffsBlock"></div>
   </div>
 
   <!-- Panel footer -->
@@ -588,6 +592,7 @@
 // ── Data from server ──────────────────────────────────────────────────────────
 const STEPS  = <%- stepsJSON %>;
 const LANES  = <%- lanesJSON %>;
+const flowProcesses = <%- JSON.stringify(typeof flowProcesses !== 'undefined' ? flowProcesses : []) %>;
 const stepMap = {};
 STEPS.forEach(s => { stepMap[s.id] = s; });
 
@@ -681,15 +686,22 @@ function openPanel(stepId) {
     mistakesList.appendChild(li);
   });
 
-  // Handoff
-  const handoffBlock = document.getElementById('panelHandoffBlock');
-  const handoffText  = document.getElementById('panelHandoffText');
-  if (s.handoff) {
-    handoffBlock.classList.remove('hidden');
-    handoffText.textContent = `Al completar esta etapa, el proceso pasa al rol ${s.handoff}. Asegurate de hacer el handoff con contexto completo antes de cerrar esta fase.`;
-  } else {
-    handoffBlock.classList.add('hidden');
-  }
+  // Handoffs (support both legacy .handoff string and new .handoffs array)
+  const handoffs = s.handoffs || (s.handoff ? [{ role: s.handoff }] : []);
+  const handoffsContainer = document.getElementById('panelHandoffsBlock');
+  handoffsContainer.innerHTML = '';
+  handoffs.forEach(h => {
+    const div = document.createElement('div');
+    div.className = 'rounded-xl p-4 border-l-4 border-amber-400 bg-amber-50';
+    const hasLink = h.linkedProcess && typeof flowProcesses !== 'undefined' && flowProcesses.includes(h.linkedProcess);
+    div.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <div class="text-xs font-bold uppercase tracking-widest text-amber-600">Handoff → ${h.role}</div>
+        ${hasLink ? `<a href="/sop/${h.linkedProcess}" class="text-xs font-bold text-amber-700 hover:text-amber-900 underline flex items-center gap-1">Ver proceso <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 5h4M5 3l2 2-2 2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></a>` : ''}
+      </div>
+      <p class="text-sm text-amber-800 leading-relaxed">${h.description || `Al completar esta etapa, el proceso pasa al rol ${h.role}.`}</p>`;
+    handoffsContainer.appendChild(div);
+  });
 
   // Open
   document.getElementById('detailPanel').classList.add('open');

@@ -1,42 +1,69 @@
 'use strict';
 /**
- * /sop — Interactive SOP (Standard Operating Procedures) viewer.
- * Renders swimlane process flows with animated edges and drill-down panels.
+ * /sop — Interactive SOP Encyclopedia.
  *
  * Routes:
- *   GET /sop            → redirects to /sop/ventas
- *   GET /sop/:processId → renders the interactive flow for that process
+ *   GET /sop                       → encyclopedia hub
+ *   GET /sop/:processId            → swimlane flow for a specific process
+ *   GET /sop/org/:pageId           → reference pages (organigrama, roles, metodologia)
  */
 
 const express  = require('express');
 const router   = express.Router();
-const sopData  = require('../src/sop-data');
+const { PROCESSES, ENCYCLOPEDIA } = require('../src/sop-data');
 
-const VALID_PROCESSES = ['ventas'];
+const FLOW_PROCESSES = Object.keys(PROCESSES);   // have swimlane views
 
-router.get('/', (req, res) => res.redirect('/sop/ventas'));
+// Process metadata for display
+const PROCESS_META = {
+  ventas:         { name: 'Proceso de Ventas',       section: 'comercial',    color: '#D97706' },
+  facturacion:    { name: 'Facturación y Cobros',     section: 'comercial',    color: '#EC4899' },
+  implementacion: { name: 'Implementación Odoo',      section: 'produccion',   color: '#8B5CF6' },
+  soporte:        { name: 'Soporte y Mantenimiento',  section: 'produccion',   color: '#10B981' },
+  desarrollo:     { name: 'Desarrollo a Medida',       section: 'produccion',   color: '#EC4899' },
+};
 
+// ── Hub ───────────────────────────────────────────────────────────────────────
+router.get('/', (req, res) => {
+  res.render('sop/hub', {
+    title:       'SOPs — Torus Dashboard',
+    user:        req.user || null,
+    encyclopedia: ENCYCLOPEDIA,
+    flowProcesses: FLOW_PROCESSES,
+  });
+});
+
+// ── Flow pages ────────────────────────────────────────────────────────────────
 router.get('/:processId', (req, res) => {
   const { processId } = req.params;
-  if (!VALID_PROCESSES.includes(processId)) {
+  if (!FLOW_PROCESSES.includes(processId)) {
     return res.status(404).render('platform/404');
   }
 
-  const process = sopData[processId];
+  const process = PROCESSES[processId];
+  const meta    = PROCESS_META[processId] || { name: processId, color: '#64748b' };
+
+  // Find section for breadcrumb
+  const section = ENCYCLOPEDIA.sections.find(s =>
+    s.processes.some(p => p.id === processId)
+  );
 
   res.render('sop/index', {
-    title:     'SOP — Torus Dashboard',
-    user:      req.user || null,
+    title:          `${meta.name} — Torus SOPs`,
+    user:           req.user || null,
     processId,
-    processName: processId === 'ventas' ? 'Proceso de Ventas' : processId,
-    steps:     process.steps,
-    edges:     process.edges,
-    lanes:     process.lanes,
-    canvas:    process.canvas,
-    stepsJSON: JSON.stringify(process.steps),
-    edgesJSON: JSON.stringify(process.edges),
-    lanesJSON: JSON.stringify(process.lanes),
-    validProcesses: VALID_PROCESSES,
+    processName:    meta.name,
+    processColor:   meta.color,
+    sectionName:    section ? section.name : '',
+    steps:          process.steps,
+    edges:          process.edges,
+    lanes:          process.lanes,
+    canvas:         process.canvas,
+    stepsJSON:      JSON.stringify(process.steps),
+    edgesJSON:      JSON.stringify(process.edges),
+    lanesJSON:      JSON.stringify(process.lanes),
+    flowProcesses:  FLOW_PROCESSES,
+    processMeta:    PROCESS_META,
   });
 });
 

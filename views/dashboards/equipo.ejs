@@ -135,10 +135,6 @@
       🚨 Alertas
       <% const critAlerts = (projectAlerts || []).filter(a => a.severity === 'critical').length; if (critAlerts > 0) { %><span class="ml-1.5 text-xs font-bold bg-red-500 text-white rounded-full px-1.5 py-0.5"><%= critAlerts %></span><% } %>
     </button>
-    <button onclick="switchTab('crm')" id="tab-btn-crm"
-            class="tab-btn px-5 py-2.5 text-sm font-semibold transition-all">
-      💼 CRM
-    </button>
   </div>
   <%# Filter row %>
   <div class="max-w-7xl mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
@@ -1384,10 +1380,8 @@
   <% } %>
 
 </div><!-- /tab-alertas -->
-<div id="tab-crm" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
-
-  <%# CRM KPI Cards %>
-  <% const crm = crmStats || {}; %>
+<!-- CRM tab removed — use /crm dashboard -->
+<div id="tab-crm-removed-goto-crm" class="hidden">
   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
 
     <div class="bg-white rounded-xl border p-4 <%=
@@ -1810,7 +1804,7 @@ document.addEventListener('click', e => {
 });
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
-const ALL_TABS = ['equipo', 'proyectos', 'capacidad', 'sprints', 'alertas', 'crm'];
+const ALL_TABS = ['equipo', 'proyectos', 'capacidad', 'sprints', 'alertas'];
 let capacityChartRendered  = false;
 let _scrumChartsRendered   = false;
 
