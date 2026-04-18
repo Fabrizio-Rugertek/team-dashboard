@@ -29,8 +29,13 @@ function _edgePath(from, to) {
   const x1 = from.bounds.right,  y1 = from.bounds.cy;
   const x2 = to.bounds.left,     y2 = to.bounds.cy;
   if (from.lane === to.lane) return `M ${x1} ${y1} L ${x2} ${y2}`;
-  const mx = Math.round((x1 + x2) / 2);
-  return `M ${x1} ${y1} C ${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`;
+  // Extended control points ensure the curve exits/enters horizontally
+  // even when source and target are in adjacent columns (small horizontal gap)
+  const hGap  = x2 - x1;
+  const ctrl  = Math.max(Math.abs(hGap) * 0.45, 70); // at least 70px tangent
+  const cx1   = Math.round(x1 + ctrl);
+  const cx2   = Math.round(x2 - ctrl);
+  return `M ${x1} ${y1} C ${cx1} ${y1} ${cx2} ${y2} ${x2} ${y2}`;
 }
 
 function compileProcess({ steps: rawSteps, edges: rawEdges, lanes }) {

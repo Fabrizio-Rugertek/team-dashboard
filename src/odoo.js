@@ -112,7 +112,7 @@ async function fetchProjectsWithTasks() {
   const [projects, tasks, stages] = await Promise.all([
     callKw('project.project', 'search_read',
       [[['active', 'in', [true, false]]]],
-      { fields: ['id', 'name', 'date_start', 'write_date', 'user_id', 'date', 'partner_id', 'planned_hours'], context: { bin_size: true } }
+      { fields: ['id', 'name', 'date_start', 'write_date', 'user_id', 'date', 'partner_id'], context: { bin_size: true } }
     ),
     callKw('project.task', 'search_read',
       [['|', ['active', '=', true], ['active', '=', false]]],
@@ -368,3 +368,33 @@ async function fetchScrumData() {
 }
 
 module.exports.fetchScrumData = fetchScrumData;
+
+// ── Projects with real status (project.update) ────────────────────────────
+async function fetchProjectsWithStatus() {
+  const [projects, updates] = await Promise.all([
+    callKw('project.project', 'search_read',
+      [[['active', '=', true]]],
+      { fields: ['id', 'name', 'partner_id', 'user_id', 'date', 'date_start',
+                 'last_update_status', 'stage_id', 'sale_order_id', 'tag_ids'],
+        order: 'name asc' }
+    ),
+    callKw('project.update', 'search_read',
+      [[]],
+      { fields: ['project_id', 'date', 'status', 'name', 'user_id',
+                 'allocated_time', 'timesheet_time', 'timesheet_percentage',
+                 'task_count', 'closed_task_count', 'closed_task_percentage'],
+        order: 'date desc',
+        limit: 300 }
+    ),
+  ]);
+
+  // Build latest update per project (updates already sorted desc)
+  const latestUpdate = new Map();
+  for (const u of updates) {
+    const pid = u.project_id?.[0];
+    if (pid && !latestUpdate.has(pid)) latestUpdate.set(pid, u);
+  }
+
+  return { projects, latestUpdate };
+}
+module.exports.fetchProjectsWithStatus = fetchProjectsWithStatus;

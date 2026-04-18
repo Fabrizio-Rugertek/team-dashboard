@@ -332,6 +332,9 @@
   <span class="text-xs text-slate-400">Proceso: <strong class="text-slate-600"><%= processId %></strong></span>
 </div>
 
+<!-- SOP raw data embedded safely — not inside JS string literal -->
+<script id="sop-raw-data" type="application/json"><%- rawJSON %></script>
+
 <!-- Drag ghost -->
 <div id="drag-ghost" style="display:none;"></div>
 
@@ -345,7 +348,7 @@ const CARD_W = 148;
 const CARD_H = 120;
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let sopData       = JSON.parse('<%- rawJSON %>');
+let sopData       = JSON.parse(document.getElementById('sop-raw-data').textContent);
 let selectedStepId = null;
 let isDirty       = false;
 let dragState     = null;
@@ -383,8 +386,10 @@ function edgePath(fromStep, toStep) {
   const x2 = cardLeft(toStep.col);
   const y2 = cardCy(toStep.lane);
   if (fromStep.lane === toStep.lane) return `M ${x1} ${y1} L ${x2} ${y2}`;
-  const mx = Math.round((x1 + x2) / 2);
-  return `M ${x1} ${y1} C ${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`;
+  // Extended control points ensure horizontal entry/exit even for adjacent columns
+  const hGap = x2 - x1;
+  const ctrl = Math.max(Math.abs(hGap) * 0.45, 70);
+  return `M ${x1} ${y1} C ${Math.round(x1+ctrl)} ${y1} ${Math.round(x2-ctrl)} ${y2} ${x2} ${y2}`;
 }
 
 // ── Render canvas ─────────────────────────────────────────────────────────────

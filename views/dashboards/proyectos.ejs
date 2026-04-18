@@ -9,14 +9,25 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Inter', sans-serif; }
-    .rag-red    { background: #FEF2F2; border-color: #FECACA; }
-    .rag-amber  { background: #FFFBEB; border-color: #FDE68A; }
-    .rag-green  { background: #F0FDF4; border-color: #BBF7D0; }
-    .dot-red    { background: #EF4444; }
-    .dot-amber  { background: #F59E0B; }
-    .dot-green  { background: #22C55E; }
+    .phase-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; display:inline-block; }
+    .phase-dot.done    { background:#10B981; }
+    .phase-dot.current { background:#3B82F6; box-shadow:0 0 0 2px #BFDBFE; }
+    .phase-dot.future  { background:#E2E8F0; border:1px solid #CBD5E1; }
+    .phase-line { flex:1; height:2px; background:#E2E8F0; min-width:6px; max-width:18px; }
+    .phase-line.done { background:#10B981; }
+    .proj-row:hover { background:#F8FAFC; }
+    .tab-btn { padding:6px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
+    .tab-btn.active { background:#1E40AF; color:#fff; }
+    .tab-btn:not(.active) { color:#64748B; }
+    .tab-btn:not(.active):hover { background:#EFF6FF; color:#1E40AF; }
+    .filter-btn { padding:4px 12px; border-radius:8px; border:1px solid #E2E8F0; font-size:11px; font-weight:600; cursor:pointer; transition:all .15s; }
     .filter-btn.active { background:#2563EB; color:#fff; border-color:#2563EB; }
-    .filter-btn:hover:not(.active) { background:#EFF6FF; }
+    .filter-btn:not(.active):hover { background:#EFF6FF; }
+    .view-btn { padding:5px 10px; border-radius:6px; border:1px solid #E2E8F0; font-size:11px; font-weight:600; cursor:pointer; }
+    .view-btn.active { background:#1E40AF; color:#fff; border-color:#1E40AF; }
+    .view-btn:not(.active) { color:#64748B; }
+    .hours-bar-wrap { width:80px; height:5px; background:#E2E8F0; border-radius:3px; display:inline-block; vertical-align:middle; overflow:hidden; }
+    .hours-bar-fill { height:100%; border-radius:3px; }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -24,41 +35,32 @@
 <%# ── Nav ──────────────────────────────────────────────────────────────────── %>
 <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-    <div class="flex items-center gap-3">
+    <div class="flex items-center gap-3 flex-wrap">
       <img src="/img/torus-icon-green.png" alt="Torus" class="h-8 w-auto">
-      <span class="text-slate-400 text-sm font-medium">/ Portfolio de Proyectos</span>
+      <span class="text-slate-400 text-sm font-medium">/ Proyectos</span>
       <span class="text-slate-300">·</span>
-      <a href="/" class="text-sm font-medium text-blue-600 hover:text-blue-800">Inicio</a>
+      <a href="/equipo"   class="text-sm font-medium text-blue-600 hover:text-blue-800">Equipo</a>
       <span class="text-slate-300">·</span>
-      <a href="/equipo" class="text-sm font-medium text-blue-600 hover:text-blue-800">Equipo</a>
+      <a href="/crm"      class="text-sm font-medium text-amber-600 hover:text-amber-800">CRM</a>
       <span class="text-slate-300">·</span>
-      <a href="/crm" class="text-sm font-medium text-amber-600 hover:text-amber-800">CRM</a>
+      <a href="/proyectos" class="text-sm font-bold text-slate-900">Proyectos</a>
       <span class="text-slate-300">·</span>
-      <a href="/sop" class="text-sm font-medium text-violet-600 hover:text-violet-800">SOPs</a>
+      <a href="/sop"      class="text-sm font-medium text-violet-600 hover:text-violet-800">SOPs</a>
       <% if (user && ['admin','director'].includes(user.role)) { %>
       <span class="text-slate-300">·</span>
       <a href="/finanzas" class="text-sm font-medium text-green-600 hover:text-green-800">Finanzas</a>
       <% } %>
     </div>
-    <div class="flex items-center gap-4">
-      <div class="flex items-center gap-2 text-xs text-slate-500">
-        <span>Actualizado: <%= lastUpdate %></span>
-        <span class="px-1.5 py-0.5 rounded bg-slate-100 font-mono text-[10px] text-slate-400"
-              title="Deploy: <%= appDeployAt %>">v<%= appVersion %></span>
-      </div>
+    <div class="flex items-center gap-3">
+      <span class="text-xs text-slate-400">Actualizado: <%= lastUpdate %></span>
       <% if (user) { %>
       <div class="flex items-center gap-2">
-        <% if (user.picture) { %>
-        <img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt="">
-        <% } else { %>
-        <div class="w-7 h-7 bg-sky-200 rounded-full flex items-center justify-center text-xs font-bold text-sky-800">
-          <%= (user.name||user.email).slice(0,1).toUpperCase() %>
-        </div>
+        <% if (user.picture) { %><img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt=""><% } else { %>
+        <div class="w-7 h-7 bg-sky-200 rounded-full flex items-center justify-center text-xs font-bold text-sky-800"><%= (user.name||user.email).slice(0,1).toUpperCase() %></div>
         <% } %>
         <span class="text-xs font-medium text-slate-600 hidden sm:block"><%= user.name || user.email %></span>
-        <span class="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold capitalize"><%= user.role %></span>
         <form action="/auth/logout" method="POST" class="inline">
-          <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50 transition-colors">Salir</button>
+          <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50">Salir</button>
         </form>
       </div>
       <% } %>
@@ -66,291 +68,381 @@
   </div>
 </nav>
 
-<div class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+<div class="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
-  <%# ── Page title ─────────────────────────────────────────────────────────── %>
-  <div class="flex items-center justify-between">
+  <%# ── Header ─────────────────────────────────────────────────────────────── %>
+  <div class="flex items-start justify-between gap-4">
     <div>
       <h1 class="text-2xl font-extrabold text-slate-900">Portfolio de Proyectos</h1>
-      <p class="text-sm text-slate-500 mt-1">
-        <%= totalActive %> proyectos activos ·
-        <span class="text-red-600 font-semibold"><%= redCount %> en riesgo</span> ·
-        <span class="text-amber-600 font-semibold"><%= amberCount %> atención</span> ·
-        <span class="text-green-600 font-semibold"><%= greenCount %> saludables</span>
+      <p class="text-sm text-slate-500 mt-0.5">
+        <%= totalActive %> activos ·
+        <span class="text-red-600 font-semibold"><%= atRisk %> en riesgo</span> ·
+        <span class="text-green-600 font-semibold"><%= onTrack %> en curso</span> ·
+        <span class="text-slate-400 font-medium"><%= noStatus %> sin estado</span>
       </p>
     </div>
+    <a href="<%= odooUrl %>/odoo/project" target="_blank" rel="noopener"
+       class="text-xs font-semibold text-blue-600 hover:text-blue-800 whitespace-nowrap mt-1">Ver en Odoo →</a>
   </div>
 
-  <%# ── KPI bar ─────────────────────────────────────────────────────────────── %>
-  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <%# ── KPI strip ───────────────────────────────────────────────────────────── %>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Total Activos</div>
       <div class="text-3xl font-black text-slate-900"><%= totalActive %></div>
-      <div class="text-xs text-slate-400 mt-1">proyectos en curso</div>
+      <div class="text-xs text-slate-400 mt-0.5">proyectos en curso</div>
     </div>
     <div class="bg-red-50 rounded-xl border border-red-200 p-4">
       <div class="text-xs font-semibold text-red-600 uppercase tracking-wide mb-1">En Riesgo</div>
-      <div class="text-3xl font-black text-red-600"><%= redCount %></div>
-      <div class="text-xs text-red-400 mt-1">requieren atención urgente</div>
-    </div>
-    <div class="bg-amber-50 rounded-xl border border-amber-200 p-4">
-      <div class="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">Atención</div>
-      <div class="text-3xl font-black text-amber-600"><%= amberCount %></div>
-      <div class="text-xs text-amber-400 mt-1">monitorear de cerca</div>
+      <div class="text-3xl font-black text-red-600"><%= atRisk %></div>
+      <div class="text-xs text-red-400 mt-0.5">atención urgente</div>
     </div>
     <div class="bg-green-50 rounded-xl border border-green-200 p-4">
-      <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Saludables</div>
-      <div class="text-3xl font-black text-green-600"><%= greenCount %></div>
-      <div class="text-xs text-green-400 mt-1">en buen estado</div>
+      <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">En Curso</div>
+      <div class="text-3xl font-black text-green-600"><%= onTrack %></div>
+      <div class="text-xs text-green-400 mt-0.5">on track</div>
     </div>
-  </section>
-
-  <%# ── Portfolio table ────────────────────────────────────────────────────── %>
-  <section class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <div class="px-5 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
-      <span class="text-sm font-bold text-slate-700">Proyectos</span>
-      <div class="flex items-center gap-1.5 ml-auto flex-wrap">
-        <%# Search input %>
-        <input type="text" id="projectSearch" placeholder="Buscar proyecto o cliente..."
-               oninput="filterTable()"
-               class="px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 w-52">
-        <%# RAG filter buttons %>
-        <button onclick="setRagFilter('all')"       id="rag-btn-all"        class="filter-btn active px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold transition-colors">Todos</button>
-        <button onclick="setRagFilter('red')"       id="rag-btn-red"        class="filter-btn px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 transition-colors">🔴 Riesgo</button>
-        <button onclick="setRagFilter('amber')"     id="rag-btn-amber"      class="filter-btn px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 transition-colors">🟡 Atención</button>
-        <button onclick="setRagFilter('green')"     id="rag-btn-green"      class="filter-btn px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 transition-colors">✅ Saludables</button>
-        <button onclick="setRagFilter('completed')" id="rag-btn-completed"  class="filter-btn px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 transition-colors">Completados</button>
-      </div>
+    <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Sin Estado</div>
+      <div class="text-3xl font-black text-slate-400"><%= noStatus %></div>
+      <div class="text-xs text-slate-400 mt-0.5">sin actualización</div>
     </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-xs" id="projectsTable">
-        <thead>
-          <tr class="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wide text-[10px]">
-            <th class="text-left px-4 py-3">Proyecto</th>
-            <th class="text-left px-4 py-3">Cliente</th>
-            <th class="text-left px-4 py-3">Responsable</th>
-            <th class="text-left px-4 py-3 min-w-[160px]">Budget Horas</th>
-            <th class="text-center px-4 py-3">Tareas</th>
-            <th class="text-left px-4 py-3">Go-Live</th>
-            <th class="text-right px-4 py-3">Última actividad</th>
-          </tr>
-        </thead>
-        <tbody id="projectsBody">
-          <% projects.forEach(p => {
-            const today = new Date();
-            const dotCls   = p.rag === 'red' ? 'dot-red' : p.rag === 'amber' ? 'dot-amber' : 'dot-green';
-            const rowData  = `data-rag="${p.rag}" data-completed="${p.isCompleted ? 'true' : 'false'}"
-                              data-name="${(p.fullName||p.name||'').toLowerCase().replace(/"/g,'')}"
-                              data-client="${(p.client||'').toLowerCase().replace(/"/g,'')}"`;
+  </div>
 
-            // Budget bar
-            const pct = p.hoursPct || 0;
-            const barColor = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-400' : 'bg-green-500';
-            const pctText  = pct >= 100 ? 'text-red-600' : pct >= 80 ? 'text-amber-600' : 'text-green-600';
-
-            // Go-live date
-            let goLiveDisplay = '—';
-            let goLiveCls = 'text-slate-400';
-            if (p.goLiveDate) {
-              const glDate = new Date(p.goLiveDate + 'T00:00:00');
-              const diffDays = Math.round((glDate - today) / 86400000);
-              const formatted = glDate.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-              if (diffDays < 0) {
-                goLiveDisplay = `⚠ ${formatted}`;
-                goLiveCls = 'text-red-600 font-bold';
-              } else if (diffDays <= 30) {
-                goLiveDisplay = formatted;
-                goLiveCls = 'text-amber-600 font-semibold';
-              } else {
-                goLiveDisplay = formatted;
-                goLiveCls = 'text-green-600';
-              }
-            }
-          %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors proj-row" <%- rowData %>>
-            <%# RAG + name %>
-            <td class="px-4 py-3">
-              <div class="flex items-start gap-2">
-                <div class="w-2.5 h-2.5 rounded-full mt-0.5 flex-shrink-0 <%= dotCls %>"></div>
-                <a href="<%= odooUrl %>/odoo/project/<%= p.id %>" target="_blank" rel="noopener"
-                   class="font-semibold text-slate-800 hover:text-blue-600 transition-colors leading-snug"
-                   style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:220px;"
-                   title="<%= p.fullName || p.name %>">
-                  <%= p.fullName || p.name %>
-                </a>
-              </div>
-            </td>
-            <%# Client %>
-            <td class="px-4 py-3 text-slate-600"><%= p.client || '<span class="text-slate-300">Sin cliente</span>' %></td>
-            <%# Responsible %>
-            <td class="px-4 py-3 text-slate-600"><%= p.responsible || '—' %></td>
-            <%# Budget hours %>
-            <td class="px-4 py-3">
-              <% if (p.totalAlloc > 0) { %>
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-slate-700 font-medium"><%= p.totalLog %>h / <%= p.totalAlloc %>h</span>
-                <span class="font-bold <%= pctText %>"><%= pct %>%</span>
-              </div>
-              <div class="w-full bg-slate-100 rounded-full h-1.5">
-                <div class="h-1.5 rounded-full <%= barColor %>" style="width:<%= Math.min(pct, 100) %>%"></div>
-              </div>
-              <% if (p.budgetHours > 0 && p.budgetHours !== p.totalAlloc) { %>
-              <div class="text-[10px] text-slate-400 mt-0.5">Contrato: <%= p.budgetHours %>h</div>
-              <% } %>
-              <% } else if (p.totalLog > 0) { %>
-              <span class="text-slate-500"><%= p.totalLog %>h registradas</span>
-              <% } else { %>
-              <span class="text-slate-300">Sin estimación</span>
-              <% } %>
-            </td>
-            <%# Tasks %>
-            <td class="px-4 py-3 text-center">
-              <span class="font-bold text-slate-800"><%= p.openTasks %></span>
-              <span class="text-slate-400"> / <%= p.totalTasks %></span>
-            </td>
-            <%# Go-live %>
-            <td class="px-4 py-3 <%= goLiveCls %> whitespace-nowrap"><%- goLiveDisplay %></td>
-            <%# Last activity %>
-            <td class="px-4 py-3 text-right">
-              <span class="<%= p.daysSinceUpdate >= 14 ? 'text-red-600 font-bold' : p.daysSinceUpdate >= 7 ? 'text-amber-600 font-semibold' : 'text-slate-400' %>">
-                <% if (p.daysSinceUpdate > 99) { %>—<% } else { %><%= p.daysSinceUpdate %>d<% } %>
-              </span>
-            </td>
-          </tr>
-          <% }) %>
-          <% if (!projects.length) { %>
-          <tr><td colspan="7" class="py-12 text-center text-slate-400">No hay proyectos disponibles.</td></tr>
-          <% } %>
-        </tbody>
-      </table>
+  <%# ── Tabs + controls ─────────────────────────────────────────────────────── %>
+  <div class="flex flex-wrap items-center gap-3">
+    <div class="flex gap-1 bg-white border border-slate-200 rounded-xl p-1">
+      <button class="tab-btn active" id="tab-active" onclick="switchTab('active')">
+        Activos (<%= active.length %>)
+      </button>
+      <button class="tab-btn" id="tab-closed" onclick="switchTab('closed')">
+        Cerrados (<%= closed.length %>)
+      </button>
     </div>
-  </section>
-
-  <%# ── Capacity section ────────────────────────────────────────────────────── %>
-  <section>
-    <h2 class="text-lg font-extrabold text-slate-900 mb-1">Capacidad del Equipo</h2>
-    <p class="text-sm text-slate-500 mb-4">Horas comprometidas en tareas abiertas vs disponibilidad hasta fin de mes</p>
-
-    <% const capData = capacityData || []; %>
-    <% if (capData.length === 0) { %>
-    <div class="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
-      No hay datos de capacidad disponibles.
+    <div class="flex gap-1 bg-white border border-slate-200 rounded-lg p-1 ml-auto">
+      <button class="view-btn active" id="view-list"     onclick="switchView('list')">Lista</button>
+      <button class="view-btn"        id="view-timeline" onclick="switchView('timeline')">Timeline</button>
     </div>
-    <% } else { %>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      <% capData.forEach(c => {
-        const statusMap = {
-          overloaded: { label: '🔴 Saturado',    cls: 'border-red-200 bg-red-50',      badgeCls: 'bg-red-100 text-red-700',      barCls: 'bg-red-500' },
-          busy:       { label: '🟠 Ocupado',      cls: 'border-amber-200 bg-amber-50',  badgeCls: 'bg-amber-100 text-amber-700',  barCls: 'bg-amber-400' },
-          available:  { label: '🟢 Disponible',   cls: 'border-blue-200 bg-blue-50',    badgeCls: 'bg-blue-100 text-blue-700',    barCls: 'bg-blue-400' },
-          free:       { label: '⚪ Libre',         cls: 'border-slate-200 bg-slate-50',  badgeCls: 'bg-slate-100 text-slate-600',  barCls: 'bg-slate-300' },
-        };
-        const sm = statusMap[c.status] || statusMap.free;
-      %>
-      <div class="bg-white rounded-xl border-2 <%= sm.cls %> p-4">
-        <div class="flex items-center justify-between mb-2">
-          <div class="font-bold text-slate-900 text-sm truncate"><%= c.name %></div>
-          <span class="text-[10px] font-bold px-2 py-0.5 rounded-full <%= sm.badgeCls %> whitespace-nowrap ml-2"><%= sm.label %></span>
-        </div>
-        <div class="mb-2">
-          <div class="flex justify-between text-xs mb-1">
-            <span class="text-slate-500"><%= (c.allocated||0).toFixed(1) %>h comprometidas</span>
-            <span class="font-bold"><%= c.utilPct %>%</span>
-          </div>
-          <div class="w-full bg-slate-200 rounded-full h-2">
-            <div class="h-2 rounded-full transition-all <%= sm.barCls %>" style="width:<%= Math.min(c.utilPct, 100) %>%"></div>
-          </div>
-        </div>
-        <div class="text-[10px] text-slate-400"><%= (c.allocated||0).toFixed(1) %>h comprometidas / <%= (c.hoursAvailable||0).toFixed(0) %>h disponibles este mes</div>
-      </div>
-      <% }) %>
+    <input type="text" id="searchInput" placeholder="Buscar proyecto o cliente…"
+           oninput="applyFilters()"
+           class="px-3 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 w-52">
+    <div class="flex gap-1" id="status-filters">
+      <button class="filter-btn active" data-status="all"       onclick="setStatusFilter('all')">Todos</button>
+      <button class="filter-btn"        data-status="at_risk"   onclick="setStatusFilter('at_risk')">En riesgo</button>
+      <button class="filter-btn"        data-status="on_track"  onclick="setStatusFilter('on_track')">En curso</button>
+      <button class="filter-btn"        data-status="to_define" onclick="setStatusFilter('to_define')">Sin estado</button>
     </div>
-    <% } %>
-  </section>
+  </div>
 
-  <%# ── Alertas activas ────────────────────────────────────────────────────── %>
-  <% const alerts = projectAlerts || []; %>
-  <% if (alerts.length > 0) { %>
-  <section>
-    <h2 class="text-lg font-extrabold text-slate-900 mb-4">Alertas Activas</h2>
+  <%# ── LIST VIEW ──────────────────────────────────────────────────────────── %>
+  <div id="view-list-container">
     <%
-      // Group by project
-      const alertsByProject = {};
-      alerts.forEach(a => {
-        if (!alertsByProject[a.project]) alertsByProject[a.project] = [];
-        alertsByProject[a.project].push(a);
-      });
+      // Helper: format date short
+      function fmtDate(d) {
+        if (!d) return null;
+        const dt = new Date(d + 'T00:00:00');
+        return dt.toLocaleDateString('es-PY', { day:'2-digit', month:'short', year:'numeric' });
+      }
+
+      // All projects (active + closed) for the list; JS handles tab switching visibility
+      const PHASES = [
+        {n:0,s:'KO'},{n:1,s:'An'},{n:2,s:'Im'},{n:3,s:'Ca'},
+        {n:4,s:'UA'},{n:5,s:'CO'},{n:6,s:'GL'},{n:7,s:'Es'},{n:8,s:'Ce'}
+      ];
     %>
-    <div class="space-y-3">
-      <% Object.entries(alertsByProject).forEach(([proj, projAlerts]) => { %>
-      <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div class="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-          <span class="font-bold text-slate-800 text-sm"><%= proj %></span>
-          <span class="text-xs text-slate-400"><%= projAlerts.length %> alerta<%= projAlerts.length !== 1 ? 's' : '' %></span>
-        </div>
-        <div class="divide-y divide-slate-50">
-          <% projAlerts.forEach(a => {
-            const isCrit = a.severity === 'critical';
-            const dotColor = isCrit ? 'bg-red-500' : 'bg-amber-400';
-            const badgeCls = isCrit ? 'bg-red-100 text-red-700 border-red-200' : 'bg-amber-100 text-amber-700 border-amber-200';
-            const badgeLabel = isCrit ? 'Crítico' : 'Warning';
-          %>
-          <div class="px-4 py-2.5 flex items-start gap-3">
-            <div class="w-2 h-2 rounded-full mt-1.5 flex-shrink-0 <%= dotColor %>"></div>
-            <div class="flex-1 min-w-0">
-              <span class="text-xs text-slate-700"><%= a.message %></span>
-            </div>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full border <%= badgeCls %> flex-shrink-0"><%= badgeLabel %></span>
+    <div id="projects-list" class="space-y-2">
+      <% projects.forEach(p => { %>
+      <%
+        const isActive = !p.isClosed;
+        const statusBg = p.statusInfo.bg;
+        const statusColor = p.statusInfo.color;
+
+        // Days badge
+        let daysBadge = null, daysBadgeColor = '#94A3B8', daysBadgeBg = '#F1F5F9';
+        if (p.daysToGoLive !== null) {
+          if (p.daysToGoLive < 0) {
+            daysBadge = `Vencido ${Math.abs(p.daysToGoLive)}d`;
+            daysBadgeColor = '#EF4444'; daysBadgeBg = '#FEE2E2';
+          } else if (p.daysToGoLive <= 30) {
+            daysBadge = `${p.daysToGoLive}d`;
+            daysBadgeColor = '#D97706'; daysBadgeBg = '#FEF3C7';
+          } else {
+            daysBadge = `${p.daysToGoLive}d`;
+            daysBadgeColor = '#10B981'; daysBadgeBg = '#D1FAE5';
+          }
+        }
+
+        // Hours bar color
+        let hBarColor = '#10B981';
+        if (p.update) {
+          if (p.update.timesheetPct > 100) hBarColor = '#EF4444';
+          else if (p.update.timesheetPct >= 80) hBarColor = '#F59E0B';
+        }
+      %>
+      <div class="proj-row bg-white rounded-xl border border-slate-200 px-4 py-3 flex flex-wrap gap-4 items-start transition-colors cursor-default"
+           data-tab="<%= isActive ? 'active' : 'closed' %>"
+           data-status="<%= p.status %>"
+           data-name="<%= (p.name||'').toLowerCase().replace(/"/g,'&quot;') %>"
+           data-client="<%= (p.client||'').toLowerCase().replace(/"/g,'&quot;') %>">
+
+        <%# LEFT: status pill + name + stepper %>
+        <div class="flex-1 min-w-0" style="min-width:220px;max-width:380px">
+          <div class="flex items-center gap-2 mb-1 flex-wrap">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                  style="background:<%= statusBg %>;color:<%= statusColor %>"><%= p.statusInfo.label %></span>
+            <% if (p.saleOrder) { %>
+            <span class="text-[10px] text-slate-400 font-medium"><%= p.saleOrder %></span>
+            <% } %>
           </div>
-          <% }) %>
+          <a href="<%= p.odooUrl %>" target="_blank" rel="noopener"
+             class="font-bold text-slate-900 hover:text-blue-600 text-sm leading-snug block"
+             style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;"
+             title="<%= p.name %>"><%= p.name %></a>
+          <% if (p.client) { %>
+          <div class="text-xs text-slate-400 mt-0.5"><%= p.client %><% if (p.responsible) { %> · <span class="text-slate-500"><%= p.responsible %></span><% } %></div>
+          <% } %>
+
+          <%# Phase stepper — only for phases 0–8 %>
+          <% if (p.phase !== null) { %>
+          <div class="flex items-center gap-0.5 mt-2 flex-wrap">
+            <% PHASES.forEach((ph, i) => {
+              const isDone    = ph.n < p.phase;
+              const isCurrent = ph.n === p.phase;
+              const dotClass  = isDone ? 'done' : isCurrent ? 'current' : 'future';
+            %>
+            <div class="flex items-center gap-0.5">
+              <% if (i > 0) { %><div class="phase-line <%= isDone || isCurrent ? 'done' : '' %>"></div><% } %>
+              <span class="phase-dot <%= dotClass %>" title="<%= ph.n %>. <%= ph.s %>"></span>
+            </div>
+            <% }) %>
+            <span class="text-[10px] text-slate-500 ml-1 font-medium"><%= p.stageName %></span>
+          </div>
+          <% } else { %>
+          <span class="inline-block mt-1.5 text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium"><%= p.stageName %></span>
+          <% } %>
         </div>
+
+        <%# CENTER: dates %>
+        <div class="text-xs space-y-1" style="min-width:110px">
+          <% if (p.goLiveDate) { %>
+          <div>
+            <div class="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Go-Live</div>
+            <div class="font-semibold text-slate-700"><%= fmtDate(p.goLiveDate) %></div>
+            <% if (daysBadge) { %>
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style="background:<%= daysBadgeBg %>;color:<%= daysBadgeColor %>"><%= daysBadge %></span>
+            <% } %>
+          </div>
+          <% } %>
+          <% if (p.startDate) { %>
+          <div class="text-[10px] text-slate-400">Inicio: <%= fmtDate(p.startDate) %></div>
+          <% } %>
+        </div>
+
+        <%# RIGHT: latest update %>
+        <div class="text-xs" style="min-width:180px;max-width:280px">
+          <% if (p.update) { %>
+          <div class="flex items-center gap-1.5 mb-1">
+            <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style="background:<%= p.update.statusInfo.bg %>;color:<%= p.update.statusInfo.color %>"><%= p.update.statusInfo.label %></span>
+            <span class="text-[10px] text-slate-400"><%= p.update.author %> · <%= new Date(p.update.date + 'T00:00:00').toLocaleDateString('es-PY', {day:'2-digit',month:'short'}) %></span>
+          </div>
+          <div class="text-slate-700 font-medium leading-snug"
+               style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;"
+               title="<%= (p.update.title||'').replace(/"/g,'&quot;') %>"><%= p.update.title || '—' %></div>
+          <% if (p.update.allocatedTime > 0) { %>
+          <div class="mt-1.5 flex items-center gap-2">
+            <div class="hours-bar-wrap">
+              <div class="hours-bar-fill" style="width:<%= Math.min(p.update.timesheetPct, 100) %>%;background:<%= hBarColor %>"></div>
+            </div>
+            <span class="text-slate-600"><%= p.update.timesheetTime %>h / <%= p.update.allocatedTime %>h
+              (<span style="color:<%= hBarColor %>" class="font-bold"><%= p.update.timesheetPct %>%</span>)
+            </span>
+          </div>
+          <% } %>
+          <% if (p.update.taskCount > 0) { %>
+          <div class="text-[10px] text-slate-400 mt-0.5">
+            Tareas: <%= p.update.closedTasks %>/<%= p.update.taskCount %> (<%= p.update.closedTaskPct %>%)
+          </div>
+          <% } %>
+          <% } else { %>
+          <span class="text-[10px] text-slate-300 italic">Sin actualizaciones</span>
+          <% } %>
+        </div>
+
       </div>
       <% }) %>
+      <div id="no-results" class="hidden py-10 text-center text-slate-400 text-sm bg-white rounded-xl border border-slate-200">
+        No hay proyectos que coincidan con los filtros.
+      </div>
     </div>
-  </section>
-  <% } %>
+  </div>
+
+  <%# ── TIMELINE VIEW ────────────────────────────────────────────────────────── %>
+  <div id="view-timeline-container" class="hidden">
+    <div class="bg-white rounded-xl border border-slate-200 overflow-x-auto p-4">
+      <div id="timeline-svg-wrap"></div>
+    </div>
+  </div>
 
 </div><!-- /main -->
 
 <script>
-  let currentRagFilter = 'all';
+const PROJECTS_DATA  = <%- projectsJson %>;
+const TIMELINE_MIN   = '<%= timelineMin %>';
+const TIMELINE_MAX   = '<%= timelineMax %>';
+const TODAY_STR      = new Date().toISOString().slice(0, 10);
 
-  function setRagFilter(rag) {
-    currentRagFilter = rag;
-    // Update button states
-    ['all','red','amber','green','completed'].forEach(r => {
-      const btn = document.getElementById('rag-btn-' + r);
-      if (!btn) return;
-      btn.classList.toggle('active', r === rag);
-    });
-    filterTable();
+const STATUS_COLORS = {
+  at_risk:   '#EF4444',
+  off_track: '#F59E0B',
+  on_track:  '#10B981',
+  to_define: '#94A3B8',
+  done:      '#6366F1',
+};
+
+let currentTab         = 'active';
+let currentStatusFilter = 'all';
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-active').classList.toggle('active', tab === 'active');
+  document.getElementById('tab-closed').classList.toggle('active', tab === 'closed');
+  applyFilters();
+  if (document.getElementById('view-timeline-container').style.display !== 'none') renderTimeline();
+}
+
+// ── View switching ─────────────────────────────────────────────────────────
+function switchView(view) {
+  const isList = view === 'list';
+  document.getElementById('view-list-container').classList.toggle('hidden', !isList);
+  document.getElementById('view-timeline-container').classList.toggle('hidden', isList);
+  document.getElementById('view-list').classList.toggle('active', isList);
+  document.getElementById('view-timeline').classList.toggle('active', !isList);
+  if (!isList) renderTimeline();
+}
+
+// ── Status filter ──────────────────────────────────────────────────────────
+function setStatusFilter(status) {
+  currentStatusFilter = status;
+  document.querySelectorAll('#status-filters .filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.status === status);
+  });
+  applyFilters();
+}
+
+// ── Apply all filters ──────────────────────────────────────────────────────
+function applyFilters() {
+  const search = (document.getElementById('searchInput').value || '').toLowerCase();
+  const rows   = document.querySelectorAll('.proj-row');
+  let visible  = 0;
+
+  rows.forEach(row => {
+    const tabMatch    = row.dataset.tab === currentTab;
+    const statusMatch = currentStatusFilter === 'all' || row.dataset.status === currentStatusFilter;
+    const name        = row.dataset.name   || '';
+    const client      = row.dataset.client || '';
+    const textMatch   = !search || name.includes(search) || client.includes(search);
+
+    const show = tabMatch && statusMatch && textMatch;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  const noRes = document.getElementById('no-results');
+  noRes.classList.toggle('hidden', visible > 0);
+}
+
+// ── Timeline renderer ──────────────────────────────────────────────────────
+function renderTimeline() {
+  const wrap = document.getElementById('timeline-svg-wrap');
+  const projects = PROJECTS_DATA.filter(p => {
+    const tabMatch = currentTab === 'active' ? !p.isClosed : p.isClosed;
+    return tabMatch && p.startDate && p.goLiveDate;
+  });
+
+  if (!projects.length) {
+    wrap.innerHTML = '<p class="text-sm text-slate-400 text-center py-8">No hay proyectos con fechas en esta vista.</p>';
+    return;
   }
 
-  function filterTable() {
-    const search  = (document.getElementById('projectSearch').value || '').toLowerCase();
-    const rows    = document.querySelectorAll('.proj-row');
+  const LABEL_W   = 200;
+  const ROW_H     = 38;
+  const BAR_H     = 22;
+  const HEADER_H  = 36;
+  const PADDING   = 16;
+  const today     = new Date(TODAY_STR + 'T00:00:00');
+  const minDate   = new Date(TIMELINE_MIN + 'T00:00:00');
+  const maxDate   = new Date(TIMELINE_MAX + 'T00:00:00');
+  const totalDays = (maxDate - minDate) / 86400000;
+  const svgW      = Math.max(800, wrap.clientWidth || 900);
+  const chartW    = svgW - LABEL_W - PADDING * 2;
+  const svgH      = HEADER_H + projects.length * ROW_H + PADDING;
 
-    rows.forEach(row => {
-      const rag       = row.dataset.rag       || 'green';
-      const completed = row.dataset.completed === 'true';
-      const name      = row.dataset.name      || '';
-      const client    = row.dataset.client    || '';
-
-      let ragMatch = true;
-      if (currentRagFilter === 'completed') {
-        ragMatch = completed;
-      } else if (currentRagFilter !== 'all') {
-        ragMatch = !completed && rag === currentRagFilter;
-      } else {
-        ragMatch = true;
-      }
-
-      const searchMatch = !search || name.includes(search) || client.includes(search);
-
-      row.style.display = (ragMatch && searchMatch) ? '' : 'none';
-    });
+  function dateToX(d) {
+    const dt = typeof d === 'string' ? new Date(d + 'T00:00:00') : d;
+    return LABEL_W + Math.max(0, Math.min(chartW, ((dt - minDate) / 86400000 / totalDays) * chartW));
   }
+
+  // Month axis ticks
+  const ticks = [];
+  const cur = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+  while (cur <= maxDate) {
+    ticks.push({ date: new Date(cur), x: dateToX(cur) });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+
+  let svg = `<svg width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg" style="font-family:Inter,sans-serif;font-size:11px">`;
+
+  // Background
+  svg += `<rect width="${svgW}" height="${svgH}" fill="#F8FAFC" rx="8"/>`;
+
+  // Header month labels
+  ticks.forEach(t => {
+    const label = t.date.toLocaleDateString('es-PY', { month: 'short', year: '2-digit' });
+    svg += `<text x="${t.x}" y="20" fill="#94A3B8" font-size="10" font-weight="600">${label}</text>`;
+    svg += `<line x1="${t.x}" y1="${HEADER_H}" x2="${t.x}" y2="${svgH - 4}" stroke="#E2E8F0" stroke-width="1"/>`;
+  });
+
+  // Rows
+  projects.forEach((p, i) => {
+    const y0 = HEADER_H + i * ROW_H;
+    const yC = y0 + ROW_H / 2;
+    const barY = yC - BAR_H / 2;
+
+    const x1 = dateToX(p.startDate);
+    const x2 = dateToX(p.goLiveDate);
+    const barW = Math.max(4, x2 - x1);
+    const color = STATUS_COLORS[p.status] || '#94A3B8';
+
+    // Row stripe
+    if (i % 2 === 0) svg += `<rect x="${LABEL_W}" y="${y0}" width="${chartW}" height="${ROW_H}" fill="#F1F5F9" opacity="0.5"/>`;
+
+    // Project label
+    const shortName = p.name.length > 28 ? p.name.slice(0, 26) + '…' : p.name;
+    svg += `<text x="${LABEL_W - 6}" y="${yC + 4}" fill="#374151" font-size="11" font-weight="600" text-anchor="end">${shortName}</text>`;
+
+    // Bar
+    svg += `<rect x="${x1}" y="${barY}" width="${barW}" height="${BAR_H}" rx="4" fill="${color}" opacity="0.85"/>`;
+
+    // Phase label inside bar
+    if (p.stageName && barW > 50) {
+      svg += `<text x="${x1 + barW / 2}" y="${barY + 14}" fill="#fff" font-size="10" font-weight="700" text-anchor="middle">${p.stageName}</text>`;
+    }
+  });
+
+  // Today line
+  const todayX = dateToX(today);
+  svg += `<line x1="${todayX}" y1="${HEADER_H}" x2="${todayX}" y2="${svgH - 4}" stroke="#EF4444" stroke-width="1.5" stroke-dasharray="4,3"/>`;
+  svg += `<text x="${todayX + 3}" y="${HEADER_H + 12}" fill="#EF4444" font-size="9" font-weight="700">HOY</text>`;
+
+  svg += '</svg>';
+  wrap.innerHTML = svg;
+}
+
+// Init
+applyFilters();
 </script>
-
 </body>
 </html>

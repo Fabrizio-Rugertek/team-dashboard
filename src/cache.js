@@ -739,7 +739,7 @@ function computeDashboard(raw, filters = {}) {
       stageProgress:  avgProg,
       goLiveDate:     p.date ? String(p.date).slice(0, 10) : null,
       client:         p.partner_id ? p.partner_id[1] : null,
-      budgetHours:    parseFloat(p.planned_hours || 0),
+      budgetHours:    0, // planned_hours field not available on project.project in this Odoo instance
       assignees: [...new Set(tasks.map(t => t.user_id ? t.user_id[1] || 'Sin asignar' : 'Sin asignar'))].slice(0, 4),
       ganttTasks: tasks
         .filter(t => t.date_start || t.date_end)
