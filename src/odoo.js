@@ -284,6 +284,39 @@ async function fetchAllEmployees() {
   });
 }
 
+// ── Approved employee leaves (hr.leave) ───────────────────────────────────────
+/**
+ * Fetch validated (approved) leave requests for the company.
+ * Covers daysBack days in the past + 60 days forward (for upcoming planned leaves).
+ *
+ * Returns records with: { employee_id, holiday_status_id, date_from, date_to, number_of_days }
+ * Dates are Odoo datetime strings: "YYYY-MM-DD HH:MM:SS" in server time (UTC).
+ */
+async function fetchApprovedLeaves(daysBack = 120) {
+  const today  = new Date();
+  const past   = new Date(today); past.setDate(past.getDate() - daysBack);
+  const future = new Date(today); future.setDate(future.getDate() + 60);
+
+  // Odoo stores datetimes as "YYYY-MM-DD HH:MM:SS" strings
+  const pastStr   = past.toISOString().slice(0, 10)   + ' 00:00:00';
+  const futureStr = future.toISOString().slice(0, 10)  + ' 23:59:59';
+
+  try {
+    const leaves = await callKw('hr.leave', 'search_read', [[
+      ['state',    '=', 'validate'],
+      ['date_from', '<=', futureStr],
+      ['date_to',   '>=', pastStr],
+      ['employee_id.company_id', '=', TORUS_COMPANY_ID],
+    ]], {
+      fields: ['employee_id', 'holiday_status_id', 'date_from', 'date_to', 'number_of_days'],
+    }) || [];
+    return leaves;
+  } catch (e) {
+    console.error('[Odoo] fetchApprovedLeaves:', e.message);
+    return [];
+  }
+}
+
 // ── Exports ─────────────────────────────────────────────────────────────────
 module.exports = {
   authenticate,
@@ -293,6 +326,7 @@ module.exports = {
   fetchUsers,
   fetchActiveEmployees,
   fetchAllEmployees,
+  fetchApprovedLeaves,
 };
 
 // ── CRM Opportunities ──────────────────────────────────────────────────────────

@@ -150,9 +150,38 @@ function filterProjects(projects, { status = 'all', tag = 'all' } = {}) {
 }
 
 // ── buildLoggingControl ───────────────────────────────────────────────────────
-function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceDays, displayDays }) {
+function buildLoggingControl({ employees, userIdToLogin, timesheets, leaves = [], complianceDays, displayDays }) {
   const displayDates   = getRecentBusinessDates(displayDays || config.LOG_HISTORY_BUSINESS_DAYS);
   const complianceDates = getRecentBusinessDates(complianceDays || config.LOG_COMPLIANCE_BUSINESS_DAYS);
+
+  // ── Build leave map: hr.employee.id → Set<'YYYY-MM-DD'> ──────────────────
+  // Odoo dates are "YYYY-MM-DD HH:MM:SS". We take the date portion only.
+  // We expand multi-day leaves into individual date strings.
+  const leaveByEmpId = new Map(); // Map<number, Set<string>>
+  for (const leave of leaves) {
+    const empId = leave.employee_id?.[0];
+    if (!empId) continue;
+    if (!leaveByEmpId.has(empId)) leaveByEmpId.set(empId, new Set());
+    const leaveDates = leaveByEmpId.get(empId);
+    const fromStr = (leave.date_from || '').slice(0, 10);
+    const toStr   = (leave.date_to   || '').slice(0, 10);
+    if (!fromStr || !toStr) continue;
+    let cursor = fromDateOnly(fromStr);
+    const end  = fromDateOnly(toStr);
+    while (cursor <= end) {
+      leaveDates.add(toDateOnly(cursor));
+      cursor = addDays(cursor, 1);
+    }
+  }
+
+  // Build employeeId → login map for quick leave lookup
+  const empIdToLogin = new Map(employees.filter(e => e.id && e.login).map(e => [e.id, e.login]));
+  // Inverse: login → Set<dateStr> of leave days
+  const leaveByLogin = new Map();
+  for (const [empId, dates] of leaveByEmpId) {
+    const login = empIdToLogin.get(empId);
+    if (login) leaveByLogin.set(login, dates);
+  }
   const latestBusinessDate = displayDates[displayDates.length - 1] || null;
   const weekStart = startOfDay(new Date());
   const _lcDow = weekStart.getDay(); // 0=Sun … 6=Sat
@@ -222,13 +251,15 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
   const statusOrder = { critical: 0, warning: 1, healthy: 2 };
 
   const people = [...personLogs.values()].map(person => {
-    // Only count dates where the employee had an active contract
-    const contractStart = person.contract_start ? fromDateOnly(person.contract_start) : null;
-    const contractEnd   = person.contract_end   ? addDays(fromDateOnly(person.contract_end), 1) : null;
-    const activeDates   = complianceDates.filter(dateStr => {
+    // Only count dates where the employee had an active contract and was NOT on approved leave
+    const contractStart  = person.contract_start ? fromDateOnly(person.contract_start) : null;
+    const contractEnd    = person.contract_end   ? addDays(fromDateOnly(person.contract_end), 1) : null;
+    const empLeaveDates  = leaveByLogin.get(person.login) || new Set();
+    const activeDates    = complianceDates.filter(dateStr => {
       const d = fromDateOnly(dateStr);
       if (contractStart && d < contractStart) return false;
       if (contractEnd   && d >= contractEnd)  return false;
+      if (empLeaveDates.has(dateStr))          return false; // skip approved leave days
       return true;
     });
 
@@ -249,14 +280,27 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
     const latePct      = person.totalEntries > 0 ? person.lateEntries    / person.totalEntries : 0;
     const preLogPct    = person.totalEntries > 0 ? person.preLogEntries  / person.totalEntries : 0;
 
+    // Leave-awareness: count leave days in the compliance window and current week
+    const leaveDaysInPeriod  = complianceDates.filter(d => empLeaveDates.has(d)).length;
+    const today              = toDateOnly(startOfDay(new Date()));
+    const onLeaveToday       = empLeaveDates.has(today);
+
+    // Business days in the current week (Mon–today) and how many are on leave
     const currentWeekDays  = activeDates.filter(dateStr => fromDateOnly(dateStr) >= weekStart);
+    // Raw week days (including leave) to check if fully on leave
+    const rawWeekDays      = getRecentBusinessDates(7, new Date())
+      .filter(d => fromDateOnly(d) >= weekStart);
+    const allWeekOnLeave   = rawWeekDays.length > 0 && rawWeekDays.every(d => empLeaveDates.has(d));
+    const partialWeekLeave = !allWeekOnLeave && rawWeekDays.some(d => empLeaveDates.has(d));
+
     const maxWeekDayHours  = currentWeekDays.reduce((max, dateStr) => Math.max(max, person.byDate.get(dateStr)?.hours || 0), 0);
     const concentratedWeek = person.hoursThisWeek >= 16 && maxWeekDayHours / Math.max(person.hoursThisWeek, 1) >= 0.6;
 
     const flags = [];
     let suspiciousScore = 0;
 
-    if (person.hoursThisWeek === 0) { suspiciousScore += 40; flags.push('Sin horas esta semana'); }
+    // Only flag zero hours if person is NOT fully on leave this week
+    if (person.hoursThisWeek === 0 && !allWeekOnLeave) { suspiciousScore += 40; flags.push('Sin horas esta semana'); }
     if (missingStreak >= 2) { suspiciousScore += 20; flags.push(`${missingStreak} dias habiles seguidos sin log`); }
     if (missingDays >= Math.ceil(complianceDates.length * 0.4)) { suspiciousScore += 20; flags.push(`Compliance bajo (${loggedDays}/${complianceDates.length})`); }
     if (latePct >= 0.4  && person.totalEntries >= 4) { suspiciousScore += 20; flags.push(`Carga tardia alta (${formatPct(latePct)}%)`); }
@@ -265,19 +309,25 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
     if (roundPct >= 0.8 && person.totalEntries >= 6) { suspiciousScore += 15; flags.push(`Demasiadas cargas redondas (${formatPct(roundPct)}%)`); }
     if (person.entriesThisWeek <= 2 && person.hoursThisWeek >= 24) { suspiciousScore += 20; flags.push('Muchas horas en muy pocas cargas'); }
     if (concentratedWeek) { suspiciousScore += 15; flags.push('Semana concentrada en un solo dia'); }
+    if (allWeekOnLeave)   { flags.push('En licencia esta semana'); }
+    else if (partialWeekLeave) { flags.push('Licencia parcial esta semana'); }
 
     let status = 'healthy';
-    if (suspiciousScore >= config.SUSPICIOUS_LOG_SCORE_CRITICAL || missingStreak >= 3 || person.hoursThisWeek === 0) status = 'critical';
+    // Don't mark as critical/warning just for zero hours if on leave all week
+    if (suspiciousScore >= config.SUSPICIOUS_LOG_SCORE_CRITICAL || missingStreak >= 3 || (person.hoursThisWeek === 0 && !allWeekOnLeave)) status = 'critical';
     else if (suspiciousScore >= config.SUSPICIOUS_LOG_SCORE_WARNING || missingStreak >= 2 || missingDays >= 4) status = 'warning';
+    if (allWeekOnLeave && suspiciousScore < config.SUSPICIOUS_LOG_SCORE_WARNING) status = 'leave';
 
     const recentDays = displayDates.map(dateStr => {
-      const day = person.byDate.get(dateStr) || { date: dateStr, hours: 0, entries: 0, shortEntries: 0, roundEntries: 0, lateEntries: 0, preLogEntries: 0, items: [] };
+      const day     = person.byDate.get(dateStr) || { date: dateStr, hours: 0, entries: 0, shortEntries: 0, roundEntries: 0, lateEntries: 0, preLogEntries: 0, items: [] };
+      const isLeave = empLeaveDates.has(dateStr);
       return {
         date:        dateStr,
         label:       formatBusinessLabel(dateStr),
         hours:       round(day.hours),
         entries:     day.entries,
-        isMissing:   day.hours === 0,
+        isLeave,
+        isMissing:   !isLeave && day.hours === 0,
         lateEntries: day.lateEntries,
         preLogEntries: day.preLogEntries,
         items:       day.items || [],
@@ -299,7 +349,11 @@ function buildLoggingControl({ employees, userIdToLogin, timesheets, complianceD
       entriesThisWeek: person.entriesThisWeek,
       suspiciousScore,
       status,
-      flags:          flags.slice(0, 3),
+      flags:          flags.slice(0, 4),
+      onLeaveToday,
+      allWeekOnLeave,
+      partialWeekLeave,
+      leaveDaysInPeriod,
       quality: {
         shortDescPct: formatPct(shortDescPct),
         roundPct:     formatPct(roundPct),
@@ -345,22 +399,26 @@ async function getRawOdooData() {
   if (_rawCache && (now - _rawCacheTime) < config.CACHE_TTL_MS) return _rawCache;
 
   console.log('[Cache] Fetching raw data from Odoo...');
-  const [employees, timesheets, projects, scrumRaw] = await Promise.all([
+  const [employees, timesheets, projects, scrumRaw, leaves] = await Promise.all([
     odoo.fetchActiveEmployees(),
     odoo.fetchTimesheets(config.TIMESHEET_DAYS_BACK),
     odoo.fetchProjectsWithTasks(),
     odoo.fetchScrumData(),
+    odoo.fetchApprovedLeaves(config.TIMESHEET_DAYS_BACK).catch(e => {
+      console.warn('[Cache] Leaves fetch failed (continuing without):', e.message);
+      return [];
+    }),
   ]);
 
-  _rawCache     = { employees, timesheets, projects, scrumRaw };
+  _rawCache     = { employees, timesheets, projects, scrumRaw, leaves };
   _rawCacheTime = now;
-  console.log(`[Cache] Raw: ${employees.length} emp, ${timesheets.length} ts, ${projects.length} proj, ${(scrumRaw.teams||[]).length} scrum teams`);
+  console.log(`[Cache] Raw: ${employees.length} emp, ${timesheets.length} ts, ${projects.length} proj, ${(scrumRaw.teams||[]).length} scrum teams, ${leaves.length} approved leaves`);
   return _rawCache;
 }
 
 // ── Layer 2: compute dashboard from raw data + filters ────────────────────────
 function computeDashboard(raw, filters = {}) {
-  const { employees: allEmployees, timesheets: allTimesheets, projects, scrumRaw = { teams: [], sprints: [] } } = raw;
+  const { employees: allEmployees, timesheets: allTimesheets, projects, scrumRaw = { teams: [], sprints: [] }, leaves = [] } = raw;
   const range              = filters.range || '30d';
   const filterConsultants  = filters.consultants instanceof Set ? filters.consultants : new Set();
   const hasFilter          = filterConsultants.size > 0;
@@ -503,16 +561,29 @@ function computeDashboard(raw, filters = {}) {
     }
   }
 
-  // Employees with no hours this week
+  // Employees with no hours this week (skip those on approved leave)
   const weekLogins = new Set(
     timesheets
       .filter(ts => fromDateOnly(ts.date) >= weekStart)
       .map(ts => { const id = ts.user_id?.[0]; return id ? (userIdToLogin.get(id) || null) : null; })
       .filter(Boolean)
   );
+  // Current week's business days (to check leave overlap)
+  const thisWeekBusinessDays = getRecentBusinessDates(7, new Date())
+    .filter(d => fromDateOnly(d) >= weekStart);
   for (const emp of employees) {
     if (!weekLogins.has(emp.login) && emp.login) {
-      anomalies.push({ type: 'info', user: emp.name, message: 'Sin horas esta semana', detail: `${emp.department || 'Sin dept.'} - ${emp.job || 'Sin rol'}`, category: 'inactivo' });
+      // Check if the employee is fully on leave this week
+      const empLeaveDates  = (emp.id ? leaveByEmpId.get(emp.id) : null) || new Set();
+      const fullyOnLeave   = thisWeekBusinessDays.length > 0 && thisWeekBusinessDays.every(d => empLeaveDates.has(d));
+      if (!fullyOnLeave) {
+        const partialLeave = thisWeekBusinessDays.some(d => empLeaveDates.has(d));
+        const detail = partialLeave
+          ? `${emp.department || 'Sin dept.'} - ${emp.job || 'Sin rol'} · Licencia parcial esta semana`
+          : `${emp.department || 'Sin dept.'} - ${emp.job || 'Sin rol'}`;
+        anomalies.push({ type: 'info', user: emp.name, message: 'Sin horas esta semana', detail, category: 'inactivo' });
+      }
+      // If fully on leave: no anomaly generated
     }
   }
 
@@ -844,6 +915,7 @@ function computeDashboard(raw, filters = {}) {
     employees,
     userIdToLogin,
     timesheets,
+    leaves,
     complianceDays: getRangeComplianceDays(range),
     displayDays:    getRangeDisplayDays(range),
   });

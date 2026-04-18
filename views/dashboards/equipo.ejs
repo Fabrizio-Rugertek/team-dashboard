@@ -21,7 +21,8 @@
     .heatmap-sm { background:#BFDBFE; color:#1D4ED8; }
     .heatmap-md { background:#93C5FD; color:#1E3A8A; }
     .heatmap-lg { background:#3B82F6; color:#fff; }
-    .heatmap-xl { background:#1D4ED8; color:#fff; }
+    .heatmap-xl    { background:#1D4ED8; color:#fff; }
+    .heatmap-leave { background:#EDE9FE; color:#7C3AED; }   /* approved leave day */
     /* Date picker */
     #datePicker { min-width: 440px; }
     .preset-btn.active { background:#EFF6FF; color:#2563EB; font-weight:700; }
@@ -339,19 +340,41 @@
           <% if (selectedLogins.size > 0) { %><span class="ml-2 text-blue-600 font-semibold">· <%= consultantLabel %></span><% } %>
         </p>
       </div>
-      <div class="flex gap-2 text-xs">
+      <div class="flex gap-2 text-xs flex-wrap">
+        <% const leaveCount = consultantCards.filter(p => p.status === 'leave').length; %>
         <span class="flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold">🔴 <%= lco.criticalCount || 0 %> críticos</span>
         <span class="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 font-semibold">🟡 <%= lco.warningCount || 0 %> warnings</span>
-        <span class="flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold">🟢 <%= (lco.peopleCount||0) - (lco.suspiciousCount||0) %> sanos</span>
+        <span class="flex items-center gap-1 px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold">🟢 <%= (lco.peopleCount||0) - (lco.suspiciousCount||0) - leaveCount %> sanos</span>
+        <% if (leaveCount > 0) { %>
+        <span class="flex items-center gap-1 px-2 py-1 rounded-full bg-violet-100 text-violet-700 font-semibold">🏖 <%= leaveCount %> en licencia</span>
+        <% } %>
       </div>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
       <% consultantCards.forEach(person => {
-        const statusColor = person.status === 'critical' ? 'border-red-300 bg-red-50' : person.status === 'warning' ? 'border-amber-300 bg-amber-50' : 'border-green-200 bg-green-50';
-        const dotColor    = person.status === 'critical' ? 'bg-red-500' : person.status === 'warning' ? 'bg-amber-400' : 'bg-green-500';
+        const isLeave     = person.status === 'leave';
+        const statusColor = person.status === 'critical' ? 'border-red-300 bg-red-50'
+                          : person.status === 'warning'  ? 'border-amber-300 bg-amber-50'
+                          : isLeave                      ? 'border-violet-200 bg-violet-50'
+                          :                                'border-green-200 bg-green-50';
+        const dotColor    = person.status === 'critical' ? 'bg-red-500'
+                          : person.status === 'warning'  ? 'bg-amber-400'
+                          : isLeave                      ? 'bg-violet-400'
+                          :                                'bg-green-500';
         const initials    = (person.name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-        const avatarBg    = person.status === 'critical' ? 'bg-red-200 text-red-800' : person.status === 'warning' ? 'bg-amber-200 text-amber-800' : 'bg-blue-200 text-blue-800';
+        const avatarBg    = person.status === 'critical' ? 'bg-red-200 text-red-800'
+                          : person.status === 'warning'  ? 'bg-amber-200 text-amber-800'
+                          : isLeave                      ? 'bg-violet-200 text-violet-800'
+                          :                                'bg-blue-200 text-blue-800';
+        const statusLabel = person.status === 'critical' ? 'Crítico'
+                          : person.status === 'warning'  ? 'Warning'
+                          : isLeave                      ? 'En Licencia'
+                          :                                'Sano';
+        const statusTextCls = person.status === 'critical' ? 'text-red-600'
+                            : person.status === 'warning'  ? 'text-amber-600'
+                            : isLeave                      ? 'text-violet-600'
+                            :                                'text-green-600';
         const odooEmpUrl  = `https://www.torus.dev/odoo/employees`;
       %>
       <div class="bg-white rounded-xl border-2 <%= statusColor %> p-4 hover:shadow-md transition-shadow">
@@ -363,11 +386,20 @@
               <div class="text-xs text-slate-500"><%= person.job || 'Sin rol' %></div>
             </div>
           </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-2.5 h-2.5 rounded-full <%= dotColor %>"></div>
-            <span class="text-xs font-bold <%= person.status === 'critical' ? 'text-red-600' : person.status === 'warning' ? 'text-amber-600' : 'text-green-600' %>">
-              <%= person.status === 'critical' ? 'Crítico' : person.status === 'warning' ? 'Warning' : 'Sano' %>
+          <div class="flex flex-col items-end gap-1">
+            <div class="flex items-center gap-1.5">
+              <div class="w-2.5 h-2.5 rounded-full <%= dotColor %>"></div>
+              <span class="text-xs font-bold <%= statusTextCls %>"><%= statusLabel %></span>
+            </div>
+            <% if (isLeave) { %>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">
+              🏖 En licencia
             </span>
+            <% } else if (person.onLeaveToday) { %>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 border border-violet-200">
+              🏖 Licencia parcial
+            </span>
+            <% } %>
           </div>
         </div>
 
@@ -391,8 +423,13 @@
             <% if (prevH > 0) { %><div class="text-[9px] text-slate-300">sem ant: <%= prevH %>h</div><% } %>
           </div>
           <div class="bg-white rounded-lg p-2 border border-slate-100">
+            <% if (isLeave || person.leaveDaysInPeriod > 0) { %>
+            <div class="text-sm font-black text-violet-600"><%= person.leaveDaysInPeriod || 0 %>d</div>
+            <div class="text-[10px] text-violet-400 font-medium uppercase">Licencia</div>
+            <% } else { %>
             <div class="text-sm font-black <%= person.billablePct >= 60 ? 'text-green-600' : person.billablePct > 0 ? 'text-amber-600' : 'text-slate-400' %>"><%= person.billablePct %>%</div>
             <div class="text-[10px] text-slate-400 font-medium uppercase">Billable</div>
+            <% } %>
           </div>
         </div>
 
@@ -743,6 +780,10 @@
         <div class="flex flex-wrap items-center gap-3 mt-2">
           <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">Leyenda días:</span>
           <span class="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
+            <span class="text-[10px] bg-violet-100 text-violet-600 font-bold px-1.5 py-0.5 rounded leading-tight">🏖</span>
+            Licencia aprobada (excluida del control)
+          </span>
+          <span class="inline-flex items-center gap-1.5 text-[11px] text-slate-500">
             <span class="text-[10px] bg-amber-100 text-amber-700 font-bold px-1.5 py-0.5 rounded leading-tight">T</span>
             Carga tardía (registrada 2+ días después)
           </span>
@@ -820,18 +861,34 @@
                 <% person.recentDays.forEach((day) => { %>
                 <button onclick="openLogDayModal('<%= person.login %>','<%= day.date %>','<%= person.name.replace(/'/g,"\\'") %>','<%= day.label %>')"
                   class="log-day rounded-md border px-1.5 py-1 text-center text-[11px] font-semibold cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all
-                  <%= day.isMissing ? 'bg-red-50 border-red-200 text-red-600' : day.hours>=8 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : day.hours>=4 ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-amber-50 border-amber-200 text-amber-700' %>"
-                  title="<%= `${day.label}: ${day.hours}h · clic para ver detalles` %>">
-                  <div><%= day.hours > 0 ? `${day.hours}h` : '0' %></div>
-                  <div class="text-[10px] <%= day.lateEntries ? 'text-amber-500' : day.preLogEntries ? 'text-purple-500' : 'text-slate-300' %>"><%= day.lateEntries ? 'T' : day.preLogEntries ? 'P' : '·' %></div>
+                  <%=
+                    day.isLeave  ? 'bg-violet-50 border-violet-200 text-violet-600' :
+                    day.isMissing ? 'bg-red-50 border-red-200 text-red-600' :
+                    day.hours>=8  ? 'bg-indigo-50 border-indigo-200 text-indigo-700' :
+                    day.hours>=4  ? 'bg-blue-50 border-blue-200 text-blue-700' :
+                                    'bg-amber-50 border-amber-200 text-amber-700'
+                  %>"
+                  title="<%= day.isLeave ? `${day.label}: Licencia aprobada` : `${day.label}: ${day.hours}h · clic para ver detalles` %>">
+                  <div><%= day.isLeave ? '🏖' : day.hours > 0 ? `${day.hours}h` : '0' %></div>
+                  <div class="text-[10px] <%= day.isLeave ? 'text-violet-400' : day.lateEntries ? 'text-amber-500' : day.preLogEntries ? 'text-purple-500' : 'text-slate-300' %>"><%= day.isLeave ? '·' : day.lateEntries ? 'T' : day.preLogEntries ? 'P' : '·' %></div>
                 </button>
                 <% }) %>
               </div>
             </td>
             <td class="py-3 px-3 align-top">
               <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold
-                <%= person.status==='critical'?'bg-red-100 text-red-700':person.status==='warning'?'bg-amber-100 text-amber-700':'bg-green-100 text-green-700' %>">
-                <%= person.status==='critical'?'Crítico':person.status==='warning'?'Warning':'Sano' %> · <%= person.suspiciousScore %>
+                <%=
+                  person.status==='critical' ? 'bg-red-100 text-red-700' :
+                  person.status==='warning'  ? 'bg-amber-100 text-amber-700' :
+                  person.status==='leave'    ? 'bg-violet-100 text-violet-700' :
+                                               'bg-green-100 text-green-700'
+                %>">
+                <%=
+                  person.status==='critical' ? 'Crítico' :
+                  person.status==='warning'  ? 'Warning' :
+                  person.status==='leave'    ? '🏖 Licencia' :
+                                               'Sano'
+                %> · <%= person.suspiciousScore %>
               </div>
               <% if (person.flags.length) { %>
               <div class="mt-1.5 space-y-0.5">
