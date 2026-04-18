@@ -92,6 +92,7 @@ function buildBootstrapPayload(data, opts = {}) {
     loggingControl: data.loggingControl || { overview: {}, displayDates: [], people: [] },
     projects,
     weekly:       data.weeklyData   || [],
+    scrumTeams:   data.scrumTeams   || [],
   };
 }
 
@@ -207,6 +208,16 @@ router.get('/equipo/weekly', async (req, res) => {
     res.json(payload.weekly);
   } catch (error) {
     console.error('[/api/equipo/weekly]', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+router.get('/equipo/scrum', async (req, res) => {
+  try {
+    const payload = await getDashboardData({ status: req.query.status, tag: req.query.tag });
+    res.json(payload.scrumTeams || []);
+  } catch (error) {
+    console.error('[/api/equipo/scrum]', error.message);
     res.status(500).json({ error: error.message });
   }
 });

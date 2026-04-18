@@ -1107,6 +1107,120 @@
 <%# ── Sprints Tab ──────────────────────────────────────────────────────────── %>
 <div id="tab-sprints" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
 
+  <%# ── Scrum Teams ──────────────────────────────────────────────────────── %>
+  <% if (scrumTeams && scrumTeams.length > 0) { %>
+  <div>
+    <h3 class="text-base font-extrabold text-slate-900 mb-3">Scrum Teams</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4" id="scrumTeamsGrid">
+      <% scrumTeams.forEach((team, ti) => { %>
+      <div class="bg-white rounded-xl border border-slate-200 p-5 flex flex-col gap-3">
+
+        <%# Header %>
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="font-extrabold text-slate-900 text-sm"><%= team.name %></div>
+            <div class="text-xs text-slate-400 mt-0.5">PO: <%= team.po || '—' %> · <%= team.memberCount %> miembros</div>
+          </div>
+          <span class="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full"><%= team.code %></span>
+        </div>
+
+        <%# Sprint Status %>
+        <% if (team.activeSprint) { %>
+        <div class="bg-blue-50 border border-blue-100 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-blue-700">🚀 Sprint activo</span>
+            <span class="text-xs text-blue-500"><%= team.activeSprint.dateStart %> → <%= team.activeSprint.dateEnd %></span>
+          </div>
+          <div class="font-semibold text-slate-800 text-xs mb-1.5 truncate"><%= team.activeSprint.name %></div>
+          <% if (team.activeSprint.goal) { %>
+          <div class="text-[11px] text-slate-500 italic mb-2">"<%= team.activeSprint.goal.slice(0,90) %><%= team.activeSprint.goal.length>90?'…':'' %>"</div>
+          <% } %>
+          <%# Task progress bar %>
+          <% const taskPct = team.activeSprint.taskCount > 0 ? Math.round(team.activeSprint.taskDoneCount/team.activeSprint.taskCount*100) : 0; %>
+          <div class="flex items-center gap-2 mb-2">
+            <div class="flex-1 bg-blue-100 rounded-full h-1.5">
+              <div class="bg-blue-500 h-1.5 rounded-full" style="width:<%= taskPct %>%"></div>
+            </div>
+            <span class="text-[11px] font-bold text-blue-700 shrink-0"><%= team.activeSprint.taskDoneCount %>/<%= team.activeSprint.taskCount %></span>
+          </div>
+          <%# SP metrics %>
+          <div class="grid grid-cols-3 gap-1 text-center">
+            <div class="bg-white rounded p-1.5">
+              <div class="text-sm font-black text-slate-800"><%= team.activeSprint.spBaseline || '—' %></div>
+              <div class="text-[9px] text-slate-400">SP compromet.</div>
+            </div>
+            <div class="bg-white rounded p-1.5">
+              <div class="text-sm font-black text-emerald-600"><%= team.activeSprint.spDoneBaseline || 0 %></div>
+              <div class="text-[9px] text-slate-400">SP done</div>
+            </div>
+            <div class="bg-white rounded p-1.5">
+              <div class="text-sm font-black <%= team.activeSprint.velocityTruePct >= 80 ? 'text-emerald-600' : team.activeSprint.velocityTruePct >= 50 ? 'text-amber-500' : 'text-red-500' %>"><%= team.activeSprint.spBaseline > 0 ? team.activeSprint.velocityTruePct+'%' : '—' %></div>
+              <div class="text-[9px] text-slate-400">Vel. real</div>
+            </div>
+          </div>
+          <% if (team.activeSprint.spAddedMid > 0) { %>
+          <div class="mt-1.5 text-[11px] text-orange-500 font-semibold">+<%= team.activeSprint.spAddedMid %> SP agregados mid-sprint</div>
+          <% } %>
+        </div>
+        <% } else if (team.nextSprint) { %>
+        <div class="bg-amber-50 border border-amber-100 rounded-lg p-3">
+          <div class="text-xs font-bold text-amber-700 mb-1">📋 Planning</div>
+          <div class="font-semibold text-slate-700 text-xs truncate"><%= team.nextSprint.name %></div>
+          <div class="text-[11px] text-slate-400 mt-0.5"><%= team.nextSprint.dateStart %> → <%= team.nextSprint.dateEnd %><% if (team.nextSprint.taskCount > 0) { %> · <%= team.nextSprint.taskCount %> tareas<% } %></div>
+        </div>
+        <% } else { %>
+        <div class="bg-slate-50 rounded-lg p-3 text-center text-slate-400 text-xs">Sin sprint activo</div>
+        <% } %>
+
+        <%# Quick stats %>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="bg-slate-50 rounded-lg p-2">
+            <div class="text-base font-black text-slate-800"><%= team.backlogTaskCount %></div>
+            <div class="text-[9px] text-slate-400 font-semibold uppercase">Backlog</div>
+          </div>
+          <div class="bg-slate-50 rounded-lg p-2">
+            <div class="text-base font-black text-slate-800"><%= team.spInBacklog || 0 %></div>
+            <div class="text-[9px] text-slate-400 font-semibold uppercase">SP Pendientes</div>
+          </div>
+          <div class="bg-slate-50 rounded-lg p-2">
+            <div class="text-base font-black <%= team.avgVelocity > 0 ? 'text-blue-600' : 'text-slate-300' %>"><%= team.avgVelocity > 0 ? team.avgVelocity : '—' %></div>
+            <div class="text-[9px] text-slate-400 font-semibold uppercase">Vel. prom</div>
+          </div>
+        </div>
+
+        <%# Velocity mini-chart if has history %>
+        <% if (team.velocityHistory && team.velocityHistory.length > 0) { %>
+        <div>
+          <div class="text-[10px] font-semibold text-slate-400 mb-1">Velocidad últimos sprints</div>
+          <div style="height:65px"><canvas id="velChart_<%= team.id %>"></canvas></div>
+        </div>
+        <% } %>
+      </div>
+      <% }) %>
+    </div>
+
+    <%# Charts row %>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="font-bold text-slate-800 text-sm mb-0.5">Distribución de Story Points (Backlog)</div>
+        <div class="text-xs text-slate-400 mb-3">Tareas sin sprint, por estimación</div>
+        <div style="height:160px"><canvas id="spDistChart"></canvas></div>
+      </div>
+      <div class="bg-white rounded-xl border border-slate-200 p-5">
+        <div class="font-bold text-slate-800 text-sm mb-0.5">Velocidad Histórica</div>
+        <div class="text-xs text-slate-400 mb-3">SP completados por sprint cerrado (últimos 5 por equipo)</div>
+        <div style="height:160px"><canvas id="velocityHistChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <% } %>
+
+  <%# ── Sprint task overview (existing) ──────────────────────────────────── %>
+  <div>
+  <% if (sprintOverview && sprintOverview.length > 0) { %>
+  <h3 class="text-base font-extrabold text-slate-900 mb-3">Tareas por Sprint</h3>
+  <% } %>
+
   <%
     const spData = sprintOverview || [];
     const totalSprintTasks = spData.reduce((s, sp) => s + sp.openTasks + sp.doneTasks, 0);
@@ -1206,6 +1320,7 @@
     <% }) %>
   </div>
   <% } %>
+  </div><%# /sprint task overview %>
 
 </div><!-- /tab-sprints -->
 
@@ -1696,7 +1811,8 @@ document.addEventListener('click', e => {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 const ALL_TABS = ['equipo', 'proyectos', 'capacidad', 'sprints', 'alertas', 'crm'];
-let capacityChartRendered = false;
+let capacityChartRendered  = false;
+let _scrumChartsRendered   = false;
 
 function switchTab(tab) {
   ALL_TABS.forEach(t => {
@@ -1710,6 +1826,11 @@ function switchTab(tab) {
   if (tab === 'capacidad' && !capacityChartRendered) {
     capacityChartRendered = true;
     renderCapacityChart();
+  }
+  // Lazy-render scrum charts on first open of sprints tab
+  if (tab === 'sprints' && !_scrumChartsRendered) {
+    _scrumChartsRendered = true;
+    renderScrumCharts();
   }
   // Persist tab choice in sessionStorage
   sessionStorage.setItem('activeTab', tab);
@@ -1784,6 +1905,106 @@ function renderCapacityChart() {
 function applyProjectFilter(url) {
   sessionStorage.setItem('activeTab', 'proyectos');
   window.location.href = url;
+}
+
+// ── Scrum Charts ──────────────────────────────────────────────────────────────
+const SCRUM_COLORS = ['#3B82F6','#10B981','#8B5CF6','#F59E0B','#EF4444','#06B6D4'];
+const _miniVelCharts   = {};
+let   _spDistChart     = null;
+let   _velocityHistChart = null;
+
+const _scrumTeams = <%- JSON.stringify(scrumTeams || []) %>;
+
+function renderMiniVelChart(teamId, history, colorIdx) {
+  const canvas = document.getElementById(`velChart_${teamId}`);
+  if (!canvas) return;
+  if (_miniVelCharts[teamId]) { _miniVelCharts[teamId].destroy(); }
+  const color = SCRUM_COLORS[colorIdx % SCRUM_COLORS.length];
+  _miniVelCharts[teamId] = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: history.map(h => h.name),
+      datasets: [
+        { label: 'SP Done',        data: history.map(h => h.spCompleted), backgroundColor: color + 'CC', borderRadius: 3, borderSkipped: false, order: 1 },
+        { label: 'SP Comprometidos', data: history.map(h => h.spCommitted), backgroundColor: '#E2E8F0', borderRadius: 3, borderSkipped: false, order: 2 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw} SP` } } },
+      scales: { y: { beginAtZero: true, display: false }, x: { grid: { display: false }, ticks: { font: { size: 9 } } } }
+    }
+  });
+}
+
+function renderSpDistChart(teams) {
+  const canvas = document.getElementById('spDistChart');
+  if (!canvas) return;
+  if (_spDistChart) { _spDistChart.destroy(); }
+  const SP_LABELS = ['1','2','3','5','8','13'];
+  const datasets = teams.map((team, i) => ({
+    label: team.name,
+    data:  SP_LABELS.map(v => (team.spDistribution || {})[parseInt(v)] || 0),
+    backgroundColor: SCRUM_COLORS[i % SCRUM_COLORS.length] + 'CC',
+    borderRadius: 4, borderSkipped: false,
+  }));
+  _spDistChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels: SP_LABELS.map(v => `${v} SP`), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+      scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { precision: 0 } }, x: { grid: { display: false } } }
+    }
+  });
+}
+
+function renderVelocityHistChart(teams) {
+  const canvas = document.getElementById('velocityHistChart');
+  if (!canvas) return;
+  if (_velocityHistChart) { _velocityHistChart.destroy(); }
+  const teamsWithHistory = teams.filter(t => t.velocityHistory && t.velocityHistory.length > 0);
+  if (!teamsWithHistory.length) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#94A3B8'; ctx.font = '12px Inter,sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Sin sprints cerrados aún', canvas.width / 2, canvas.height / 2);
+    return;
+  }
+  const maxLen  = Math.max(...teamsWithHistory.map(t => t.velocityHistory.length));
+  const labels  = Array.from({ length: maxLen }, (_, i) => i === maxLen - 1 ? 'Último' : `S-${maxLen - 1 - i}`);
+  const datasets = teamsWithHistory.map((team, i) => {
+    const pad = Array(maxLen - team.velocityHistory.length).fill(null);
+    return {
+      label: team.name,
+      data:  [...pad, ...team.velocityHistory.map(h => h.spCompleted)],
+      borderColor:     SCRUM_COLORS[i % SCRUM_COLORS.length],
+      backgroundColor: SCRUM_COLORS[i % SCRUM_COLORS.length] + '22',
+      borderWidth: 2, pointRadius: 3, tension: 0.3, fill: true, spanGaps: false,
+    };
+  });
+  _velocityHistChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 12 } } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { callback: v => `${v} SP` } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderScrumCharts() {
+  _scrumTeams.forEach((team, i) => {
+    if (team.velocityHistory && team.velocityHistory.length > 0) {
+      renderMiniVelChart(team.id, team.velocityHistory, i);
+    }
+  });
+  renderSpDistChart(_scrumTeams);
+  renderVelocityHistChart(_scrumTeams);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

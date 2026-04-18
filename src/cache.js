@@ -345,21 +345,22 @@ async function getRawOdooData() {
   if (_rawCache && (now - _rawCacheTime) < config.CACHE_TTL_MS) return _rawCache;
 
   console.log('[Cache] Fetching raw data from Odoo...');
-  const [employees, timesheets, projects] = await Promise.all([
+  const [employees, timesheets, projects, scrumRaw] = await Promise.all([
     odoo.fetchActiveEmployees(),
     odoo.fetchTimesheets(config.TIMESHEET_DAYS_BACK),
     odoo.fetchProjectsWithTasks(),
+    odoo.fetchScrumData(),
   ]);
 
-  _rawCache     = { employees, timesheets, projects };
+  _rawCache     = { employees, timesheets, projects, scrumRaw };
   _rawCacheTime = now;
-  console.log(`[Cache] Raw: ${employees.length} emp, ${timesheets.length} ts, ${projects.length} proj`);
+  console.log(`[Cache] Raw: ${employees.length} emp, ${timesheets.length} ts, ${projects.length} proj, ${(scrumRaw.teams||[]).length} scrum teams`);
   return _rawCache;
 }
 
 // ── Layer 2: compute dashboard from raw data + filters ────────────────────────
 function computeDashboard(raw, filters = {}) {
-  const { employees: allEmployees, timesheets: allTimesheets, projects } = raw;
+  const { employees: allEmployees, timesheets: allTimesheets, projects, scrumRaw = { teams: [], sprints: [] } } = raw;
   const range              = filters.range || '30d';
   const filterConsultants  = filters.consultants instanceof Set ? filters.consultants : new Set();
   const hasFilter          = filterConsultants.size > 0;
@@ -745,6 +746,70 @@ function computeDashboard(raw, filters = {}) {
       .sort((a, b) => a.donePct - b.donePct); // least complete first
   })();
 
+  // ── Scrum Teams metrics ───────────────────────────────────────────────────
+  const SP_VALUES = [1, 2, 3, 5, 8, 13];
+  const scrumTeams = (scrumRaw.teams || []).map(team => {
+    const teamSprints = (scrumRaw.sprints || []).filter(s => s.team_id?.[0] === team.id);
+    const activeSprint  = teamSprints.find(s => s.state === 'active') || null;
+    const planningSprints = teamSprints.filter(s => s.state === 'planning')
+      .sort((a, b) => (a.date_start < b.date_start ? -1 : 1));
+    const doneSprints = teamSprints.filter(s => s.state === 'done')
+      .sort((a, b) => (a.date_start < b.date_start ? -1 : 1));
+
+    const teamTasks   = allTasks.filter(t => t.scrum_team_id?.[0] === team.id);
+    const backlogItems = teamTasks.filter(t => isBacklog(t));
+    const spInBacklog = backlogItems.reduce((s, t) => s + (t.story_points || 0), 0);
+    const spDistribution = Object.fromEntries(SP_VALUES.map(v => [v, 0]));
+    backlogItems.forEach(t => { if (t.story_points && spDistribution[t.story_points] !== undefined) spDistribution[t.story_points]++; });
+
+    const velocityHistory = doneSprints.slice(-5).map(s => ({
+      name: `S${s.sprint_number}`,
+      spCompleted:   s.story_points_completed || 0,
+      spCommitted:   s.story_points_committed || 0,
+      spBaseline:    s.story_points_baseline  || 0,
+      velocityPct:   round(s.velocity_pct     || 0),
+      velocityTruePct: round(s.velocity_true_pct || 0),
+    }));
+
+    const nextSprint = planningSprints[0] || null;
+    return {
+      id:   team.id,
+      name: team.name,
+      code: team.code || '',
+      po:   team.product_owner_id ? team.product_owner_id[1] : null,
+      memberCount:  team.current_member_count || 0,
+      avgVelocity:  round(team.avg_velocity   || 0),
+      sprintCount:  team.sprint_count         || 0,
+      activeSprint: activeSprint ? {
+        id:    activeSprint.id,
+        name:  activeSprint.name,
+        dateStart:  activeSprint.date_start,
+        dateEnd:    activeSprint.date_end,
+        goal:       activeSprint.goal || null,
+        spCommitted:   activeSprint.story_points_committed || 0,
+        spCompleted:   activeSprint.story_points_completed || 0,
+        spBaseline:    activeSprint.story_points_baseline  || 0,
+        spDoneBaseline: activeSprint.story_points_done_baseline || 0,
+        spAddedMid:    activeSprint.sp_added_mid_sprint    || 0,
+        velocityPct:   round(activeSprint.velocity_pct     || 0),
+        velocityTruePct: round(activeSprint.velocity_true_pct || 0),
+        taskCount:     activeSprint.task_count      || 0,
+        taskDoneCount: activeSprint.task_done_count || 0,
+      } : null,
+      nextSprint: nextSprint ? {
+        name:      nextSprint.name,
+        dateStart: nextSprint.date_start,
+        dateEnd:   nextSprint.date_end,
+        taskCount: nextSprint.task_count || 0,
+      } : null,
+      planningCount:   planningSprints.length,
+      backlogTaskCount: backlogItems.length,
+      spInBacklog,
+      spDistribution,
+      velocityHistory,
+    };
+  });
+
   // ── Project alerts (80% hours, stalled, overdue tasks) ───────────────────
   const projectAlerts = projectStatuses
     .filter(p => !p.isInternal && !p.isCompleted)
@@ -813,6 +878,7 @@ function computeDashboard(raw, filters = {}) {
     loggingControl,
     capacityData,
     sprintOverview,
+    scrumTeams,
     projectAlerts,
     timesheetsByPersonProject,
     lastUpdate:     new Date().toISOString(),

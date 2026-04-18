@@ -120,8 +120,7 @@ async function fetchProjectsWithTasks() {
           'id', 'name', 'project_id', 'stage_id', 'user_ids', 'allocated_hours',
           'effective_hours', 'planned_date_begin', 'date_end', 'date_deadline',
           'write_date', 'create_date', 'date_last_stage_update', 'description',
-          'sale_line_id', 'parent_id', 'x_studio_sprint', 'x_studio_fecha_de_sprint',
-          'x_studio_story_points',
+          'sale_line_id', 'parent_id', 'sprint_id', 'story_points', 'scrum_team_id',
         ],
         context: { bin_size: true }
       }
@@ -156,9 +155,9 @@ async function fetchProjectsWithTasks() {
         date_end:       t.date_end,
         sale_line_id:   t.sale_line_id,
         parent_id:      t.parent_id,
-        sprint_id:      t.x_studio_sprint,
-        sprint_start:   t.x_studio_fecha_de_sprint,
-        story_points:   t.x_studio_story_points || null,
+        sprint_id:      t.sprint_id,
+        story_points:   t.story_points ? parseInt(t.story_points) : null,
+        scrum_team_id:  t.scrum_team_id,
       });
     }
   }
@@ -313,3 +312,25 @@ async function fetchCRMOpportunities() {
 }
 
 module.exports.fetchCRMOpportunities = fetchCRMOpportunities;
+
+// ── Scrum data (unika_scrum module) ───────────────────────────────────────
+async function fetchScrumData() {
+  const [teams, sprints] = await Promise.all([
+    callKw('unika.scrum.team', 'search_read', [[['active', '=', true]]], {
+      fields: ['id', 'name', 'code', 'product_owner_id', 'scrum_master_id',
+               'sprint_count', 'active_sprint_id', 'avg_velocity', 'current_member_count']
+    }).catch(e => { console.error('[Odoo] fetchScrumData teams:', e.message); return []; }),
+    callKw('unika.scrum.sprint', 'search_read', [[['state', '!=', 'cancelled']]], {
+      fields: ['id', 'name', 'team_id', 'date_start', 'date_end', 'state',
+               'sprint_number', 'goal',
+               'story_points_committed', 'story_points_completed', 'velocity_pct',
+               'story_points_baseline', 'story_points_done_baseline', 'velocity_true_pct',
+               'sp_added_mid_sprint', 'task_count', 'task_done_count'],
+      order: 'date_start desc',
+      limit: 120
+    }).catch(e => { console.error('[Odoo] fetchScrumData sprints:', e.message); return []; })
+  ]);
+  return { teams, sprints };
+}
+
+module.exports.fetchScrumData = fetchScrumData;

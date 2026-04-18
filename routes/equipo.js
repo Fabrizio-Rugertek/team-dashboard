@@ -177,6 +177,7 @@ router.get('/', async (req, res) => {
       tsByPP:           JSON.stringify(timesheetsByPersonProject || {}),
       capacityData:     data.capacityData     || [],
       sprintOverview:   data.sprintOverview   || [],
+      scrumTeams:       data.scrumTeams       || [],
       projectAlerts:    data.projectAlerts    || [],
       crmStats:         crmStats,
       crmJSON:          JSON.stringify(crmStats),
