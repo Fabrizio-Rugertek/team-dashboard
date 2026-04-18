@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    details > summary { cursor:pointer; list-style:none; }
+    details > summary::-webkit-details-marker { display:none; }
+    details[open] .chevron { transform:rotate(180deg); }
+    .role-card {
+      border-radius:14px; border:1.5px solid #E2E8F0; background:white;
+      transition: all .2s cubic-bezier(.4,0,.2,1);
+    }
+    .role-card:hover { box-shadow:0 8px 32px rgba(0,0,0,.1); transform:translateY(-2px); }
+    .phase-row:hover { background:#F8FAFC; }
+    .product-code {
+      font-family: 'SF Mono','Fira Code',monospace;
+      font-size:12px; font-weight:700;
+      padding:3px 8px; border-radius:6px;
+    }
+    .sp-badge {
+      width:36px; height:36px; border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      font-size:15px; font-weight:900;
+      flex-shrink:0;
+    }
+    /* Org tree */
+    .org-branch { border-left:2px solid #E2E8F0; margin-left:16px; padding-left:16px; }
+    .org-node {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 14px; border-radius:10px;
+      border:1.5px solid;
+      font-size:13px; font-weight:700;
+      margin-bottom:4px;
+    }
+    /* Decision tree */
+    .dt-row { border-left:3px solid #E2E8F0; padding-left:16px; margin-bottom:8px; }
+    .dt-row:hover { border-left-color: var(--accent); }
+    /* SLA table */
+    .sla-row td { padding:12px 14px; font-size:13px; }
+    .sla-row:nth-child(odd) td { background:#F8FAFC; }
+    /* Scrum table */
+    .scrum-table th { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#94A3B8; }
+    .scrum-table td { font-size:13px; padding:10px 14px; border-bottom:1px solid #F1F5F9; }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- Nav -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+  <div class="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3 flex-wrap">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-7 w-auto">
+      <span class="text-slate-300">/</span>
+      <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600">Dashboard</a>
+      <span class="text-slate-300">/</span>
+      <a href="/sop" class="text-slate-500 text-sm font-medium hover:text-slate-700">SOPs</a>
+      <span class="text-slate-300">/</span>
+      <span class="text-sm font-bold" style="color:<%= pageColor %>"><%= pageData.icon %> <%= pageData.title %></span>
+    </div>
+    <% if (typeof user !== 'undefined' && user) { %>
+    <div class="flex items-center gap-2">
+      <% if (user.picture) { %>
+      <img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt="">
+      <% } else { %>
+      <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold" style="background:#F5F3FF;color:<%= pageColor %>">
+        <%= (user.name || user.email).slice(0,1).toUpperCase() %>
+      </div>
+      <% } %>
+      <form action="/auth/logout" method="POST" class="inline">
+        <button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50">Salir</button>
+      </form>
+    </div>
+    <% } %>
+  </div>
+</nav>
+
+<!-- Page header -->
+<div class="bg-white border-b border-slate-200">
+  <div class="max-w-5xl mx-auto px-5 py-8">
+    <div class="flex items-start gap-4">
+      <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0"
+           style="background:<%- pageColor %>18; border:2px solid <%- pageColor %>30">
+        <%= pageData.icon %>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs font-black uppercase tracking-widest" style="color:<%= pageColor %>">Referencia</span>
+        </div>
+        <h1 class="text-2xl font-black text-slate-900"><%= pageData.title %></h1>
+        <% if (pageData.intro) { %>
+        <p class="mt-1 text-sm text-slate-500 max-w-2xl"><%= pageData.intro %></p>
+        <% } %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-5xl mx-auto px-5 py-8 space-y-10">
+
+<!-- ═══════════ ORGANIGRAMA ═══════════ -->
+<% if (pageId === 'organigrama') { %>
+
+  <!-- Org tree visual -->
+  <div class="bg-white rounded-2xl border border-slate-200 p-6">
+    <h2 class="text-base font-extrabold text-slate-800 mb-6">Estructura de la Empresa</h2>
+    <% pageData.sections.forEach(sec => { %>
+    <div class="mb-6">
+      <div class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3"><%= sec.title %></div>
+      <div class="flex flex-wrap gap-2">
+        <% sec.nodes.forEach(node => { %>
+        <div class="org-node" style="border-color:<%=node.color%>22;background:<%=node.color%>08;color:<%=node.color%>">
+          <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:<%=node.color%>"></span>
+          <div>
+            <div class="font-black text-xs" style="color:<%=node.color%>"><%= node.name %></div>
+            <div class="text-xs font-medium opacity-75"><%= node.role %></div>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+
+  <!-- Role types -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <% pageData.roleTypes.forEach(rt => { %>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="font-extrabold text-slate-800 text-sm mb-1"><%= rt.label %></div>
+      <p class="text-sm text-slate-500"><%= rt.description %></p>
+    </div>
+    <% }) %>
+  </div>
+
+  <!-- Project roles table -->
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100">
+      <h2 class="text-base font-extrabold text-slate-800">Roles en Proyecto</h2>
+      <p class="text-xs text-slate-500 mt-0.5">Se asignan por proyecto — un consultor puede tener múltiples roles simultáneamente</p>
+    </div>
+    <table class="w-full">
+      <thead>
+        <tr class="bg-slate-50 border-b border-slate-100">
+          <th class="text-left px-6 py-3 text-xs font-black uppercase tracking-widest text-slate-400 w-1/3">Rol</th>
+          <th class="text-left px-6 py-3 text-xs font-black uppercase tracking-widest text-slate-400">Responsabilidad principal</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% pageData.projectRoles.forEach((r, i) => { %>
+        <tr class="<%= i % 2 === 0 ? '' : 'bg-slate-50/50' %> border-b border-slate-100 last:border-0">
+          <td class="px-6 py-3 font-bold text-slate-800 text-sm"><%= r.role %></td>
+          <td class="px-6 py-3 text-sm text-slate-600"><%= r.resp %></td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+<% } %>
+
+<!-- ═══════════ ROLES ═══════════ -->
+<% if (pageId === 'roles') { %>
+
+  <div class="space-y-5">
+    <% pageData.roles.forEach(role => { %>
+    <details class="role-card">
+      <summary class="p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+             style="background:<%=role.color%>15; border:2px solid <%=role.color%>25">
+          <%= role.emoji %>
+        </div>
+        <div class="flex-1">
+          <div class="font-black text-slate-900 text-base"><%= role.name %></div>
+          <div class="text-sm font-medium mt-0.5" style="color:<%= role.color %>"><%= role.tagline %></div>
+        </div>
+        <svg class="chevron w-5 h-5 text-slate-400 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </summary>
+
+      <div class="px-5 pb-5 space-y-4 border-t border-slate-100 pt-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Responsibilities -->
+          <div>
+            <div class="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Responsabilidades</div>
+            <ul class="space-y-1.5">
+              <% role.responsibilities.forEach(r => { %>
+              <li class="flex gap-2 items-start text-sm text-slate-700">
+                <span class="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style="background:<%= role.color %>"></span>
+                <%= r %>
+              </li>
+              <% }) %>
+            </ul>
+          </div>
+
+          <!-- KPIs + Tools -->
+          <div class="space-y-4">
+            <div>
+              <div class="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">KPIs clave</div>
+              <ul class="space-y-1">
+                <% role.kpis.forEach(k => { %>
+                <li class="text-xs font-medium text-slate-600 bg-slate-50 px-2.5 py-1.5 rounded-lg">📊 <%= k %></li>
+                <% }) %>
+              </ul>
+            </div>
+            <div>
+              <div class="text-xs font-black uppercase tracking-widest text-slate-400 mb-2">Herramientas</div>
+              <div class="flex flex-wrap gap-1.5">
+                <% role.tools.forEach(t => { %>
+                <span class="text-xs font-semibold px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-600"><%= t %></span>
+                <% }) %>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Do Not -->
+        <div class="bg-red-50 rounded-xl p-3.5">
+          <div class="text-xs font-black uppercase tracking-widest text-red-400 mb-2">No hacer</div>
+          <ul class="space-y-1">
+            <% role.doNot.forEach(d => { %>
+            <li class="flex gap-2 items-start text-xs text-red-700">
+              <span class="font-black flex-shrink-0">✕</span> <%= d %>
+            </li>
+            <% }) %>
+          </ul>
+        </div>
+      </div>
+    </details>
+    <% }) %>
+  </div>
+
+<% } %>
+
+<!-- ═══════════ METODOLOGÍA ═══════════ -->
+<% if (pageId === 'metodologia') { %>
+
+  <!-- Phases -->
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100">
+      <h2 class="text-base font-extrabold text-slate-800">Fases de Implementación Odoo</h2>
+      <p class="text-xs text-slate-500 mt-0.5">Cada fase tiene un punto de control (gate) — no se avanza sin él</p>
+    </div>
+    <div class="divide-y divide-slate-100">
+      <% pageData.phases.forEach(ph => { %>
+      <div class="phase-row flex items-center gap-4 px-6 py-3.5 transition-colors">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center font-black text-white text-sm flex-shrink-0"
+             style="background:<%= ph.color %>">
+          <%= ph.num %>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-bold text-slate-800 text-sm"><%= ph.name %></div>
+          <div class="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><circle cx="5" cy="5" r="4" stroke="#94A3B8" stroke-width="1.2"/><path d="M5 2.5V5l1.5 1.5" stroke="#94A3B8" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <%= ph.duration %>
+          </div>
+        </div>
+        <div class="hidden md:flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg max-w-xs">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5 4-4" stroke="#10B981" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <%= ph.gate %>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- SCRUM ceremonies -->
+  <div>
+    <h2 class="text-base font-extrabold text-slate-800 mb-4">Ceremonias SCRUM</h2>
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <table class="w-full scrum-table">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-100">
+            <th class="text-left px-5 py-3">Ceremonia</th>
+            <th class="text-left px-5 py-3">Frecuencia</th>
+            <th class="text-left px-5 py-3">Duración</th>
+            <th class="text-left px-5 py-3 hidden md:table-cell">Propósito</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pageData.scrum.ceremonies.forEach(c => { %>
+          <tr>
+            <td class="font-bold text-slate-800"><%= c.name %></td>
+            <td class="text-slate-600"><%= c.freq %></td>
+            <td><span class="px-2 py-0.5 rounded-md bg-violet-50 text-violet-700 font-semibold text-xs"><%= c.duration %></span></td>
+            <td class="text-slate-500 hidden md:table-cell"><%= c.purpose %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Story points scale -->
+  <div>
+    <h2 class="text-base font-extrabold text-slate-800 mb-4">Escala de Story Points (Fibonacci)</h2>
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+      <%
+        const spColors = {1:'#ECFDF5',2:'#D1FAE5',3:'#FEF9C3',5:'#FEF3C7',8:'#FEE2E2',13:'#F5F3FF'};
+        const spTextColors = {1:'#065F46',2:'#064E3B',3:'#78350F',5:'#92400E',8:'#991B1B',13:'#4C1D95'};
+      %>
+      <% pageData.scrum.storyPoints.forEach(sp => { %>
+      <div class="rounded-xl border-2 border-current p-3 text-center"
+           style="background:<%=spColors[sp.sp]%>; color:<%=spTextColors[sp.sp]%>">
+        <div class="sp-badge mx-auto mb-2" style="background:<%=spTextColors[sp.sp]%>; color:white">
+          <%= sp.sp %>
+        </div>
+        <div class="font-black text-xs mb-1"><%= sp.label %></div>
+        <div class="text-xs opacity-75 leading-snug"><%= sp.desc %></div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- Definition of Done -->
+  <div class="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border border-emerald-200 p-6">
+    <h2 class="text-base font-extrabold text-emerald-800 mb-4">Definition of Done (DoD)</h2>
+    <p class="text-sm text-emerald-700 mb-4">Una historia solo está "Done" cuando cumple TODOS los criterios:</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+      <% pageData.scrum.dod.forEach((d, i) => { %>
+      <div class="flex items-center gap-2.5 bg-white/70 rounded-lg px-3 py-2.5">
+        <div class="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-black flex-shrink-0"><%= i+1 %></div>
+        <span class="text-sm font-medium text-emerald-900"><%= d %></span>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- SLA -->
+  <div>
+    <h2 class="text-base font-extrabold text-slate-800 mb-4">SLA de Soporte Post Go-Live</h2>
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <table class="w-full">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-100">
+            <th class="text-left px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400">Severidad</th>
+            <th class="text-left px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400">1ª Respuesta</th>
+            <th class="text-left px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400">Resolución</th>
+            <th class="text-left px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-400 hidden md:table-cell">Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% const slaColors = {Crítico:'#EF4444', Alto:'#F59E0B', Moderado:'#3B82F6', Bajo:'#10B981'}; %>
+          <% pageData.slaSupport.forEach((s, i) => { %>
+          <tr class="sla-row border-b border-slate-100 last:border-0">
+            <td>
+              <span class="font-black text-sm px-2.5 py-1 rounded-full text-white" style="background:<%= slaColors[s.level] || '#64748B' %>">
+                <%= s.level %>
+              </span>
+            </td>
+            <td class="font-bold text-slate-700" style="color:<%= slaColors[s.level] %>"><%= s.response %></td>
+            <td class="text-slate-600"><%= s.resolution %></td>
+            <td class="text-slate-500 text-xs hidden md:table-cell"><%= s.description %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+<% } %>
+
+<!-- ═══════════ CATÁLOGO TORUS ═══════════ -->
+<% if (pageId === 'catalogo-torus') { %>
+
+  <% pageData.products.forEach(cat => { %>
+  <div>
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-1 h-6 rounded-full" style="background:<%= cat.color %>"></div>
+      <h2 class="text-base font-extrabold text-slate-800"><%= cat.category %></h2>
+    </div>
+    <div class="space-y-3">
+      <% cat.items.forEach(item => { %>
+      <div class="bg-white rounded-xl border border-slate-200 p-4">
+        <div class="flex items-start gap-3 flex-wrap">
+          <span class="product-code" style="background:<%=cat.color%>15; color:<%=cat.color%>">[<%= item.code %>]</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-extrabold text-slate-900 text-sm"><%= item.name %></div>
+            <div class="text-xs text-slate-500 mt-1 leading-relaxed"><%= item.when %></div>
+          </div>
+          <div class="text-xs text-slate-400 font-medium whitespace-nowrap bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+            <%= item.billing %>
+          </div>
+        </div>
+        <% if (item.crossSell && item.crossSell.length > 0) { %>
+        <div class="mt-3 flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-slate-400 font-semibold">Cross-sell →</span>
+          <% item.crossSell.forEach(cs => { %>
+          <span class="text-xs font-bold px-2 py-0.5 rounded-md" style="background:<%=cat.color%>10;color:<%=cat.color%>">[<%= cs %>]</span>
+          <% }) %>
+        </div>
+        <% } %>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+  <% }) %>
+
+  <!-- Decision tree -->
+  <div class="bg-white rounded-2xl border border-slate-200 p-6" style="--accent:<%= pageData.color %>">
+    <h2 class="text-base font-extrabold text-slate-800 mb-5">¿Qué producto ofrecer?</h2>
+    <div class="space-y-2">
+      <% pageData.decisionTree.forEach((dt, i) => { %>
+      <div class="dt-row" style="--accent:<%= pageData.color %>; border-left-color:<%= pageData.color %>22">
+        <div class="text-xs font-semibold text-slate-500 mb-0.5">Si: <%= dt.q %></div>
+        <div class="text-sm font-bold" style="color:<%= pageData.color %>">→ <%= dt.a %></div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- Conditions -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-2xl font-black" style="color:<%= pageData.color %>"><%= pageData.conditions.maxInstallments %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Cuotas máximas</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-2xl font-black" style="color:<%= pageData.color %>"><%= pageData.conditions.downPayment %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Down payment mínimo</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-xl font-black" style="color:<%= pageData.color %>"><%= pageData.conditions.currency %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Moneda facturación</div>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-xs font-mono font-black break-all" style="color:<%= pageData.color %>; font-size:11px"><%= pageData.conditions.trialExtension %></div>
+      <div class="text-xs text-slate-500 font-semibold mt-1">Código extensión trial</div>
+    </div>
+  </div>
+
+<% } %>
+
+</div><!-- /main content -->
+
+<!-- Back to SOPs -->
+<div class="max-w-5xl mx-auto px-5 pb-10">
+  <a href="/sop" class="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M11 7H3M6 4L3 7l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Volver a todos los SOPs
+  </a>
+</div>
+
+</body>
+</html>

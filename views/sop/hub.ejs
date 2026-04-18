@@ -8,38 +8,180 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
-    * { font-family: 'Inter', sans-serif; }
-    .process-card {
-      transition: all .2s cubic-bezier(.4,0,.2,1);
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+
+    /* ── Hero gradient ─────────────────────────────────────────────────────────── */
+    .hero-bg {
+      background: linear-gradient(135deg, #0F172A 0%, #1E1B4B 40%, #0F172A 100%);
+      position: relative;
+      overflow: hidden;
     }
-    .process-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 32px rgba(0,0,0,.12);
+    .hero-bg::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 20% 50%, rgba(139,92,246,.18) 0%, transparent 60%),
+                  radial-gradient(ellipse 60% 80% at 80% 30%, rgba(59,130,246,.12) 0%, transparent 60%),
+                  radial-gradient(ellipse 40% 40% at 60% 80%, rgba(16,185,129,.10) 0%, transparent 60%);
+      pointer-events: none;
     }
-    .status-complete  { background: #DCFCE7; color: #166534; }
-    .status-wip       { background: #FEF9C3; color: #854D0E; }
-    .status-reference { background: #EFF6FF; color: #1E40AF; }
-    .status-planned   { background: #F1F5F9; color: #64748B; }
+    .hero-orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: .15;
+      animation: float 8s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-20px) scale(1.05); }
+    }
+
+    /* ── Glass cards ───────────────────────────────────────────────────────────── */
+    .glass-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(12px);
+    }
+
+    /* ── Process cards ─────────────────────────────────────────────────────────── */
+    .proc-card {
+      background: white;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 16px;
+      transition: all .22s cubic-bezier(.4,0,.2,1);
+      position: relative;
+      overflow: hidden;
+    }
+    .proc-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--card-color);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+    }
+    .proc-card:hover::before { transform: scaleX(1); }
+    .proc-card:hover {
+      box-shadow: 0 12px 40px rgba(0,0,0,.12);
+      transform: translateY(-4px);
+      border-color: rgba(0,0,0,.05);
+    }
+    .proc-card.clickable { cursor: pointer; }
+    .proc-card.dimmed { opacity: .45; pointer-events: none; }
+
+    /* ── Status badges ─────────────────────────────────────────────────────────── */
+    .badge-complete  { background: #DCFCE7; color: #15803D; }
+    .badge-reference { background: #EFF6FF; color: #1D4ED8; }
+    .badge-wip       { background: #FEF9C3; color: #A16207; }
+    .badge-planned   { background: #F1F5F9; color: #64748B; }
+
+    /* ── Process map ───────────────────────────────────────────────────────────── */
+    .map-node {
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .map-node:hover rect, .map-node:hover circle { filter: brightness(1.15); }
+    .map-node.map-active rect { stroke-width: 3; }
+
+    /* ── Search bar ────────────────────────────────────────────────────────────── */
+    #searchBar:focus { outline: none; box-shadow: 0 0 0 3px rgba(99,102,241,.25); }
+
+    /* ── Section header accent ─────────────────────────────────────────────────── */
+    .section-accent {
+      width: 3px; border-radius: 4px; flex-shrink: 0;
+    }
+
+    /* ── Stat chip ─────────────────────────────────────────────────────────────── */
+    .stat-chip {
+      background: rgba(255,255,255,.08);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 100px;
+      padding: 6px 14px;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; color: rgba(255,255,255,.8);
+    }
+    .stat-chip-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+
+    /* ── Dependency map ────────────────────────────────────────────────────────── */
+    .dep-map-wrap {
+      background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+      border-radius: 16px;
+      border: 1px solid #E2E8F0;
+      overflow: hidden;
+    }
+
+    /* ── Quick access pills ────────────────────────────────────────────────────── */
+    .quick-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 8px 16px; border-radius: 100px;
+      background: white; border: 1.5px solid #E2E8F0;
+      font-size: 13px; font-weight: 600; color: #334155;
+      text-decoration: none;
+      transition: all .18s;
+      white-space: nowrap;
+    }
+    .quick-pill:hover {
+      border-color: var(--pill-color);
+      color: var(--pill-color);
+      background: var(--pill-bg);
+      box-shadow: 0 4px 16px rgba(0,0,0,.08);
+      transform: translateY(-1px);
+    }
+    .quick-pill-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--pill-color);
+    }
+
+    /* ── Card emoji icon ───────────────────────────────────────────────────────── */
+    .card-icon-wrap {
+      width: 40px; height: 40px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+      background: var(--icon-bg);
+    }
+
+    /* ── Search highlight ──────────────────────────────────────────────────────── */
+    .search-hidden { display: none !important; }
+
+    /* ── Animated gradient border on search ────────────────────────────────────── */
+    @keyframes gradient-shift {
+      0%   { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+
+    /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
 
-<!-- Nav -->
-<nav class="bg-white border-b border-slate-200 sticky top-0 z-40">
+<%
+const totalComplete = encyclopedia.sections.reduce((a,s) => a + s.processes.filter(p => p.status === 'complete').length, 0);
+const totalProcs    = encyclopedia.sections.reduce((a,s) => a + s.processes.length, 0);
+const totalSteps    = encyclopedia.sections.reduce((a,s) => a + s.processes.reduce((b,p) => b + (p.steps||0), 0), 0);
+const flowList      = flowProcesses || [];
+%>
+
+<!-- ── Nav ──────────────────────────────────────────────────────────────────── -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
   <div class="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
       <img src="/img/torus-icon-green.png" alt="Torus" class="h-7 w-auto">
-      <span class="text-slate-300 text-sm">/</span>
-      <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600">Dashboard Platform</a>
-      <span class="text-slate-300 text-sm">/</span>
-      <span class="text-slate-700 text-sm font-bold">SOPs</span>
+      <span class="text-slate-300">/</span>
+      <a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600 transition-colors">Dashboard</a>
+      <span class="text-slate-300">/</span>
+      <span class="text-sm font-bold text-slate-800">SOPs & Procesos</span>
     </div>
     <% if (typeof user !== 'undefined' && user) { %>
     <div class="flex items-center gap-3">
       <% if (user.picture) { %>
       <img src="<%= user.picture %>" class="w-7 h-7 rounded-full border border-slate-200" alt="">
       <% } else { %>
-      <div class="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-600">
+      <div class="w-7 h-7 bg-violet-100 rounded-full flex items-center justify-center text-xs font-bold text-violet-700">
         <%= (user.name || user.email).slice(0,1).toUpperCase() %>
       </div>
       <% } %>
@@ -52,165 +194,365 @@
   </div>
 </nav>
 
-<!-- Hero header -->
-<div class="bg-white border-b border-slate-200">
-  <div class="max-w-7xl mx-auto px-5 py-10">
-    <div class="flex items-start justify-between flex-wrap gap-4">
+<!-- ── Hero ──────────────────────────────────────────────────────────────────── -->
+<div class="hero-bg">
+  <!-- Orbs -->
+  <div class="hero-orb w-96 h-96 bg-violet-500" style="top:-10%; left:-5%; animation-delay:0s;"></div>
+  <div class="hero-orb w-64 h-64 bg-blue-500"   style="top:10%; right:5%;  animation-delay:3s;"></div>
+  <div class="hero-orb w-48 h-48 bg-emerald-500" style="bottom:5%; left:40%; animation-delay:5s;"></div>
+
+  <div class="relative max-w-7xl mx-auto px-5 py-14">
+    <div class="flex flex-col md:flex-row items-start md:items-end justify-between gap-8">
       <div>
-        <div class="flex items-center gap-2 mb-2">
-          <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Torus</span>
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+        <div class="flex items-center gap-2 mb-3">
+          <span class="text-xs font-black uppercase tracking-widest text-violet-400">Torus</span>
+          <span class="w-1 h-1 rounded-full bg-violet-500"></span>
           <span class="text-xs font-bold uppercase tracking-widest text-slate-400">Enciclopedia Operacional</span>
         </div>
-        <h1 class="text-3xl font-black text-slate-900">SOPs &amp; Procesos</h1>
-        <p class="mt-2 text-slate-500 max-w-2xl leading-relaxed">
-          Flujos interactivos, roles, metodologías y procedimientos estándar de la empresa.
-          Haz clic en cualquier proceso para explorarlo con animaciones y detalle completo.
+        <h1 class="text-4xl md:text-5xl font-black text-white leading-tight">
+          SOPs & Procesos
+        </h1>
+        <p class="mt-3 text-slate-400 text-base max-w-xl leading-relaxed">
+          Flujos interactivos, roles, metodologías y procedimientos estándar.<br>
+          Haz clic en cualquier proceso para explorarlo paso a paso.
         </p>
+        <!-- Stats chips -->
+        <div class="flex flex-wrap gap-2 mt-5">
+          <span class="stat-chip">
+            <span class="stat-chip-dot bg-emerald-400"></span>
+            <%= totalComplete %> flujos interactivos
+          </span>
+          <span class="stat-chip">
+            <span class="stat-chip-dot bg-blue-400"></span>
+            <%= totalSteps %>+ pasos documentados
+          </span>
+          <span class="stat-chip">
+            <span class="stat-chip-dot bg-violet-400"></span>
+            <%= totalProcs %> procesos en total
+          </span>
+        </div>
       </div>
-      <div class="flex items-center gap-3 mt-2">
-        <div class="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100 rounded-lg px-3 py-2">
-          <span class="w-2 h-2 rounded-full bg-green-400"></span>
-          <span class="font-semibold"><%= encyclopedia.sections.reduce((a,s) => a + s.processes.filter(p => p.status === 'complete').length, 0) %> procesos completos</span>
+
+      <!-- Search -->
+      <div class="w-full md:w-80">
+        <div class="relative">
+          <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M10 10l3.5 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <input id="searchBar" type="text" placeholder="Buscar proceso, rol, herramienta…"
+            class="w-full pl-10 pr-4 py-3 rounded-xl bg-white/10 border border-white/15 text-white placeholder-slate-400 text-sm font-medium transition-all"
+            oninput="filterProcesses(this.value)">
         </div>
-        <div class="flex items-center gap-1.5 text-xs text-slate-400 bg-slate-100 rounded-lg px-3 py-2">
-          <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-          <span class="font-semibold"><%= encyclopedia.sections.reduce((a,s) => a + s.processes.filter(p => p.status === 'wip' || p.status === 'planned').length, 0) %> en desarrollo</span>
-        </div>
+        <p id="searchCount" class="text-xs text-slate-500 mt-2 hidden"></p>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Process quick-jump bar -->
-<div class="bg-white border-b border-slate-100 overflow-x-auto">
-  <div class="max-w-7xl mx-auto px-5">
-    <div class="flex items-center gap-1 py-3 min-w-max">
-      <% encyclopedia.sections.forEach(section => { %>
-      <a href="#section-<%= section.id %>"
-         class="text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors whitespace-nowrap"
-         style="--c: <%= section.color %>">
-        <%= section.name %>
+<!-- ── Quick access bar ───────────────────────────────────────────────────────── -->
+<div class="bg-white border-b border-slate-200 overflow-x-auto">
+  <div class="max-w-7xl mx-auto px-5 py-3">
+    <div class="flex items-center gap-2 min-w-max">
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-400 mr-1">Acceso rápido</span>
+      <div class="w-px h-4 bg-slate-200 mx-1"></div>
+      <% encyclopedia.sections.forEach(section => {
+           section.processes.filter(p => p.status === 'complete' || p.status === 'reference').forEach(proc => {
+             const href = flowList.includes(proc.id) ? `/sop/${proc.id}` : `/sop/ref/${proc.id}`;
+      %>
+      <a href="<%= href %>" class="quick-pill"
+         style="--pill-color:<%= section.color %>; --pill-bg:<%= section.bg %>">
+        <span class="quick-pill-dot"></span>
+        <%= proc.name.split(' ').slice(0,2).join(' ') %>
       </a>
-      <% if (section !== encyclopedia.sections[encyclopedia.sections.length - 1]) { %>
-      <span class="w-px h-4 bg-slate-200 mx-1"></span>
-      <% } %>
-      <% }) %>
+      <% }) }) %>
     </div>
   </div>
 </div>
 
-<!-- Sections -->
-<div class="max-w-7xl mx-auto px-5 py-10 space-y-14">
+<!-- ── Dependency map ─────────────────────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 pt-10 pb-4" id="depMapSection">
+  <div class="flex items-center gap-3 mb-4">
+    <h2 class="text-lg font-extrabold text-slate-800">Mapa de Procesos</h2>
+    <span class="text-xs text-slate-400 font-medium">Cómo se relacionan entre sí</span>
+  </div>
+  <div class="dep-map-wrap p-6 overflow-x-auto">
+    <svg id="depMap" viewBox="0 0 860 200" style="min-width:680px; width:100%; max-height:200px;" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="mArrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#CBD5E1"/>
+        </marker>
+        <marker id="mArrowOrange" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#F59E0B"/>
+        </marker>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.1"/>
+        </filter>
+      </defs>
+
+      <!-- Arrows -->
+      <!-- Ventas → Implementación -->
+      <path d="M 168 65 C 220 65 240 65 270 65" stroke="#CBD5E1" stroke-width="1.5" fill="none" marker-end="url(#mArrow)"/>
+      <!-- Ventas → Facturación (diagonal down) -->
+      <path d="M 168 75 C 210 75 230 130 270 130" stroke="#F59E0B" stroke-width="1.5" fill="none" stroke-dasharray="5 4" marker-end="url(#mArrowOrange)"/>
+      <!-- Implementación → Scrum -->
+      <path d="M 418 65 C 460 65 480 65 490 65" stroke="#CBD5E1" stroke-width="1.5" fill="none" marker-end="url(#mArrow)"/>
+      <!-- Implementación → Desarrollo -->
+      <path d="M 418 75 C 455 75 470 130 490 130" stroke="#CBD5E1" stroke-width="1.5" fill="none" marker-end="url(#mArrow)"/>
+      <!-- Implementación → Soporte (via go-live) -->
+      <path d="M 418 65 C 500 65 560 45 630 45" stroke="#CBD5E1" stroke-width="1.5" fill="none" marker-end="url(#mArrow)"/>
+      <!-- Tareas (cross-cutting) -->
+      <path d="M 350 160 L 350 100" stroke="#8B5CF6" stroke-width="1" fill="none" stroke-dasharray="4 3" marker-end="url(#mArrow)"/>
+      <!-- Desarrollo → Soporte -->
+      <path d="M 640 130 C 680 130 700 80 720 65" stroke="#CBD5E1" stroke-width="1.5" fill="none" marker-end="url(#mArrow)"/>
+
+      <!-- Nodes -->
+      <!-- Ventas -->
+      <g class="map-node" onclick="window.location='/sop/ventas'" style="cursor:pointer">
+        <rect x="20" y="40" width="148" height="50" rx="10" fill="white" stroke="#FDE68A" stroke-width="2" filter="url(#shadow)"/>
+        <text x="94" y="59" text-anchor="middle" font-size="12" font-weight="800" fill="#D97706">💼 Ventas</text>
+        <text x="94" y="75" text-anchor="middle" font-size="10" fill="#92400E">10 pasos · 4 roles</text>
+        <text x="94" y="87" text-anchor="middle" font-size="9" fill="#D97706" font-weight="600">Hunter → Closer → PM</text>
+      </g>
+
+      <!-- Facturación -->
+      <g class="map-node" onclick="window.location='/sop/facturacion'" style="cursor:pointer">
+        <rect x="270" y="105" width="148" height="50" rx="10" fill="white" stroke="#FBCFE8" stroke-width="2" filter="url(#shadow)"/>
+        <text x="344" y="124" text-anchor="middle" font-size="12" font-weight="800" fill="#BE185D">💰 Facturación</text>
+        <text x="344" y="140" text-anchor="middle" font-size="10" fill="#9D174D">7 pasos · Admin + CFO</text>
+        <text x="344" y="152" text-anchor="middle" font-size="9" fill="#BE185D" font-weight="600">Anticipo → Cobros → Cierre</text>
+      </g>
+
+      <!-- Implementación -->
+      <g class="map-node" onclick="window.location='/sop/implementacion'" style="cursor:pointer">
+        <rect x="270" y="40" width="148" height="50" rx="10" fill="white" stroke="#DDD6FE" stroke-width="2" filter="url(#shadow)"/>
+        <text x="344" y="59" text-anchor="middle" font-size="12" font-weight="800" fill="#7C3AED">⚙️ Implementación</text>
+        <text x="344" y="75" text-anchor="middle" font-size="10" fill="#6D28D9">8 pasos · PM + Funcional</text>
+        <text x="344" y="87" text-anchor="middle" font-size="9" fill="#7C3AED" font-weight="600">Análisis → Config → Go-Live</text>
+      </g>
+
+      <!-- Scrum -->
+      <g class="map-node" onclick="window.location='/sop/scrum'" style="cursor:pointer">
+        <rect x="490" y="40" width="148" height="50" rx="10" fill="white" stroke="#BFDBFE" stroke-width="2" filter="url(#shadow)"/>
+        <text x="564" y="59" text-anchor="middle" font-size="12" font-weight="800" fill="#1D4ED8">🔄 Scrum</text>
+        <text x="564" y="75" text-anchor="middle" font-size="10" fill="#1E40AF">6 ceremonias · Sprint</text>
+        <text x="564" y="87" text-anchor="middle" font-size="9" fill="#1D4ED8" font-weight="600">Planning → Daily → Retro</text>
+      </g>
+
+      <!-- Desarrollo -->
+      <g class="map-node" onclick="window.location='/sop/desarrollo'" style="cursor:pointer">
+        <rect x="490" y="105" width="148" height="50" rx="10" fill="white" stroke="#FBCFE8" stroke-width="2" filter="url(#shadow)"/>
+        <text x="564" y="124" text-anchor="middle" font-size="12" font-weight="800" fill="#BE185D">💻 Desarrollo</text>
+        <text x="564" y="140" text-anchor="middle" font-size="10" fill="#9D174D">5 pasos · Pipeline técnico</text>
+        <text x="564" y="152" text-anchor="middle" font-size="9" fill="#BE185D" font-weight="600">DEV → Test → DEPLOY prod</text>
+      </g>
+
+      <!-- Soporte -->
+      <g class="map-node" onclick="window.location='/sop/soporte'" style="cursor:pointer">
+        <rect x="710" y="20" width="130" height="50" rx="10" fill="white" stroke="#A7F3D0" stroke-width="2" filter="url(#shadow)"/>
+        <text x="775" y="39" text-anchor="middle" font-size="12" font-weight="800" fill="#065F46">🎧 Soporte</text>
+        <text x="775" y="55" text-anchor="middle" font-size="10" fill="#064E3B">6 pasos · SLA activo</text>
+        <text x="775" y="67" text-anchor="middle" font-size="9" fill="#065F46" font-weight="600">N1 → N2 → Revisión mes</text>
+      </g>
+
+      <!-- Tareas (cross-cutting) -->
+      <g class="map-node" onclick="window.location='/sop/tareas'" style="cursor:pointer">
+        <rect x="240" y="160" width="220" height="36" rx="8" fill="white" stroke="#DDD6FE" stroke-width="1.5" filter="url(#shadow)"/>
+        <text x="350" y="174" text-anchor="middle" font-size="11" font-weight="800" fill="#7C3AED">✅ Gestión de Tareas Odoo</text>
+        <text x="350" y="189" text-anchor="middle" font-size="9" fill="#6D28D9">Aplica a todos los procesos</text>
+      </g>
+
+      <!-- Hover hint -->
+      <text x="430" y="198" text-anchor="middle" font-size="9" fill="#CBD5E1">Haz clic en cualquier proceso para abrirlo</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ── Sections ───────────────────────────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 py-8 space-y-12" id="sectionsContainer">
+
   <% encyclopedia.sections.forEach(section => { %>
-  <div id="section-<%= section.id %>">
+  <div class="section-block" data-section="<%= section.id %>">
     <!-- Section header -->
-    <div class="flex items-center gap-4 mb-6">
-      <div class="w-1 h-10 rounded-full" style="background: <%= section.color %>"></div>
-      <div>
-        <h2 class="text-xl font-extrabold text-slate-900"><%= section.name %></h2>
-        <p class="text-sm text-slate-500 mt-0.5"><%= section.description %></p>
+    <div class="flex items-center gap-3 mb-5">
+      <div class="section-accent h-8" style="background:<%= section.color %>"></div>
+      <div class="flex items-center gap-3">
+        <span class="text-2xl"><%= section.icon || '' %></span>
+        <div>
+          <h2 class="text-xl font-extrabold text-slate-900 leading-none"><%= section.name %></h2>
+          <p class="text-sm text-slate-500 mt-0.5"><%= section.description %></p>
+        </div>
+      </div>
+      <!-- Completion chip -->
+      <%
+        const sComplete = section.processes.filter(p => p.status === 'complete').length;
+        const sRef      = section.processes.filter(p => p.status === 'reference').length;
+        const sTotal    = section.processes.length;
+      %>
+      <div class="ml-auto flex items-center gap-2">
+        <% if (sComplete > 0) { %>
+        <span class="text-xs font-bold px-2.5 py-1 rounded-full badge-complete">
+          <%= sComplete %> flujo<%= sComplete !== 1 ? 's' : '' %>
+        </span>
+        <% } %>
+        <% if (sRef > 0) { %>
+        <span class="text-xs font-bold px-2.5 py-1 rounded-full badge-reference">
+          <%= sRef %> referencia<%= sRef !== 1 ? 's' : '' %>
+        </span>
+        <% } %>
       </div>
     </div>
 
-    <!-- Process cards grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-      <% section.processes.forEach(proc => { %>
-      <%
-        const isFlow    = flowProcesses.includes(proc.id);
-        const isWip     = proc.status === 'wip';
-        const isPlanned = proc.status === 'planned';
-        const isRef     = proc.status === 'reference';
-        const href      = isFlow ? `/sop/${proc.id}` : '#';
-        const statusLabel = { complete: 'Disponible', wip: 'En desarrollo', reference: 'Referencia', planned: 'Próximamente' }[proc.status] || 'N/D';
-        const statusClass = `status-${proc.status}`;
+    <!-- Cards grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <% section.processes.forEach(proc => {
+           const isFlow    = flowList.includes(proc.id);
+           const isRef     = proc.status === 'reference';
+           const isComplete = proc.status === 'complete';
+           const isPlanned = proc.status === 'planned';
+           const isWip     = proc.status === 'wip';
+           const clickable = isFlow || isRef;
+           const href      = isFlow ? `/sop/${proc.id}` : isRef ? `/sop/ref/${proc.id}` : '#';
+           const statusLabel = { complete: 'Interactivo', reference: 'Referencia', wip: 'En desarrollo', planned: 'Próximamente' }[proc.status] || '';
+           const badgeClass  = `badge-${proc.status}`;
       %>
       <a href="<%= href %>"
-         class="process-card block bg-white rounded-2xl border border-slate-200 border-l-4 p-5 <%= isWip || isPlanned ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer' %>"
-         style="border-left-color: <%= section.color %>;"
-         onclick="<%= isWip || isPlanned ? 'return false' : '' %>">
+         class="proc-card proc-item <%= clickable ? 'clickable' : '' %> block p-5 no-underline"
+         style="--card-color:<%= section.color %>; text-decoration:none;"
+         onclick="<%= isWip || isPlanned ? 'return false' : '' %>"
+         data-name="<%= proc.name.toLowerCase() %>"
+         data-desc="<%= proc.description.toLowerCase() %>">
 
-        <!-- Status badge + steps count -->
-        <div class="flex items-center justify-between mb-4">
-          <span class="text-xs font-bold px-2.5 py-1 rounded-full <%= statusClass %>">
-            <%= statusLabel %>
-          </span>
-          <% if (proc.steps) { %>
-          <span class="text-xs text-slate-400 font-semibold"><%= proc.steps %> pasos</span>
-          <% } %>
+        <!-- Top row: icon + status + steps -->
+        <div class="flex items-start justify-between mb-4">
+          <div class="card-icon-wrap" style="--icon-bg: <%= section.bg %>">
+            <%= section.icon || '📄' %>
+          </div>
+          <div class="flex items-center gap-2">
+            <% if (proc.steps) { %>
+            <span class="text-xs text-slate-400 font-semibold bg-slate-100 px-2 py-0.5 rounded-md"><%= proc.steps %> pasos</span>
+            <% } %>
+            <span class="text-xs font-bold px-2 py-0.5 rounded-full <%= badgeClass %>"><%= statusLabel %></span>
+          </div>
         </div>
 
-        <!-- Process name -->
-        <h3 class="text-base font-extrabold text-slate-900 leading-snug"><%= proc.name %></h3>
-        <p class="mt-2 text-sm text-slate-500 leading-relaxed"><%= proc.description %></p>
+        <!-- Name -->
+        <h3 class="text-base font-extrabold text-slate-900 leading-snug mb-2"><%= proc.name %></h3>
+        <p class="text-sm text-slate-500 leading-relaxed"><%= proc.description %></p>
 
         <!-- CTA -->
-        <% if (isFlow) { %>
-        <div class="mt-4 flex items-center gap-1.5 text-sm font-bold" style="color: <%= section.color %>">
-          Ver flujo interactivo
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <div class="mt-4 flex items-center gap-1.5">
+          <% if (isFlow) { %>
+          <span class="text-sm font-bold flex items-center gap-1" style="color:<%= section.color %>">
+            Ver flujo interactivo
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <% } else if (isRef) { %>
+          <span class="text-sm font-bold flex items-center gap-1" style="color:<%= section.color %>">
+            Ver referencia
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 7h8M8 4l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <% } else if (isWip) { %>
+          <span class="text-xs text-amber-500 font-semibold">En construcción — disponible pronto</span>
+          <% } else { %>
+          <span class="text-xs text-slate-400 font-medium">Próximamente</span>
+          <% } %>
         </div>
-        <% } else if (isRef) { %>
-        <div class="mt-4 text-xs text-slate-400 font-medium">Solo referencia — sin flujo interactivo</div>
-        <% } else { %>
-        <div class="mt-4 text-xs text-slate-400 font-medium">Disponible próximamente</div>
-        <% } %>
       </a>
       <% }) %>
     </div>
   </div>
   <% }) %>
+
+  <!-- Empty search state -->
+  <div id="emptySearch" class="hidden text-center py-16">
+    <div class="text-4xl mb-3">🔍</div>
+    <div class="text-slate-600 font-semibold">No se encontraron procesos</div>
+    <div class="text-sm text-slate-400 mt-1">Intentá con otro término</div>
+  </div>
 </div>
 
-<!-- Legend / how to use -->
-<div class="max-w-7xl mx-auto px-5 pb-12">
-  <div class="bg-white rounded-2xl border border-slate-200 p-6">
-    <h3 class="text-sm font-extrabold text-slate-700 mb-4">Como usar esta enciclopedia</h3>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 text-sm text-slate-600">
+<!-- ── How to use ─────────────────────────────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-5 pb-10">
+  <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white">
+    <h3 class="text-sm font-extrabold uppercase tracking-widest text-slate-400 mb-5">Cómo usar esta enciclopedia</h3>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
       <div class="flex gap-3">
-        <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="#D97706" stroke-width="1.5"/>
-            <path d="M5 8h6M8 5l3 3-3 3" stroke="#D97706" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
+        <div class="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-lg flex-shrink-0">🗺️</div>
         <div>
-          <div class="font-semibold text-slate-800">Flujos interactivos</div>
-          <div class="text-xs text-slate-500 mt-1 leading-relaxed">Haz clic en cualquier etapa del flujo para ver el detalle completo: pasos, entradas, salidas, herramientas y errores comunes.</div>
+          <div class="text-sm font-bold text-white">Flujos interactivos</div>
+          <div class="text-xs text-slate-400 mt-1 leading-relaxed">Haz clic en cualquier etapa para ver pasos, entradas, salidas, herramientas y errores comunes.</div>
         </div>
       </div>
       <div class="flex gap-3">
-        <div class="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center flex-shrink-0">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M3 8l3 3 7-7" stroke="#8B5CF6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </div>
+        <div class="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-lg flex-shrink-0">🔗</div>
         <div>
-          <div class="font-semibold text-slate-800">Handoffs vinculados</div>
-          <div class="text-xs text-slate-500 mt-1 leading-relaxed">Cuando una etapa pasa la responsabilidad a otro proceso (Facturación, Desarrollo, Soporte), hay un link directo al flujo de ese proceso.</div>
+          <div class="text-sm font-bold text-white">Handoffs vinculados</div>
+          <div class="text-xs text-slate-400 mt-1 leading-relaxed">Cuando una etapa pasa a otro proceso (Facturación, Desarrollo, Soporte), hay un link directo.</div>
         </div>
       </div>
       <div class="flex gap-3">
-        <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center flex-shrink-0">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="#3B82F6" stroke-width="1.5"/>
-            <path d="M8 5v3l2 2" stroke="#3B82F6" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-        </div>
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-lg flex-shrink-0">✅</div>
         <div>
-          <div class="font-semibold text-slate-800">Vivo y actualizable</div>
-          <div class="text-xs text-slate-500 mt-1 leading-relaxed">Esta enciclopedia evoluciona con la empresa. Los procesos "En desarrollo" se irán completando gradualmente con el equipo.</div>
+          <div class="text-sm font-bold text-white">Modo checklist</div>
+          <div class="text-xs text-slate-400 mt-1 leading-relaxed">En cada flujo podés marcar pasos completados. Tu progreso queda guardado en el navegador.</div>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-lg flex-shrink-0">📚</div>
+        <div>
+          <div class="text-sm font-bold text-white">Páginas de referencia</div>
+          <div class="text-xs text-slate-400 mt-1 leading-relaxed">Organigrama, roles, metodología SCRUM y catálogo de productos en formato visual.</div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<footer class="text-center text-xs text-slate-400 py-6 border-t border-slate-200">
-  Torus Dashboard Platform · <%= new Date().getFullYear() %> · SOPs &amp; Procesos
+<footer class="text-center text-xs text-slate-400 py-5 border-t border-slate-200">
+  Torus Dashboard Platform · <%= new Date().getFullYear() %> · SOPs &amp; Procesos Operacionales
 </footer>
 
+<script>
+// ── Search ────────────────────────────────────────────────────────────────────
+function filterProcesses(q) {
+  const term = q.toLowerCase().trim();
+  const cards = document.querySelectorAll('.proc-item');
+  let visible = 0;
+  cards.forEach(card => {
+    const name = card.dataset.name || '';
+    const desc = card.dataset.desc || '';
+    const match = !term || name.includes(term) || desc.includes(term);
+    card.classList.toggle('search-hidden', !match);
+    if (match) visible++;
+  });
+
+  // Hide/show section headers based on visible cards
+  document.querySelectorAll('.section-block').forEach(sec => {
+    const hasVisible = [...sec.querySelectorAll('.proc-item')].some(c => !c.classList.contains('search-hidden'));
+    sec.classList.toggle('search-hidden', term.length > 0 && !hasVisible);
+  });
+
+  const empty = document.getElementById('emptySearch');
+  const count = document.getElementById('searchCount');
+  empty.classList.toggle('hidden', !term || visible > 0);
+  if (term && visible > 0) {
+    count.textContent = `${visible} resultado${visible !== 1 ? 's' : ''}`;
+    count.classList.remove('hidden');
+  } else {
+    count.classList.add('hidden');
+  }
+}
+
+// ── Dep map hover ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.map-node').forEach(n => {
+  n.addEventListener('mouseenter', () => n.style.opacity = '.9');
+  n.addEventListener('mouseleave', () => n.style.opacity = '1');
+});
+</script>
 </body>
 </html>

@@ -795,6 +795,264 @@ const DESARROLLO_EDGES = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PROCESO: SCRUM — Ciclo de Sprint
+// ═══════════════════════════════════════════════════════════════════════════════
+const LANES_SCRUM = [
+  { id: 'sm',  label: 'Scrum Master / PM',      color: '#8B5CF6', bg: '#F5F3FF', row: 0 },
+  { id: 'dev', label: 'Dev Team / Consultores',  color: '#3B82F6', bg: '#EFF6FF', row: 1 },
+  { id: 'po',  label: 'Product Owner / Cliente', color: '#10B981', bg: '#ECFDF5', row: 2 },
+];
+
+const SCRUM_STEPS = [
+  {
+    id: 'sc1', col: 1, lane: 0, label: 'Refinamiento', sublabel: 'Backlog grooming pre-sprint',
+    time: '1-2h / semana', stage: 'Pre-Sprint',
+    description: 'El PM/Scrum Master trabaja con el Product Owner para preparar el backlog del próximo sprint. Se priorizan historias, se estiman story points y se definen criterios de aceptación antes de la planning.',
+    substeps: [
+      'Revisar el backlog en Odoo: historias sin story points o criterios incompletos',
+      'Reunión de refinamiento: SM + PO + (opcionally) Dev Team (max 1-2h)',
+      'Asignar story points usando escala Fibonacci: 1, 2, 3, 5, 8, 13',
+      'Definir criterios de aceptación (Definition of Done) para cada historia',
+      'Priorizar el backlog: las más importantes arriba, listas para la planning',
+      'Identificar dependencias entre historias y bloqueos potenciales',
+    ],
+    inputs:   ['Backlog de Odoo sin refinar', 'Roadmap del producto', 'Feedback de sprints anteriores'],
+    outputs:  ['Backlog priorizado y refinado', 'Story points asignados', 'Criterios de aceptación definidos'],
+    tools:    ['Odoo Proyectos (Sprint Board)', 'Google Meet', 'Tablero físico o digital'],
+    tips:     ['Refinar solo el backlog de las próximas 2-3 semanas — no más', 'Si una historia tarda más de 5 minutos en estimarse, dividirla en historias más pequeñas', 'La Definition of Done del equipo aplica a TODAS las historias'],
+    mistakes: ['Refinar y estimar en la misma reunión que la Planning (congela el equipo)', 'Historias sin criterios de aceptación claros entran al sprint — siempre resulta en retrabajo'],
+  },
+  {
+    id: 'sc2', col: 2, lane: 0, label: 'Sprint Planning', sublabel: 'Goal + commitment del equipo',
+    time: '1-2h', stage: 'Inicio Sprint',
+    description: 'El equipo selecciona las historias del backlog que puede completar en el sprint, define el sprint goal y se compromete. La capacidad del equipo es la guía — no las expectativas externas.',
+    substeps: [
+      'SM facilita: calcular capacity del equipo (días disponibles × horas/día)',
+      'PO presenta las historias prioritarias del backlog refinado',
+      'Dev team selecciona historias que caben en la capacity (sin sobrecargarse)',
+      'Definir el Sprint Goal: una frase que resume el objetivo del sprint',
+      'Crear las tareas de Odoo dentro de cada historia si no están creadas',
+      'Confirmar asignación de responsables por historia o tarea',
+    ],
+    inputs:   ['Backlog refinado y priorizado', 'Capacity del equipo calculada', 'Sprint goal propuesto por PO'],
+    outputs:  ['Sprint backlog comprometido', 'Sprint goal definido', 'Sprint creado en Odoo', 'Equipo alineado'],
+    tools:    ['Odoo (Sprint Board)', 'Google Meet'],
+    tips:     ['Capacity real = días hábiles × horas/día × 0.7 (descuenta reuniones, imprevistos)', 'El Sprint Goal debe ser alcanzable incluso si no se completan todas las historias', 'El Dev Team no acepta presión externa para sobrecargarse — el SM protege esto'],
+    mistakes: ['Aceptar más historias de las que caben en la capacity por presión del PO/cliente', 'Sprint sin Sprint Goal claro — el equipo pierde el foco', 'Planning de más de 2 horas — señal de backlog sin refinar'],
+  },
+  {
+    id: 'sc3', col: 3, lane: 1, label: 'Daily Standup', sublabel: '15 min, 3 preguntas',
+    time: '15 min / día', stage: 'Durante Sprint',
+    description: 'Reunión diaria del Dev Team para sincronizar avances e identificar bloqueos. El SM facilita, el PO puede escuchar pero no participar activamente. Foco en el Sprint Goal, no en reportar al jefe.',
+    substeps: [
+      'Misma hora y lugar cada día (ej: 9:15am, 15 min exactos)',
+      'Cada miembro responde 3 preguntas: ¿Qué hice ayer? ¿Qué haré hoy? ¿Tengo bloqueos?',
+      'SM anota bloqueos y se compromete a resolverlos después del standup',
+      'Actualizar el sprint board en Odoo (mover tareas entre columnas)',
+      'Si el sprint está en riesgo: SM avisa al PO inmediatamente después del daily',
+    ],
+    inputs:   ['Sprint board actualizado', 'Estado del Sprint Goal'],
+    outputs:  ['Bloqueos identificados y en gestión', 'Sprint board actualizado', 'Equipo sincronizado'],
+    tools:    ['Odoo Sprint Board', 'Google Meet (si remoto)', 'Tablero físico (si presencial)'],
+    tips:     ['Daily es para el Dev Team, no para el SM ni el PO — ellos escuchan', 'Si una discusión técnica surge, cortarla: "Lo seguimos después del daily"', 'Registrar horas en Odoo diariamente — no esperar al viernes'],
+    mistakes: ['Daily convertido en reunión de estado/reporte al manager', 'Más de 15 minutos — señal de que se está resolviendo en vez de solo identificar', 'No actualizar el sprint board — pierde sentido la ceremonia'],
+  },
+  {
+    id: 'sc4', col: 4, lane: 1, label: 'Ejecución', sublabel: 'Work in progress',
+    time: '1-2 semanas', stage: 'Durante Sprint',
+    description: 'El Dev Team trabaja en las historias comprometidas. El SM remueve bloqueos activamente. El equipo no acepta trabajo nuevo a mitad de sprint sin el consentimiento del SM y evaluación de impacto.',
+    substeps: [
+      'Dev Team trabaja en las historias: una a la vez, sin multitasking entre historias',
+      'Registrar horas en Odoo diariamente por tarea (obligatorio)',
+      'WIP limit: máximo 2-3 tareas en "In Progress" por persona',
+      'SM monitorea el burndown: ¿el equipo va a completar el Sprint Goal?',
+      'Bloqueos escalan inmediatamente al SM — nunca esperar el daily',
+      'Si hay scope creep (PO quiere agregar cosas): SM evalúa impacto y puede rechazar',
+    ],
+    inputs:   ['Sprint backlog comprometido', 'Capacity disponible del equipo'],
+    outputs:  ['Historias completadas (Definition of Done cumplida)', 'Horas registradas en Odoo', 'Burndown actualizado'],
+    tools:    ['Odoo Proyectos (Sprint Board)', 'Git / GitHub', 'VS Code'],
+    tips:     ['Una historia está "hecha" cuando cumple la Definition of Done — no antes', 'Alerta 48hs: cualquier bloqueo que no puedas resolver en 48h → SM lo gestiona', 'No empezar nuevas historias si hay bloqueadas — resolver primero los bloqueos'],
+    mistakes: ['Marcar historias como "Done" sin cumplir la DoD', 'Aceptar trabajo nuevo a mitad del sprint sin análisis de impacto', 'Dejar los bloqueos para el daily en lugar de escalar inmediatamente'],
+    handoffs: [{ role: 'Desarrollo', linkedProcess: 'desarrollo', description: 'Las tareas técnicas dentro del sprint siguen el pipeline estándar: DEV → DEPLOY stg → TEST → FIX → DEPLOY prod' }],
+  },
+  {
+    id: 'sc5', col: 5, lane: 2, label: 'Sprint Review', sublabel: 'Demo + validación del PO',
+    time: '1h', stage: 'Fin Sprint',
+    description: 'El Dev Team demuestra el trabajo completado al Product Owner y stakeholders. El PO acepta o rechaza cada historia según los criterios de aceptación. No es una reunión de status — es una demo real del incremento.',
+    substeps: [
+      'Dev Team prepara demo del incremento (en producción o staging según acuerdo)',
+      'SM facilita: presenta el Sprint Goal y si se alcanzó',
+      'Dev Team demuestra cada historia completada con datos reales',
+      'PO acepta o rechaza cada historia (sin términos medios)',
+      'Historias rechazadas vuelven al backlog con feedback claro',
+      'PO actualiza el backlog según lo aprendido en la review',
+    ],
+    inputs:   ['Incremento completado (historias que cumplen DoD)', 'Sprint Goal', 'Criterios de aceptación'],
+    outputs:  ['Historias aceptadas / rechazadas', 'Feedback del PO incorporado al backlog', 'Velocity del sprint calculada'],
+    tools:    ['Odoo (producción/staging)', 'Google Meet', 'Odoo Sprint Board'],
+    tips:     ['Solo demostrar funcionalidades TERMINADAS — nunca demostrar trabajo en progreso', 'La review no es para ajustar expectativas — es para validar el incremento real', 'Calcular velocity del sprint: SP completados y aceptados (no los rechazados)'],
+    mistakes: ['Demostrar work in progress o funcionalidades no terminadas', 'PO ausente en la review — sin validación no hay ciclo cerrado', 'Mezclar la review con la retrospectiva — son ceremonias distintas'],
+  },
+  {
+    id: 'sc6', col: 6, lane: 0, label: 'Retrospectiva', sublabel: 'Mejora continua del equipo',
+    time: '1h', stage: 'Fin Sprint',
+    description: 'El Dev Team y SM reflexionan sobre el proceso del sprint para identificar mejoras concretas. Es una reunión del equipo — confidencial, sin presencia del PO ni management externo. Los action items se implementan en el próximo sprint.',
+    substeps: [
+      'SM facilita en ambiente seguro — lo que se dice en retro queda en retro',
+      'Formato: Start / Stop / Continue (o Keep / Drop / Add)',
+      'Cada persona comparte 1-2 puntos por categoría',
+      'El equipo vota las mejoras más importantes',
+      'Seleccionar 1-3 action items concretos y asignar responsable',
+      'Action items entran como tareas al próximo sprint (no son opcionales)',
+    ],
+    inputs:   ['Sprint completado y revisado', 'Métricas del sprint (velocity, bloqueos, burndown)'],
+    outputs:  ['Action items concretos para el próximo sprint', 'Proceso mejorado', 'Equipo más cohesionado'],
+    tools:    ['Google Meet', 'FunRetro / Miro (opcional)', 'Odoo (para action items)'],
+    tips:     ['La retro es del equipo y para el equipo — no una sesión de quejas al management', 'Máximo 3 action items por sprint — más es ruido que no se implementa', 'Revisar al inicio de la próxima retro si los action items se cumplieron'],
+    mistakes: ['No hacer retro por "falta de tiempo" — es la ceremonia más importante para mejorar', 'Action items sin responsable ni fecha — no se implementan', 'Management presente en la retro — el equipo no habla con honestidad'],
+  },
+];
+
+const SCRUM_EDGES = [
+  { from: 'sc1', to: 'sc2', type: 'normal'  },
+  { from: 'sc2', to: 'sc3', type: 'normal'  },
+  { from: 'sc3', to: 'sc4', type: 'normal'  },
+  { from: 'sc4', to: 'sc5', type: 'handoff' },
+  { from: 'sc5', to: 'sc6', type: 'normal'  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROCESO: GESTIÓN DE TAREAS EN ODOO — 6 pasos
+// ═══════════════════════════════════════════════════════════════════════════════
+const LANES_TAREAS = [
+  { id: 'pm',     label: 'PM / Responsable',    color: '#8B5CF6', bg: '#F5F3FF', row: 0 },
+  { id: 'consul', label: 'Consultor / Dev',      color: '#3B82F6', bg: '#EFF6FF', row: 1 },
+  { id: 'qa',     label: 'QA / Validador',       color: '#10B981', bg: '#ECFDF5', row: 2 },
+];
+
+const TAREAS_STEPS = [
+  {
+    id: 'ta1', col: 1, lane: 0, label: 'Crear Tarea', sublabel: 'Campos obligatorios en Odoo',
+    time: '5-10 min', stage: 'Creación',
+    description: 'El PM o consultor crea la tarea en Odoo con todos los campos requeridos antes de comenzar a trabajar. Una tarea sin campos completos no puede comenzar. La calidad de la creación determina la calidad del trabajo.',
+    substeps: [
+      'Acceder al proyecto correcto en Odoo → Proyectos',
+      'Crear tarea con nombre descriptivo: VERBO + QUÉ + para QUIÉN/PROYECTO',
+      'Completar campos obligatorios: Tipo (BUG/MEJORA/DEV/CONSULTA), Proyecto, Asignado',
+      'Establecer Prioridad: Normal / Alta / Muy Alta (Muy Alta = sistema bloqueado)',
+      'Asignar horas estimadas en el campo "Horas planificadas"',
+      'Agregar descripción: contexto, qué se necesita exactamente, links relevantes',
+      'Para tareas técnicas: crear subtareas estándar (DEV → DEPLOY stg → TEST → DEPLOY prod)',
+    ],
+    inputs:   ['Necesidad identificada (bug, mejora, solicitud de cliente)', 'Proyecto existente en Odoo'],
+    outputs:  ['Tarea creada con todos los campos completos', 'Subtareas creadas si es técnica'],
+    tools:    ['Odoo Proyectos', 'Google Docs (especificación si aplica)'],
+    tips:     ['Nombre de tarea: "Configurar módulo de inventario para Motor Haus" — claro y accionable', 'Si la tarea va a tomar más de 8h, dividirla en subtareas o en varias tareas', 'Las tareas técnicas (DEV) siempre necesitan las 5 subtareas del pipeline'],
+    mistakes: ['Tareas sin horas estimadas — imposible medir avance', 'Descripción vacía o "ver con Fulano" — no es accionable', 'Tipo no asignado — imposible categorizar el trabajo del equipo'],
+  },
+  {
+    id: 'ta2', col: 2, lane: 0, label: 'Especificar', sublabel: 'Criterios de aceptación claros',
+    time: '15-30 min', stage: 'Definición',
+    description: 'Antes de asignar, el PM valida que la tarea tenga todo lo necesario para que quien la reciba pueda ejecutarla sin preguntas adicionales. El desarrollador/consultor tiene derecho a rechazar una tarea sin especificación.',
+    substeps: [
+      'Revisar: ¿La descripción responde a QUÉ, POR QUÉ y CÓMO se valida?',
+      'Definir criterios de aceptación: "Listo cuando X hace Y y el resultado es Z"',
+      'Agregar mockups, capturas de pantalla o ejemplos si aplica',
+      'Para bugs: incluir pasos para reproducir + comportamiento esperado vs actual',
+      'Para DEV: incluir especificación técnica antes de que el desarrollador comience',
+      'Estimar con el consultor si las horas planificadas son realistas',
+    ],
+    inputs:   ['Tarea creada', 'Contexto del cliente o proyecto'],
+    outputs:  ['Especificación completa en la descripción', 'Criterios de aceptación definidos', 'Horas validadas'],
+    tools:    ['Odoo Proyectos', 'Figma (si hay UI)', 'Loom (si necesita explicación en video)'],
+    tips:     ['Una tarea bien especificada tarda 5 min en especificar y 0 min en preguntar durante la ejecución', 'El consultor que va a ejecutar puede y debe pedir clarificaciones antes de empezar', 'Criterios de aceptación concretos = menos ciclos de revisión'],
+    mistakes: ['Pasar tarea a "En Proceso" sin criterios de aceptación', 'Especificación técnica verbal sin documentar — siempre se pierde información', 'Aceptar "lo mismo que antes" como especificación'],
+  },
+  {
+    id: 'ta3', col: 3, lane: 1, label: 'Ejecutar', sublabel: 'Horas diarias + avance',
+    time: 'Según estimación', stage: 'Ejecución',
+    description: 'El consultor o desarrollador ejecuta la tarea. Registra horas diariamente en Odoo. Actualiza el estado y las notas de progreso. Si surge un bloqueo que no puede resolver en 48h, aplica el protocolo de alerta.',
+    substeps: [
+      'Mover la tarea a etapa "En Proceso" en Odoo',
+      'Trabajar siguiendo la especificación — si hay dudas, preguntar ANTES de implementar',
+      'Registrar horas en Odoo al final de cada día (no al final de la semana)',
+      'Actualizar la descripción con notas de progreso si es una tarea larga',
+      'Para tareas técnicas: seguir el pipeline DEV → DEPLOY stg → TEST → FIX → DEPLOY prod',
+      'Alerta 48hs: si hay bloqueo que no se puede resolver → notificar al PM inmediatamente',
+    ],
+    inputs:   ['Tarea especificada y asignada', 'Acceso a los sistemas necesarios'],
+    outputs:  ['Avance documentado en Odoo', 'Horas registradas diariamente', 'Tarea completada según criterios'],
+    tools:    ['Odoo Proyectos', 'Git / GitHub (si es DEV)', 'Odoo (staging/producción)'],
+    tips:     ['Regla de oro: horas del día = registradas hoy, nunca mañana', 'Si vas a exceder las horas estimadas en más del 20%, avisar al PM antes de continuar', 'Una tarea "En Proceso" no debe quedarse ahí más de X días sin actualización (X = estimación)'],
+    mistakes: ['Registrar horas en lote al final de la semana — pierde trazabilidad', 'Superar el 100% de las horas estimadas sin avisar al PM', 'Cambiar el alcance de la tarea durante la ejecución sin actualizar la especificación'],
+  },
+  {
+    id: 'ta4', col: 4, lane: 1, label: 'Alerta 48hs', sublabel: 'Protocolo de bloqueo / riesgo',
+    time: '< 48h de detectado', stage: 'Escalamiento',
+    description: 'Si una situación no puede resolverse por decisión propia del consultor en menos de 48 horas, se registra en el Risk Log de Odoo y se notifica al PM. No esperar a que sea crisis. Es un protocolo de protección, no de penalización.',
+    substeps: [
+      'Identificar: ¿El bloqueo puede resolverse solo en menos de 48h? → Si no, escalar',
+      'Registrar alerta en Odoo: módulo project_alert o nota interna en la tarea',
+      'Categorizar: Riesgo futuro / Problema activo / Cambio de alcance / Bloqueo/Dependencia',
+      'Notificar al PM con: descripción del bloqueo, impacto en entrega, opciones propuestas',
+      'PM responde con plan de acción: resolver, escalar, posponer, o cambiar alcance',
+      'Comunicar al cliente si el bloqueo impacta la fecha de entrega (PM decide el mensaje)',
+    ],
+    inputs:   ['Bloqueo identificado en la ejecución', 'Tarea en riesgo de no cumplir deadline'],
+    outputs:  ['Alerta registrada en Odoo', 'PM notificado', 'Plan de resolución acordado'],
+    tools:    ['Odoo (Risk Log / project_alert)', 'WhatsApp / Google Chat (notificación urgente)'],
+    tips:     ['La alerta es un protocolo de equipo — no es un fracaso personal', 'Mejor avisar 1 día antes que pedir disculpas 1 semana después', 'Si el bloqueo es del cliente (no entrega información, no valida), documentarlo siempre'],
+    mistakes: ['Esperar a que el bloqueo sea crisis para escalar', 'Resolver el bloqueo solo tomando decisiones fuera de alcance', 'No documentar el bloqueo en Odoo — queda sin trazabilidad'],
+  },
+  {
+    id: 'ta5', col: 5, lane: 2, label: 'Validar', sublabel: 'QA funcional o cliente',
+    time: '1-4h', stage: 'Validación',
+    description: 'El QA funcional (consultor senior o PM) valida que la tarea cumple los criterios de aceptación antes de presentarla al cliente. Si el cliente valida directamente, el consultor acompaña la sesión.',
+    substeps: [
+      'QA revisa la tarea contra los criterios de aceptación definidos al inicio',
+      'Probar en staging con datos reales si es posible',
+      'Si hay ajustes: documentarlos en el ticket y regresar a Ejecutar (no cerrar el ciclo)',
+      'Si está OK: presentar al cliente o al PM para validación final',
+      'El cliente o PM firma off en el ticket: "Validado — OK para cerrar"',
+      'Para tareas técnicas: validar en producción tras deploy final',
+    ],
+    inputs:   ['Tarea ejecutada', 'Criterios de aceptación originales', 'Acceso a staging/producción'],
+    outputs:  ['Tarea validada con sign-off', 'Ajustes documentados (si los hay)', 'Listo para cierre'],
+    tools:    ['Odoo (staging/producción)', 'Odoo Proyectos (ticket)', 'Zoom (demo al cliente)'],
+    tips:     ['Validar siempre contra los criterios de aceptación del inicio — no contra lo que "parece bien"', 'Si el cliente pide cambios durante la validación → nuevo ticket, no ampliar este', 'Regresión básica: verificar que la tarea no rompió nada más'],
+    mistakes: ['Dar por validado sin que el cliente o PM firme off explícitamente', 'Aceptar scope creep durante la validación', 'Validar en producción sin haber probado en staging'],
+  },
+  {
+    id: 'ta6', col: 6, lane: 0, label: 'Cerrar Tarea', sublabel: 'Campos de cierre en Odoo',
+    time: '5-10 min', stage: 'Cierre',
+    description: 'El PM o el consultor responsable cierra formalmente la tarea en Odoo completando todos los campos de cierre. Una tarea cerrada sin los campos completos no es válida para el registro histórico del proyecto.',
+    substeps: [
+      'Verificar que las horas efectivas están registradas correctamente',
+      'Comparar horas efectivas vs horas planificadas — anotar diferencia si >20%',
+      'Agregar nota de resolución: qué se hizo, cómo quedó, links o archivos relevantes',
+      'Mover la tarea a la etapa final (Done / Cerrado) en Odoo',
+      'Si es bug: documentar causa raíz para evitar recurrencia',
+      'Si las horas excedieron mucho el estimado: actualizar template de estimación para el futuro',
+    ],
+    inputs:   ['Tarea validada con sign-off', 'Horas registradas durante la ejecución'],
+    outputs:  ['Tarea cerrada en Odoo', 'Nota de resolución documentada', 'Horas finales registradas', 'Historial del proyecto actualizado'],
+    tools:    ['Odoo Proyectos'],
+    tips:     ['La nota de resolución es para el siguiente consultor que encuentre el mismo problema', 'Si cerrar la tarea activa una factura (hito), notificar a Administración antes de cerrar', 'Tareas con horas muy desviadas del estimado = retroalimentación para el proceso de estimación'],
+    mistakes: ['Cerrar la tarea sin nota de resolución', 'Dejar horas sin registrar al cerrar', 'Cerrar sin verificar que el cliente o PM firmó off'],
+  },
+];
+
+const TAREAS_EDGES = [
+  { from: 'ta1', to: 'ta2', type: 'normal'  },
+  { from: 'ta2', to: 'ta3', type: 'handoff' },
+  { from: 'ta3', to: 'ta4', type: 'normal'  },
+  { from: 'ta3', to: 'ta5', type: 'normal'  },
+  { from: 'ta4', to: 'ta5', type: 'handoff' },
+  { from: 'ta5', to: 'ta6', type: 'handoff' },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // COMPILE ALL PROCESSES
 // ═══════════════════════════════════════════════════════════════════════════════
 const PROCESSES = {
@@ -803,6 +1061,253 @@ const PROCESSES = {
   implementacion:compileProcess({ steps: IMPLEMENTACION_STEPS,edges: IMPLEMENTACION_EDGES,lanes: LANES_IMPLEMENTACION }),
   soporte:       compileProcess({ steps: SOPORTE_STEPS,       edges: SOPORTE_EDGES,       lanes: LANES_SOPORTE }),
   desarrollo:    compileProcess({ steps: DESARROLLO_STEPS,    edges: DESARROLLO_EDGES,    lanes: LANES_DESARROLLO }),
+  scrum:         compileProcess({ steps: SCRUM_STEPS,         edges: SCRUM_EDGES,         lanes: LANES_SCRUM }),
+  tareas:        compileProcess({ steps: TAREAS_STEPS,        edges: TAREAS_EDGES,        lanes: LANES_TAREAS }),
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REFERENCE PAGE DATA (rich non-swimlane pages)
+// ═══════════════════════════════════════════════════════════════════════════════
+const REFERENCE_PAGES = {
+  organigrama: {
+    title: 'Organigrama Torus',
+    icon: '🏢',
+    color: '#10B981',
+    sections: [
+      {
+        title: 'Dirección',
+        nodes: [
+          { name: 'Gabriel Diaz de Bedoya', role: 'Presidente Directorio', color: '#1E293B' },
+          { name: 'Rodrigo Campos',         role: 'CEO',                   color: '#1E293B' },
+          { name: 'Fabrizio Salomón',       role: 'COO',                   color: '#1E293B' },
+          { name: 'Mercedes Morales',       role: 'CFO',                   color: '#1E293B' },
+        ],
+      },
+      {
+        title: 'Producción (COO)',
+        nodes: [
+          { name: 'Gonzalo García',    role: 'Consultor Funcional / PM', color: '#8B5CF6' },
+          { name: 'Diego Benitez',     role: 'Consultor Funcional / PM', color: '#8B5CF6' },
+          { name: 'Diego Escobar',     role: 'Consultor Funcional',      color: '#8B5CF6' },
+          { name: 'Alix Brizuela',     role: 'Consultor Contable',       color: '#8B5CF6' },
+          { name: 'Alexis Florentín',  role: 'Consultor Contable / Funcional', color: '#8B5CF6' },
+          { name: 'José Sotelo',       role: 'Technical Consultant',     color: '#3B82F6' },
+          { name: 'Silvana Enciso',    role: 'Technical Consultant',     color: '#3B82F6' },
+          { name: 'Miguel Fernández',  role: 'Technical Consultant',     color: '#3B82F6' },
+          { name: 'Marcelo Centurión', role: 'Technical Consultant',     color: '#3B82F6' },
+        ],
+      },
+    ],
+    roleTypes: [
+      { label: 'Roles Organizacionales', description: 'Permanentes. Definen la cadena de reporte diaria.' },
+      { label: 'Roles en Proyecto', description: 'Dinámicos. Se asignan por proyecto. Un consultor puede tener múltiples roles simultáneamente.' },
+    ],
+    projectRoles: [
+      { role: 'Project Leader (PL)', resp: 'Lidera el proyecto con el cliente, gestiona cronograma y riesgos. Punto de contacto principal de Torus.' },
+      { role: 'App Expert', resp: 'Referente técnico/funcional de un módulo específico de Odoo.' },
+      { role: 'Consultor de Soporte', resp: 'Atiende tickets post go-live dentro del SLA.' },
+      { role: 'Desarrollador de Proyecto', resp: 'Implementa customizaciones y desarrollos técnicos.' },
+      { role: 'SPoC (cliente)', resp: 'Contacto principal del cliente. Responsable de empujar internamente y tomar decisiones.' },
+    ],
+  },
+
+  roles: {
+    title: 'Roles y Responsabilidades',
+    icon: '👥',
+    color: '#3B82F6',
+    roles: [
+      {
+        name: 'Hunter', color: '#3B82F6', emoji: '🎯',
+        tagline: 'Genera oportunidades. Abre puertas.',
+        responsibilities: [
+          'Prospección y primer contacto con leads (LinkedIn, referidos, eventos)',
+          'Pre-calificación y calificación BANT',
+          'Cierre del brief antes del handoff al Closer',
+          'Mantener el pipeline CRM actualizado en Odoo',
+        ],
+        kpis: ['Leads generados / mes', 'Tasa de conversión Lead → Oportunidad calificada', 'Tiempo promedio de calificación'],
+        tools: ['Odoo CRM', 'LinkedIn Sales Navigator', 'Google Meet'],
+        doNot: ['Armar propuestas (eso es del Closer)', 'Pasar leads sin calificación al Closer'],
+      },
+      {
+        name: 'Closer', color: '#D97706', emoji: '🤝',
+        tagline: 'Convierte oportunidades en contratos.',
+        responsibilities: [
+          'Recibir brief completo del Hunter y entender el contexto del cliente',
+          'Elaborar y presentar propuestas técnico-comerciales en Odoo Ventas',
+          'Manejar objeciones y negociación (sin bajar precio sin reducir scope)',
+          'Coordinar el cierre: OV, anticipo, handoff a PM y Administración',
+        ],
+        kpis: ['Tasa de cierre (Propuesta → Won)', 'Ticket promedio', 'Tiempo promedio de ciclo de venta'],
+        tools: ['Odoo Ventas (SO)', 'Odoo CRM', 'Google Docs', 'Zoom'],
+        doNot: ['Cerrar sin OV vinculada al proyecto', 'Prometer alcances no validados con producción'],
+      },
+      {
+        name: 'Project Manager (PM)', color: '#8B5CF6', emoji: '📋',
+        tagline: 'Entrega proyectos a tiempo, en alcance y con calidad.',
+        responsibilities: [
+          'Planificar y gestionar el cronograma del proyecto en Odoo',
+          'Primer punto de contacto del cliente durante implementación',
+          'Trackear horas, riesgos y presupuesto semanalmente',
+          'Coordinar al equipo de consultores y desarrolladores',
+          'Escalar bloqueos y gestionar cambios de alcance',
+        ],
+        kpis: ['% de proyectos entregados en plazo', 'Desviación presupuestaria (horas)', 'CSAT del cliente post go-live'],
+        tools: ['Odoo Proyectos', 'Dashboard Torus', 'Google Meet', 'Google Docs'],
+        doNot: ['Aceptar scope creep sin orden de cambio', 'Dejar tickets sin asignar más de 24h'],
+      },
+      {
+        name: 'Consultor Funcional', color: '#10B981', emoji: '⚙️',
+        tagline: 'Configura Odoo para que el cliente opere.',
+        responsibilities: [
+          'Relevar procesos del cliente (AS-IS / TO-BE)',
+          'Configurar módulos funcionales en staging y producción',
+          'Capacitar usuarios del cliente por módulo',
+          'Validar desarrollos técnicos contra la especificación funcional',
+          'Registrar horas diariamente en Odoo',
+        ],
+        kpis: ['Satisfacción del cliente en capacitaciones', 'Bugs post go-live atribuibles a configuración', 'Horas dentro del estimado'],
+        tools: ['Odoo (staging y producción)', 'Google Meet', 'Google Docs'],
+        doNot: ['Configurar en producción sin validar en staging', 'Aceptar cambios de alcance sin aviso al PM'],
+      },
+      {
+        name: 'Technical Consultant (Dev)', color: '#EC4899', emoji: '💻',
+        tagline: 'Extiende Odoo donde el estándar no llega.',
+        responsibilities: [
+          'Implementar customizaciones siguiendo la especificación funcional',
+          'Pipeline técnico: DEV → DEPLOY stg → TEST → FIX → DEPLOY prod',
+          'Code review de PRs del equipo técnico',
+          'Mantener repositorios Git ordenados con commits descriptivos',
+          'Documentar en Odoo cada ticket con la solución implementada',
+        ],
+        kpis: ['Bugs detectados post-producción', 'Tiempo de resolución de bugs', 'Adherencia a estimaciones técnicas'],
+        tools: ['VS Code / PyCharm', 'Git / GitHub', 'Odoo (local, staging, prod)'],
+        doNot: ['Trabajar en main/master directamente', 'Implementar sin especificación aprobada'],
+      },
+      {
+        name: 'Soporte N1', color: '#64748B', emoji: '🎧',
+        tagline: 'Primera línea. Responde rápido, resuelve o escala.',
+        responsibilities: [
+          'Registrar y clasificar todos los tickets entrantes en Odoo Helpdesk',
+          'Resolver tickets de nivel 1 (consultas, configuraciones simples)',
+          'Escalar al Nivel 2 con diagnóstico documentado',
+          'Confirmar recepción al cliente en menos de 30 minutos hábiles',
+          'Documentar soluciones en la base de conocimiento',
+        ],
+        kpis: ['Tiempo de primera respuesta', '% tickets resueltos en N1 (sin escalar)', 'CSAT post-ticket'],
+        tools: ['Odoo Helpdesk', 'Email', 'WhatsApp'],
+        doNot: ['Escalar sin diagnóstico documentado', 'Cerrar tickets sin confirmación del cliente'],
+      },
+    ],
+  },
+
+  metodologia: {
+    title: 'Metodología de Proyectos',
+    icon: '🗺️',
+    color: '#8B5CF6',
+    phases: [
+      { num: 0, name: 'Kick-off',        gate: 'Acta firmada por Sponsor + SPoC',         duration: '1 semana',     color: '#6366F1' },
+      { num: 1, name: 'Análisis',        gate: 'Acta de Análisis firmada',                duration: '1-2 semanas',  color: '#8B5CF6' },
+      { num: 2, name: 'Implementación',  gate: 'Actas de validación por sprint',           duration: '4-16 semanas', color: '#A78BFA' },
+      { num: 3, name: 'Capacitación',    gate: 'Actas firmadas por asistentes',            duration: '1-2 semanas',  color: '#3B82F6' },
+      { num: 4, name: 'UAT',             gate: 'Acta UAT firmada → autoriza cut-over',     duration: '1-2 semanas',  color: '#06B6D4' },
+      { num: 5, name: 'Cut-over',        gate: 'Acta firmada',                             duration: '1-3 días',     color: '#10B981' },
+      { num: 6, name: 'Go-Live',         gate: 'Acta firmada → inicia garantía',           duration: '1 día',        color: '#22C55E' },
+      { num: 7, name: 'Estabilización',  gate: 'Acta de cierre firmada',                   duration: '30 días',      color: '#84CC16' },
+    ],
+    slaSupport: [
+      { level: 'Crítico',  response: '1h',  resolution: 'Prioritaria continua', description: 'Sistema completamente bloqueado, no pueden operar' },
+      { level: 'Alto',     response: '4h',  resolution: '24h',                  description: 'Funcionalidad crítica con workaround posible' },
+      { level: 'Moderado', response: '24h', resolution: '48h',                  description: 'Módulo con errores, pero operación continúa' },
+      { level: 'Bajo',     response: '48h', resolution: '72h',                  description: 'Consultas, mejoras menores, ajustes cosméticos' },
+    ],
+    scrum: {
+      ceremonies: [
+        { name: 'Sprint Planning', freq: 'Inicio de sprint', duration: '1-2h',    purpose: 'Comprometer el sprint backlog y definir el Sprint Goal' },
+        { name: 'Daily Standup',   freq: 'Cada día hábil',   duration: '15 min',  purpose: '3 preguntas: ayer / hoy / bloqueos. Sincronización del equipo' },
+        { name: 'Sprint Review',   freq: 'Fin de sprint',    duration: '1h',      purpose: 'Demo al PO/cliente. Validación del incremento. Feedback al backlog' },
+        { name: 'Retrospectiva',   freq: 'Fin de sprint',    duration: '1h',      purpose: 'Keep/Stop/Start. Action items concretos para el próximo sprint' },
+        { name: 'Refinamiento',    freq: 'Media semana',     duration: '1-2h',    purpose: 'Preparar el backlog para la próxima sprint planning. Story points y criterios' },
+      ],
+      storyPoints: [
+        { sp: 1,  label: 'Trivial',   desc: 'Cambio de config o texto. < 1 hora real' },
+        { sp: 2,  label: 'Pequeño',   desc: 'Tarea conocida y clara. 1-3 horas' },
+        { sp: 3,  label: 'Mediano',   desc: 'Algo de complejidad o dependencias. 3-6 horas' },
+        { sp: 5,  label: 'Grande',    desc: 'Requiere análisis y coordinación. 6-12 horas' },
+        { sp: 8,  label: 'Complejo',  desc: 'Alta incertidumbre o múltiples partes. 12-24 horas' },
+        { sp: 13, label: 'Épica',     desc: 'Demasiado grande — dividir antes de planificar' },
+      ],
+      dod: [
+        'Código revisado por par (code review)',
+        'Pruebas funcionales pasadas en staging',
+        'Funcional validó con criterios de aceptación',
+        'Horas registradas en Odoo',
+        'Documentación actualizada si aplica',
+        'Deploy en staging (DEV) o producción (PROD) según corresponda',
+      ],
+    },
+  },
+
+  'catalogo-torus': {
+    title: 'Catálogo de Productos Torus',
+    icon: '📦',
+    color: '#3B82F6',
+    intro: 'Torus es Partner Oficial Odoo en Paraguay (Silver Partner). Estos son los productos y servicios que ofrecemos.',
+    products: [
+      {
+        category: 'Relevamiento',
+        color: '#F59E0B',
+        items: [
+          { code: 'DISC', name: 'Análisis y Descubrimiento', when: 'Cliente todavía define alcance, procesos, gaps y roadmap. Proyecto >80h o >3 módulos.', billing: 'Fee fijo por sprint o fase', crossSell: ['CORE', 'LOC', 'CDEV'] },
+        ],
+      },
+      {
+        category: 'Implementación Odoo',
+        color: '#8B5CF6',
+        items: [
+          { code: 'CORE', name: 'Core Administrativo',    when: 'Siempre. Base operativa: contabilidad, facturación, compras, ventas, inventario.',      billing: 'Monto fijo', crossSell: ['LOC', 'MAINT'] },
+          { code: 'LOC',  name: 'Localización Paraguay',  when: 'Siempre que el cliente opere en PY. Impuestos, SIFEN, documentos fiscales locales.',    billing: 'Incluido en CORE o separado', crossSell: ['CORE'] },
+          { code: 'CDEV', name: 'Desarrollo a Medida',    when: 'El estándar Odoo no cubre el req. o se necesitan integraciones/automatizaciones.',       billing: 'Monto fijo por desarrollo', crossSell: ['MAINT', 'HOURS'] },
+          { code: 'SALES',name: 'Ventas & CRM',           when: 'Alcance incluye frente comercial.',                                                        billing: 'Incluido en implementación', crossSell: ['PROJ', 'MAINT'] },
+          { code: 'SCM',  name: 'Supply Chain',           when: 'Alcance incluye operación, abastecimiento o logística.',                                   billing: 'Incluido en implementación', crossSell: ['CORE', 'MAINT'] },
+          { code: 'HR',   name: 'Recursos Humanos',       when: 'Alcance incluye procesos de personas.',                                                    billing: 'Incluido en implementación', crossSell: ['CORE', 'MAINT'] },
+          { code: 'PROJ', name: 'Proyectos & Servicios',  when: 'Alcance incluye delivery o servicios postventa.',                                          billing: 'Incluido en implementación', crossSell: ['MAINT', 'HOURS'] },
+          { code: 'WEB',  name: 'Web & eCommerce',        when: 'Alcance incluye presencia digital o canal online.',                                        billing: 'Monto fijo por implementación', crossSell: ['MAINT'] },
+        ],
+      },
+      {
+        category: 'Soporte y Mantenimiento',
+        color: '#10B981',
+        items: [
+          { code: 'MAINT', name: 'Soporte y Mantenimiento', when: 'Post go-live o clientes con continuidad operativa.',                                   billing: 'Mensual fijo, tope de horas', crossSell: ['HOURS', 'CDEV'] },
+          { code: 'HOURS', name: 'Bolsa de Horas',           when: 'Soporte puntual, ajustes, demanda variable. Saldo arrastrable 2 meses.',              billing: 'Pack prepago mensual', crossSell: ['MAINT'] },
+          { code: 'HOURLY',name: 'Servicio por Hora',        when: 'Por horas efectivamente trabajadas, sin pack cerrado.',                               billing: 'Mensual variable por consumo', crossSell: ['MAINT', 'HOURS'] },
+        ],
+      },
+      {
+        category: 'Infraestructura y Licencias',
+        color: '#6366F1',
+        items: [
+          { code: 'INFRA',    name: 'Odoo.sh Hosting',       when: 'Cliente quiere hosting gestionado separado del servicio.',                           billing: 'Mensual según plan', crossSell: ['CORE'] },
+          { code: 'LIC',      name: 'Licencia Odoo Enterprise', when: 'Cuando se comercializa o separa el costo de licencias.',                         billing: 'Anual por usuario', crossSell: ['CORE'] },
+          { code: 'LIC-AMIBA',name: 'Licencia Amiba',         when: 'Cuando el proyecto incluye Amiba como componente de AI.',                           billing: 'Mensual SaaS', crossSell: ['CORE', 'CDEV'] },
+        ],
+      },
+    ],
+    decisionTree: [
+      { q: '¿El cliente todavía define qué quiere?', a: 'DISC — Relevamiento primero', next: null },
+      { q: '¿Necesita la base administrativa de Odoo?', a: 'CORE + LOC (siempre si está en PY)', next: null },
+      { q: '¿El estándar no alcanza?', a: 'CDEV — Desarrollo a medida', next: null },
+      { q: '¿Proyecto ya en producción?', a: 'MAINT — Soporte mensual', next: null },
+      { q: '¿Capacidad flexible de horas?', a: 'HOURS o HOURLY', next: null },
+    ],
+    conditions: {
+      maxInstallments: 12,
+      downPayment: '25%',
+      currency: 'PYG',
+      trialExtension: 'M241203194687082',
+    },
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -812,36 +1317,42 @@ const ENCYCLOPEDIA = {
   sections: [
     {
       id: 'comercial', name: 'Procesos Comerciales', color: '#D97706', bg: '#FFFBEB',
+      icon: '💼',
       description: 'Captación, calificación, propuesta, cierre y ciclo de facturación',
       processes: [
-        { id: 'ventas',      name: 'Proceso de Ventas',      description: '10 pasos desde lead hasta soporte post-venta. Roles: Hunter, Closer, PM, Soporte.', steps: 10, status: 'complete' },
-        { id: 'facturacion', name: 'Facturación y Cobros',   description: '7 pasos: configuración, anticipo, plan de cuotas, cobro y cierre contable.', steps: 7, status: 'complete' },
+        { id: 'ventas',      name: 'Proceso de Ventas',    description: '10 pasos desde lead hasta soporte post-venta. Roles: Hunter, Closer, PM, Soporte.', steps: 10, status: 'complete' },
+        { id: 'facturacion', name: 'Facturación y Cobros', description: '7 pasos: configuración, anticipo, plan de cuotas, cobro y cierre contable.', steps: 7, status: 'complete' },
       ],
     },
     {
       id: 'produccion', name: 'Procesos de Producción', color: '#8B5CF6', bg: '#F5F3FF',
-      description: 'Implementación Odoo, soporte post-venta y desarrollo técnico',
+      icon: '⚙️',
+      description: 'Implementación Odoo, soporte post-venta, desarrollo técnico y gestión de tareas',
       processes: [
         { id: 'implementacion', name: 'Implementación Odoo',     description: '8 pasos: análisis, configuración, módulos, capacitación, UAT y go-live.', steps: 8, status: 'complete' },
         { id: 'soporte',        name: 'Soporte y Mantenimiento', description: '6 pasos: desde la solicitud hasta la revisión mensual proactiva.', steps: 6, status: 'complete' },
         { id: 'desarrollo',     name: 'Desarrollo a Medida',     description: '5 pasos: especificación, desarrollo, staging, validación y producción.', steps: 5, status: 'complete' },
+        { id: 'scrum',          name: 'Scrum Sprint Cycle',      description: '6 ceremonias: refinamiento, planning, daily, ejecución, review y retrospectiva.', steps: 6, status: 'complete' },
+        { id: 'tareas',         name: 'Gestión de Tareas Odoo',  description: '6 pasos: crear, especificar, ejecutar, alerta 48hs, validar y cerrar. Con protocolo de campos obligatorios.', steps: 6, status: 'complete' },
       ],
     },
     {
       id: 'organizacion', name: 'Estructura Organizacional', color: '#10B981', bg: '#ECFDF5',
-      description: 'Organigrama, roles, responsabilidades y metodologías',
+      icon: '🏢',
+      description: 'Organigrama, roles, responsabilidades y metodologías de trabajo',
       processes: [
-        { id: 'organigrama', name: 'Organigrama Torus',          description: 'Estructura de roles organizacionales y de proyecto. CEO, COO, CFO, CCO y equipo técnico.', steps: null, status: 'reference' },
-        { id: 'roles',       name: 'Roles y Responsabilidades',  description: 'Definición detallada de cada rol: Hunter, Closer, PM, App Expert, Consultor, Desarrollador.', steps: null, status: 'wip' },
-        { id: 'metodologia', name: 'Metodología de Proyectos',   description: 'Fases 0-8 de implementación Odoo, scrum interno, gestión de riesgos y SLA de soporte.', steps: null, status: 'wip' },
+        { id: 'organigrama', name: 'Organigrama Torus',         description: 'Estructura de roles organizacionales y de proyecto. CEO, COO, CFO, CCO y equipo técnico.', steps: null, status: 'reference' },
+        { id: 'roles',       name: 'Roles y Responsabilidades', description: 'Definición detallada de cada rol: Hunter, Closer, PM, App Expert, Consultor, Desarrollador.', steps: null, status: 'reference' },
+        { id: 'metodologia', name: 'Metodología de Proyectos',  description: 'Fases 0-8 de implementación, ceremonias SCRUM, story points, DoD y SLA de soporte.', steps: null, status: 'reference' },
       ],
     },
     {
       id: 'productos', name: 'Catálogo de Productos', color: '#3B82F6', bg: '#EFF6FF',
+      icon: '📦',
       description: 'Líneas de servicio, condiciones comerciales y árbol de decisión',
       processes: [
-        { id: 'catalogo-torus',     name: 'Productos Torus',     description: 'CORE, LOC, SALES, SCM, HR, PROJ, WEB, MAINT, HOURS — cuándo ofrecer cada uno.', steps: null, status: 'wip' },
-        { id: 'catalogo-rugertek',  name: 'Productos RügerTek',  description: 'AUG, DEDICATED, CDEV, WEB, HOURLY, MAINT — árbol de decisión comercial.', steps: null, status: 'wip' },
+        { id: 'catalogo-torus',    name: 'Productos Torus',    description: 'CORE, LOC, SALES, SCM, HR, PROJ, WEB, MAINT, HOURS — cuándo ofrecer cada uno y condiciones.', steps: null, status: 'reference' },
+        { id: 'catalogo-rugertek', name: 'Productos RügerTek', description: 'AUG, DEDICATED, CDEV, WEB, HOURLY, MAINT — árbol de decisión comercial y tarifas.', steps: null, status: 'planned' },
       ],
     },
   ],
@@ -850,10 +1361,13 @@ const ENCYCLOPEDIA = {
 module.exports = {
   PROCESSES,
   ENCYCLOPEDIA,
+  REFERENCE_PAGES,
   // legacy compat — single process access
   ventas:         PROCESSES.ventas,
   facturacion:    PROCESSES.facturacion,
   implementacion: PROCESSES.implementacion,
   soporte:        PROCESSES.soporte,
   desarrollo:     PROCESSES.desarrollo,
+  scrum:          PROCESSES.scrum,
+  tareas:         PROCESSES.tareas,
 };

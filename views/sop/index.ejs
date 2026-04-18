@@ -246,6 +246,57 @@
 
     /* ── Animated particle on edges ─────────────────────────────────────────── */
     .edge-particle { pointer-events: none; }
+
+    /* ── Checklist mode ─────────────────────────────────────────────────────── */
+    .step-card.done-check {
+      opacity: .55;
+    }
+    .step-card.done-check .card-label {
+      text-decoration: line-through;
+      text-decoration-color: #10B981;
+    }
+    .check-badge {
+      position: absolute;
+      top: 8px; right: 8px;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid #E2E8F0;
+      background: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      transition: all .2s;
+      cursor: pointer;
+    }
+    .check-badge.checked {
+      background: #10B981;
+      border-color: #10B981;
+      color: white;
+    }
+    .checklist-active .step-card { cursor: default; }
+    .checklist-active .step-card:hover { transform: none; box-shadow: none; }
+    /* Progress bar */
+    #clProgressBar {
+      height: 3px;
+      background: #E2E8F0;
+      border-radius: 99px;
+      overflow: hidden;
+      transition: opacity .3s;
+    }
+    #clProgressFill {
+      height: 100%;
+      background: linear-gradient(90deg, #10B981, #34D399);
+      border-radius: 99px;
+      transition: width .4s cubic-bezier(.4,0,.2,1);
+    }
+    /* Completion toast */
+    @keyframes pop-in {
+      0%   { transform: translateX(-50%) scale(.8) translateY(12px); opacity:0; }
+      60%  { transform: translateX(-50%) scale(1.05) translateY(-2px); opacity:1; }
+      100% { transform: translateX(-50%) scale(1) translateY(0); opacity:1; }
+    }
+    .pop-in { animation: pop-in .4s cubic-bezier(.4,0,.2,1) forwards; }
+    /* Checklist toggle btn active state */
+    .cl-btn-active { background: #ECFDF5 !important; color: #065F46 !important; border-color: #6EE7B7 !important; }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
@@ -300,6 +351,20 @@
       <p class="mt-1 text-sm text-slate-500">Haz clic en cualquier etapa para ver el detalle completo · Flujo de 10 pasos · 4 roles</p>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
+      <!-- Progress bar (checklist mode) -->
+      <div id="clProgressWrap" class="hidden items-center gap-2">
+        <div id="clProgressBar" class="w-32 rounded-full">
+          <div id="clProgressFill" style="width:0%"></div>
+        </div>
+        <span id="clProgressLabel" class="text-xs font-semibold text-slate-500"></span>
+      </div>
+      <button id="clBtn" onclick="toggleChecklistMode()"
+              class="text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:border-emerald-400 hover:text-emerald-700 transition-colors flex items-center gap-1.5">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Checklist
+      </button>
       <a href="/sop"
          class="text-xs font-bold px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-500 hover:border-slate-400 transition-colors">
         Todos los procesos
@@ -839,6 +904,130 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' && idx < STEPS.length - 1) selectStep(STEPS[idx + 1].id);
   if (e.key === 'ArrowLeft'  && idx > 0)                selectStep(STEPS[idx - 1].id);
 });
+
+// ── Checklist mode ────────────────────────────────────────────────────────────
+const CL_KEY = 'sop-cl-<%= processId %>';
+let checklistMode = false;
+let checkedSteps  = new Set(JSON.parse(localStorage.getItem(CL_KEY) || '[]'));
+
+function toggleChecklistMode() {
+  checklistMode = !checklistMode;
+  const btn  = document.getElementById('clBtn');
+  const prog = document.getElementById('clProgressWrap');
+  btn.classList.toggle('cl-btn-active', checklistMode);
+  prog.classList.toggle('hidden', !checklistMode);
+  prog.style.display = checklistMode ? 'flex' : 'none';
+
+  document.getElementById('sopCanvas').classList.toggle('checklist-active', checklistMode);
+
+  // Add/remove check badges on each card
+  STEPS.forEach(s => {
+    const card = document.getElementById('card-' + s.id);
+    if (!card) return;
+    if (checklistMode) {
+      if (!card.querySelector('.check-badge')) {
+        const badge = document.createElement('div');
+        badge.className = 'check-badge' + (checkedSteps.has(s.id) ? ' checked' : '');
+        badge.innerHTML = checkedSteps.has(s.id) ? '✓' : '';
+        badge.title = 'Marcar como completado';
+        badge.onclick = (e) => { e.stopPropagation(); toggleCheck(s.id); };
+        card.style.position = 'absolute'; // already set
+        card.appendChild(badge);
+      }
+      card.classList.toggle('done-check', checkedSteps.has(s.id));
+      // In checklist mode, clicking card toggles check, not panel
+      card.onclick = (e) => { if (checklistMode) { toggleCheck(s.id); } else { selectStep(s.id); } };
+    } else {
+      card.querySelector('.check-badge')?.remove();
+      card.classList.remove('done-check');
+      card.onclick = () => selectStep(s.id);
+    }
+  });
+
+  updateProgress();
+}
+
+function toggleCheck(stepId) {
+  if (checkedSteps.has(stepId)) {
+    checkedSteps.delete(stepId);
+  } else {
+    checkedSteps.add(stepId);
+  }
+  localStorage.setItem(CL_KEY, JSON.stringify([...checkedSteps]));
+  const card  = document.getElementById('card-' + stepId);
+  const badge = card?.querySelector('.check-badge');
+  if (badge) {
+    badge.classList.toggle('checked', checkedSteps.has(stepId));
+    badge.innerHTML = checkedSteps.has(stepId) ? '✓' : '';
+  }
+  card?.classList.toggle('done-check', checkedSteps.has(stepId));
+  updateProgress();
+}
+
+function updateProgress() {
+  const total    = STEPS.length;
+  const done     = checkedSteps.size;
+  const pct      = total > 0 ? Math.round(done / total * 100) : 0;
+  document.getElementById('clProgressFill').style.width   = pct + '%';
+  document.getElementById('clProgressLabel').textContent  = `${done}/${total} pasos`;
+
+  if (done === total && total > 0) {
+    showCompletionToast();
+  }
+}
+
+function showCompletionToast() {
+  let toast = document.getElementById('completionToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'completionToast';
+    toast.className = 'fixed bottom-8 left-1/2 z-[80] bg-emerald-600 text-white text-sm font-bold px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 pop-in';
+    toast.innerHTML = `
+      <span class="text-xl">🎉</span>
+      <span>¡Proceso completado! Todos los pasos marcados.</span>
+      <button onclick="this.parentElement.remove()" class="ml-2 opacity-70 hover:opacity-100 text-white font-bold text-base leading-none">×</button>`;
+    document.body.appendChild(toast);
+  }
+  toast.style.display = 'flex';
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => { if (toast) toast.remove(); }, 4000);
+}
+
+// ── Panel "mark done" button ──────────────────────────────────────────────────
+// Inject into panel footer
+(function() {
+  const footer = document.querySelector('#detailPanel .flex-shrink-0.p-4');
+  if (!footer) return;
+  const markBtn = document.createElement('button');
+  markBtn.id = 'panelMarkBtn';
+  markBtn.className = 'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl border border-slate-200 bg-white hover:border-emerald-400 hover:text-emerald-700 text-slate-500 text-xs font-bold transition-colors';
+  markBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Marcar`;
+  markBtn.onclick = () => {
+    if (selectedId) toggleCheck(selectedId);
+    const isDone = checkedSteps.has(selectedId);
+    markBtn.innerHTML = isDone
+      ? `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#10B981" stroke-width="1.5" stroke-linecap="round"/></svg> <span style="color:#10B981">Hecho ✓</span>`
+      : `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Marcar`;
+  };
+  footer.insertBefore(markBtn, footer.firstChild);
+})();
+
+// Update panel mark btn when panel opens
+const _origOpenPanel = openPanel;
+openPanel = function(stepId) {
+  _origOpenPanel(stepId);
+  const btn = document.getElementById('panelMarkBtn');
+  if (!btn) return;
+  const isDone = checkedSteps.has(stepId);
+  btn.innerHTML = isDone
+    ? `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="#10B981" stroke-width="1.5" stroke-linecap="round"/></svg> <span style="color:#10B981">Hecho ✓</span>`
+    : `<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Marcar`;
+};
+
+// Init: restore checklist state badge visibility
+if (checkedSteps.size > 0) {
+  updateProgress();
+}
 </script>
 
 </body>

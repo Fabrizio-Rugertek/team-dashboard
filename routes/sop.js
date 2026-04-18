@@ -5,14 +5,15 @@
  * Routes:
  *   GET /sop                       → encyclopedia hub
  *   GET /sop/:processId            → swimlane flow for a specific process
- *   GET /sop/org/:pageId           → reference pages (organigrama, roles, metodologia)
+ *   GET /sop/ref/:pageId           → rich reference pages (organigrama, roles, metodologia, catalogo-torus)
  */
 
 const express  = require('express');
 const router   = express.Router();
-const { PROCESSES, ENCYCLOPEDIA } = require('../src/sop-data');
+const { PROCESSES, ENCYCLOPEDIA, REFERENCE_PAGES } = require('../src/sop-data');
 
 const FLOW_PROCESSES = Object.keys(PROCESSES);   // have swimlane views
+const REF_PAGES      = Object.keys(REFERENCE_PAGES || {});
 
 // Process metadata for display
 const PROCESS_META = {
@@ -21,21 +22,61 @@ const PROCESS_META = {
   implementacion: { name: 'Implementación Odoo',      section: 'produccion',   color: '#8B5CF6' },
   soporte:        { name: 'Soporte y Mantenimiento',  section: 'produccion',   color: '#10B981' },
   desarrollo:     { name: 'Desarrollo a Medida',       section: 'produccion',   color: '#EC4899' },
+  scrum:          { name: 'Scrum Sprint Cycle',        section: 'produccion',   color: '#3B82F6' },
+  tareas:         { name: 'Gestión de Tareas Odoo',   section: 'produccion',   color: '#8B5CF6' },
+};
+
+// Reference page metadata
+const REF_META = {
+  organigrama:      { name: 'Organigrama Torus',          section: 'organizacion', color: '#10B981' },
+  roles:            { name: 'Roles y Responsabilidades',  section: 'organizacion', color: '#3B82F6' },
+  metodologia:      { name: 'Metodología de Proyectos',   section: 'organizacion', color: '#8B5CF6' },
+  'catalogo-torus': { name: 'Productos Torus',            section: 'productos',    color: '#3B82F6' },
 };
 
 // ── Hub ───────────────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
   res.render('sop/hub', {
-    title:       'SOPs — Torus Dashboard',
-    user:        req.user || null,
-    encyclopedia: ENCYCLOPEDIA,
+    title:         'SOPs — Torus Dashboard',
+    user:          req.user || null,
+    encyclopedia:  ENCYCLOPEDIA,
     flowProcesses: FLOW_PROCESSES,
+  });
+});
+
+// ── Reference pages ───────────────────────────────────────────────────────────
+router.get('/ref/:pageId', (req, res) => {
+  const { pageId } = req.params;
+  const pageData   = REFERENCE_PAGES?.[pageId];
+
+  if (!pageData) {
+    return res.status(404).render('platform/404');
+  }
+
+  const meta = REF_META[pageId] || { name: pageId, color: '#64748B' };
+  const section = ENCYCLOPEDIA.sections.find(s =>
+    s.processes.some(p => p.id === pageId)
+  );
+
+  res.render('sop/reference', {
+    title:       `${pageData.title} — Torus SOPs`,
+    user:        req.user || null,
+    pageId,
+    pageData,
+    pageColor:   pageData.color || meta.color,
+    sectionName: section ? section.name : '',
   });
 });
 
 // ── Flow pages ────────────────────────────────────────────────────────────────
 router.get('/:processId', (req, res) => {
   const { processId } = req.params;
+
+  // Redirect reference-style IDs if they accidentally hit this route
+  if (REF_PAGES.includes(processId)) {
+    return res.redirect(`/sop/ref/${processId}`);
+  }
+
   if (!FLOW_PROCESSES.includes(processId)) {
     return res.status(404).render('platform/404');
   }
@@ -43,7 +84,6 @@ router.get('/:processId', (req, res) => {
   const process = PROCESSES[processId];
   const meta    = PROCESS_META[processId] || { name: processId, color: '#64748b' };
 
-  // Find section for breadcrumb
   const section = ENCYCLOPEDIA.sections.find(s =>
     s.processes.some(p => p.id === processId)
   );
