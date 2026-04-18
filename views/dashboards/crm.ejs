@@ -20,6 +20,19 @@
     .preset-btn { display: block; width: 100%; text-align: left; padding: 8px 16px; font-size: 12px; font-weight: 500; color: #475569; transition: background .1s; }
     .preset-btn:hover { background: #f8fafc; }
     .preset-btn.active { background: #eff6ff; color: #2563eb; font-weight: 700; }
+    /* Drill-down clickable styles */
+    .drill-row { cursor: pointer; transition: background .1s; }
+    .drill-row:hover td { background: #fffbeb !important; }
+    .drill-card { cursor: pointer; transition: all .15s; }
+    .drill-card:hover { border-color: #fbbf24 !important; box-shadow: 0 1px 6px rgba(217,119,6,.15); }
+    .drill-bar { cursor: pointer; transition: background .1s; border-radius: 6px; }
+    .drill-bar:hover { background: #fefce8; }
+    .filter-link { color: inherit; cursor: pointer; transition: color .1s; }
+    .filter-link:hover { color: #d97706; text-decoration: underline; }
+    .odoo-link { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #94a3b8; transition: color .1s; }
+    .odoo-link:hover { color: #d97706; }
+    .kpi-card { position: relative; transition: all .15s; }
+    .kpi-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -28,6 +41,7 @@
   const crm = crmStats || {};
   const af  = activeFilters || {};
   const fo  = filterOptions || {};
+  const ODOO = 'https://www.torus.dev';
 %>
 
 <!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
@@ -49,7 +63,7 @@
       <% } %>
     </div>
     <div class="flex items-center gap-3">
-      <a href="https://www.torus.dev/odoo/crm" target="_blank"
+      <a href="<%= ODOO %>/odoo/crm" target="_blank"
          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors">
         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
         Ver en Odoo
@@ -76,10 +90,8 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
         </svg>
       </button>
-
       <div id="datePicker" class="hidden absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
         <div class="flex">
-          <!-- Left: preset list -->
           <div class="w-40 border-r border-slate-100 py-2">
             <% (dateRanges || []).forEach(function(r) { %>
             <button class="preset-btn <%= af.range === r.value ? 'active' : '' %>"
@@ -90,7 +102,6 @@
             <button class="preset-btn <%= af.range === 'custom' ? 'active' : '' %>"
                     data-range="custom" onclick="selectPreset('custom')">Personalizado</button>
           </div>
-          <!-- Right: info or custom inputs -->
           <div class="flex-1 p-4 min-w-56">
             <div id="customPanel" class="<%= af.range === 'custom' ? '' : 'hidden' %>">
               <div class="text-xs font-semibold text-slate-700 mb-3">Rango personalizado</div>
@@ -120,13 +131,11 @@
       </div>
     </div>
 
-    <!-- Date type -->
     <select onchange="applyFilter('dateType', this.value)" class="filter-select">
       <option value="created" <%= af.dateType !== 'closed' ? 'selected' : '' %>>Por: Creacion</option>
       <option value="closed"  <%= af.dateType === 'closed' ? 'selected' : '' %>>Por: Cierre</option>
     </select>
 
-    <!-- Hunter -->
     <select onchange="applyFilter('hunter', this.value)" class="filter-select">
       <option value="">Hunter: Todos</option>
       <% (fo.allHunters || []).forEach(function(h) { %>
@@ -134,7 +143,6 @@
       <% }); %>
     </select>
 
-    <!-- Closer -->
     <select onchange="applyFilter('closer', this.value)" class="filter-select">
       <option value="">Closer: Todos</option>
       <% (fo.allClosers || []).forEach(function(c) { %>
@@ -142,7 +150,6 @@
       <% }); %>
     </select>
 
-    <!-- Source -->
     <select onchange="applyFilter('source', this.value)" class="filter-select">
       <option value="">Origen: Todos</option>
       <% (fo.allSources || []).forEach(function(s) { %>
@@ -152,7 +159,6 @@
       <% }); %>
     </select>
 
-    <!-- Stage -->
     <select onchange="applyFilter('stage', this.value)" class="filter-select">
       <option value="">Etapa: Todas</option>
       <% (fo.allStages || []).forEach(function(s) { %>
@@ -162,7 +168,6 @@
       <% }); %>
     </select>
 
-    <!-- Active filter count + reset -->
     <% if (activeFilterCount > 0) { %>
     <a href="/crm?tab=<%= activeTab %>"
        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-xs font-bold text-amber-700 hover:bg-amber-200 transition-colors">
@@ -198,16 +203,17 @@
   </div>
 </div>
 
+
 <!-- ═══════════════════════════════════════════════════════════════════════════
      TAB 1: RESUMEN
 ══════════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-resumen" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-  <%# ── KPI Cards (6) ── %>
+  <%# ── KPI Cards ── %>
   <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
 
     <%# Win Rate %>
-    <div class="bg-white rounded-xl border p-4 <%=
+    <div class="kpi-card bg-white rounded-xl border p-4 <%=
       crm.winRateColor === 'green' ? 'border-green-200' :
       crm.winRateColor === 'amber' ? 'border-amber-200' :
       crm.winRateColor === 'red'   ? 'border-red-200'   : 'border-slate-200' %>">
@@ -222,29 +228,37 @@
       <div class="text-xs text-slate-400 mt-1"><%= crm.won90Count || 0 %> Won &middot; <%= crm.lost90Count || 0 %> Lost (90d)</div>
     </div>
 
-    <%# Revenue Won %>
-    <div class="bg-white rounded-xl border border-green-200 p-4">
-      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-green-600">Revenue Won</div>
-      <div class="text-2xl font-black text-green-700"><%= crm.revenueWonFmt || '₲ 0' %></div>
+    <%# Revenue Won — click to see won opps in Odoo %>
+    <a href="<%= ODOO %>/odoo/crm" target="_blank"
+       class="kpi-card bg-white rounded-xl border border-green-200 p-4 block hover:no-underline">
+      <div class="flex items-start justify-between">
+        <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-green-600">Revenue Won</div>
+        <svg class="w-3 h-3 text-green-300 mt-0.5 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </div>
+      <div class="text-2xl font-black text-green-700"><%= crm.revenueWonFmt || '\u20b2 0' %></div>
       <div class="text-xs text-slate-400 mt-1"><%= crm.wonTotal || 0 %> deals ganados</div>
-    </div>
+    </a>
 
-    <%# Pipeline %>
-    <div class="bg-white rounded-xl border border-blue-200 p-4">
-      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-blue-600">Pipeline</div>
-      <div class="text-2xl font-black text-blue-700"><%= crm.pipelineFmt || '₲ 0' %></div>
+    <%# Pipeline — click to open Odoo pipeline %>
+    <a href="<%= ODOO %>/odoo/crm" target="_blank"
+       class="kpi-card bg-white rounded-xl border border-blue-200 p-4 block hover:no-underline">
+      <div class="flex items-start justify-between">
+        <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-blue-600">Pipeline</div>
+        <svg class="w-3 h-3 text-blue-300 mt-0.5 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+      </div>
+      <div class="text-2xl font-black text-blue-700"><%= crm.pipelineFmt || '\u20b2 0' %></div>
       <div class="text-xs text-slate-400 mt-1"><%= crm.pipelineCount || 0 %> oportunidades activas</div>
-    </div>
+    </a>
 
     <%# Avg Ticket %>
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Ticket Prom.</div>
-      <div class="text-2xl font-black text-slate-800"><%= crm.avgTicketFmt || '₲ 0' %></div>
+      <div class="text-2xl font-black text-slate-800"><%= crm.avgTicketFmt || '\u20b2 0' %></div>
       <div class="text-xs text-slate-400 mt-1"><%= crm.wonWithRevCount || 0 %> deals con revenue</div>
     </div>
 
     <%# Velocidad %>
-    <div class="bg-white rounded-xl border p-4 <%=
+    <div class="kpi-card bg-white rounded-xl border p-4 <%=
       crm.avgDaysColor === 'green' ? 'border-green-200' :
       crm.avgDaysColor === 'amber' ? 'border-amber-200' :
       crm.avgDaysColor === 'red'   ? 'border-red-200'   : 'border-slate-200' %>">
@@ -256,8 +270,8 @@
       <div class="text-xs text-slate-400 mt-1">Prom. d&iacute;as hasta Won (180d)</div>
     </div>
 
-    <%# Lost %>
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
+    <%# Perdidos %>
+    <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Perdidos</div>
       <div class="text-3xl font-black text-slate-800"><%= crm.lostTotal || 0 %></div>
       <div class="text-xs text-slate-400 mt-1">de <%= crm.totalAll || 0 %> oportunidades totales</div>
@@ -267,18 +281,18 @@
   <%# ── Hunter + Source row ── %>
   <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
-    <%# Hunter performance bars %>
+    <%# Hunter performance bars — clickable to filter %>
     <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 p-5">
       <div class="font-bold text-slate-800 text-sm mb-0.5">Performance por Hunter</div>
-      <div class="text-xs text-slate-400 mb-4">Leads generados &middot; Won &middot; Revenue acumulado</div>
+      <div class="text-xs text-slate-400 mb-4">Clic en un hunter para filtrar &middot; Leads &middot; Won &middot; Revenue</div>
       <% var hunters = (crm.byHunter || []).filter(function(h){ return h.name !== 'Sin Hunter'; }); %>
       <% if (hunters.length > 0) { %>
-        <div class="space-y-3">
+        <div class="space-y-2">
         <% hunters.forEach(function(h) {
              var maxRev = hunters[0].revenue || 1;
-             var pct = Math.round((h.revenue / maxRev) * 100);
+             var pct    = Math.round((h.revenue / maxRev) * 100);
            %>
-          <div>
+          <div class="drill-bar -mx-2 px-2 py-1.5 rounded-lg" onclick="applyFilter('hunter', '<%= h.id %>')">
             <div class="flex items-center justify-between mb-1">
               <div class="flex items-center gap-2">
                 <span class="text-sm font-semibold text-slate-700"><%= h.name.split(' ')[0] %></span>
@@ -297,18 +311,18 @@
       <% } %>
     </div>
 
-    <%# Source breakdown %>
+    <%# Source breakdown — clickable to filter %>
     <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
       <div class="font-bold text-slate-800 text-sm mb-0.5">Leads por Origen</div>
-      <div class="text-xs text-slate-400 mb-4">Distribucion total por canal</div>
+      <div class="text-xs text-slate-400 mb-4">Clic para filtrar por canal</div>
       <% var sources = (crm.bySource || []); %>
       <% if (sources.length > 0) { %>
         <% var maxSrc = sources[0].count || 1; %>
-        <div class="space-y-2.5">
+        <div class="space-y-1.5">
         <% sources.slice(0, 8).forEach(function(s) {
              var pct = Math.round(s.count / maxSrc * 100);
            %>
-          <div>
+          <div class="drill-bar -mx-2 px-2 py-1 rounded-lg" onclick="applyFilter('source', '<%= s.id || '' %>')">
             <div class="flex items-center justify-between mb-0.5">
               <span class="text-xs font-medium text-slate-600 truncate" style="max-width:68%"><%= s.name %></span>
               <span class="text-xs font-bold text-slate-500"><%= s.count %></span>
@@ -325,7 +339,7 @@
     </div>
   </div>
 
-  <%# ── Stage mini cards ── %>
+  <%# ── Stage mini cards — clickable to filter ── %>
   <% if ((crm.byStage || []).length > 0) { %>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
     <% (crm.byStage || []).forEach(function(s) {
@@ -334,10 +348,12 @@
                       val >= 1e6 ? ('\u20b2' + Math.round(val/1e6) + 'M') :
                       ('\u20b2' + Math.round(val).toLocaleString('es-PY'));
        %>
-      <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="drill-card bg-white rounded-xl border border-slate-200 p-4 text-center"
+           onclick="applyFilter('stage', '<%= s.id || '' %>')">
         <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 truncate"><%= s.name %></div>
         <div class="text-2xl font-black text-slate-800"><%= s.count %></div>
         <div class="text-xs text-slate-400 mt-0.5"><%= valFmt %></div>
+        <div class="text-[10px] text-amber-500 mt-1 font-medium">Filtrar &rarr;</div>
       </div>
     <% }); %>
   </div>
@@ -346,9 +362,15 @@
   <%# ── Top Active Pipeline table ── %>
   <% if ((crm.topActive || []).length > 0) { %>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <div class="px-5 py-4 border-b border-slate-100">
-      <div class="font-bold text-slate-800 text-sm">Pipeline Activo</div>
-      <div class="text-xs text-slate-400">Top oportunidades ordenadas por valor esperado</div>
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <div class="font-bold text-slate-800 text-sm">Pipeline Activo</div>
+        <div class="text-xs text-slate-400">Clic en el nombre para abrir en Odoo &middot; Etapa/Hunter/Closer/Origen filtran el dashboard</div>
+      </div>
+      <a href="<%= ODOO %>/odoo/crm" target="_blank" class="odoo-link px-2 py-1 rounded hover:bg-slate-50">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        Ver todos en Odoo
+      </a>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
@@ -367,15 +389,27 @@
           <% (crm.topActive || []).forEach(function(o) { %>
           <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
             <td class="px-4 py-2.5">
-              <a href="https://www.torus.dev/odoo/crm/<%= o.id %>" target="_blank"
-                 class="font-medium text-slate-800 hover:text-amber-600 transition-colors"><%= o.name %></a>
+              <a href="<%= ODOO %>/odoo/crm/<%= o.id %>" target="_blank"
+                 class="font-medium text-slate-800 hover:text-amber-600 transition-colors flex items-center gap-1 group">
+                <%= o.name %>
+                <svg class="w-3 h-3 text-slate-300 group-hover:text-amber-400 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </a>
             </td>
             <td class="px-4 py-2.5">
-              <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium whitespace-nowrap"><%= o.stage %></span>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium whitespace-nowrap filter-link"
+                    onclick="applyFilter('stage', '<%= o.stageId || '' %>')">
+                <%= o.stage %>
+              </span>
             </td>
-            <td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap"><%= o.hunter %></td>
-            <td class="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap"><%= o.closer %></td>
-            <td class="px-4 py-2.5 text-xs text-slate-500 max-w-xs truncate"><%= o.source %></td>
+            <td class="px-4 py-2.5 text-xs whitespace-nowrap">
+              <span class="filter-link text-slate-600" onclick="applyFilter('hunter', '<%= o.hunterId || '' %>')"><%= o.hunter %></span>
+            </td>
+            <td class="px-4 py-2.5 text-xs whitespace-nowrap">
+              <span class="filter-link text-slate-500" onclick="applyFilter('closer', '<%= o.closerId || '' %>')"><%= o.closer %></span>
+            </td>
+            <td class="px-4 py-2.5 text-xs max-w-xs truncate">
+              <span class="filter-link text-slate-500" onclick="applyFilter('source', '<%= o.sourceId || '' %>')"><%= o.source %></span>
+            </td>
             <td class="px-4 py-2.5 text-right text-xs font-bold text-slate-700 whitespace-nowrap"><%= o.revenueFmt %></td>
             <td class="px-4 py-2.5 text-right text-xs whitespace-nowrap <%= o.daysOpen > 90 ? 'text-amber-600 font-semibold' : 'text-slate-400' %>"><%= o.daysOpen %>d</td>
           </tr>
@@ -394,7 +428,6 @@
 ══════════════════════════════════════════════════════════════════════════════ -->
 <div id="tab-funnel" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
 
-  <%# KPI row %>
   <% var totalFunnel = crm.totalAll || 0;
      var totalOpen   = crm.openCount || 0;
      var totalWon    = crm.wonTotal || 0;
@@ -402,19 +435,19 @@
      var convRate    = (totalWon + totalLost) > 0 ? Math.round(totalWon / (totalWon + totalLost) * 100) : null;
   %>
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+    <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4 text-center">
       <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Total Oportunidades</div>
       <div class="text-4xl font-black text-slate-800"><%= totalFunnel %></div>
     </div>
-    <div class="bg-white rounded-xl border border-blue-200 p-4 text-center">
+    <div class="kpi-card bg-white rounded-xl border border-blue-200 p-4 text-center">
       <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">En Pipeline</div>
       <div class="text-4xl font-black text-blue-700"><%= totalOpen %></div>
     </div>
-    <div class="bg-white rounded-xl border border-green-200 p-4 text-center">
+    <div class="kpi-card bg-white rounded-xl border border-green-200 p-4 text-center">
       <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Ganados</div>
       <div class="text-4xl font-black text-green-700"><%= totalWon %></div>
     </div>
-    <div class="bg-white rounded-xl border <%= convRate !== null && convRate >= 50 ? 'border-green-200' : convRate !== null && convRate >= 30 ? 'border-amber-200' : 'border-red-200' %> p-4 text-center">
+    <div class="kpi-card bg-white rounded-xl border <%= convRate !== null && convRate >= 50 ? 'border-green-200' : convRate !== null && convRate >= 30 ? 'border-amber-200' : 'border-red-200' %> p-4 text-center">
       <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Tasa Cierre</div>
       <div class="text-4xl font-black <%= convRate !== null && convRate >= 50 ? 'text-green-700' : convRate !== null && convRate >= 30 ? 'text-amber-600' : 'text-red-600' %>">
         <%= convRate !== null ? convRate + '%' : 'N/D' %>
@@ -423,10 +456,10 @@
     </div>
   </div>
 
-  <%# Funnel visualization %>
+  <%# Funnel visualization — bars clickable to filter %>
   <div class="bg-white rounded-xl border border-slate-200 p-6">
     <div class="font-bold text-slate-800 text-sm mb-1">Distribucion de Oportunidades por Etapa</div>
-    <div class="text-xs text-slate-400 mb-6">Pipeline activo &middot; Ganados &middot; Perdidos</div>
+    <div class="text-xs text-slate-400 mb-6">Clic en una etapa activa para filtrar el dashboard</div>
     <% var funnelItems = crm.funnelData || [];
        var maxFunnelCount = Math.max.apply(null, funnelItems.map(function(f){ return f.count || 0; }).concat([1]));
     %>
@@ -439,9 +472,14 @@
          var valFmt = f.value >= 1e9 ? ('\u20b2' + (f.value/1e9).toFixed(1) + 'B') :
                       f.value >= 1e6 ? ('\u20b2' + Math.round(f.value/1e6) + 'M') :
                       f.value > 0    ? ('\u20b2' + Math.round(f.value).toLocaleString('es-PY')) : '';
+         var isClickable = f.type === 'active' && f.stageId;
        %>
-      <div class="flex items-center gap-3">
-        <div class="w-36 text-xs font-semibold <%= textColor %> truncate text-right flex-none"><%= f.name %></div>
+      <div class="flex items-center gap-3 <%= isClickable ? 'cursor-pointer group' : '' %>"
+           <% if (isClickable) { %>onclick="applyFilter('stage', '<%= f.stageId %>')"<% } %>>
+        <div class="w-36 text-xs font-semibold <%= textColor %> truncate text-right flex-none
+                    <%= isClickable ? 'group-hover:text-amber-600 transition-colors' : '' %>">
+          <%= f.name %>
+        </div>
         <div class="flex-1 bg-slate-100 rounded-full h-8 relative overflow-hidden">
           <div class="funnel-bar <%= barColor %> h-full rounded-full flex items-center pl-3"
                style="width:<%= pct %>%">
@@ -454,11 +492,12 @@
     </div>
   </div>
 
-  <%# Stage detail table %>
+  <%# Stage detail table — rows clickable %>
   <% if ((crm.byStage || []).length > 0) { %>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <div class="px-5 py-3 border-b border-slate-100">
       <div class="font-bold text-slate-800 text-sm">Pipeline Activo por Etapa</div>
+      <div class="text-xs text-slate-400">Clic en una fila para filtrar</div>
     </div>
     <table class="w-full text-sm">
       <thead>
@@ -476,8 +515,11 @@
                           s.value >= 1e6 ? ('\u20b2' + Math.round(s.value/1e6) + 'M') :
                           ('\u20b2' + Math.round(s.value).toLocaleString('es-PY'));
            %>
-        <tr class="border-b border-slate-50 hover:bg-slate-50">
-          <td class="px-5 py-2.5 font-medium text-slate-700"><%= s.name %></td>
+        <tr class="drill-row border-b border-slate-50" onclick="applyFilter('stage', '<%= s.id || '' %>')">
+          <td class="px-5 py-2.5 font-medium text-slate-700">
+            <%= s.name %>
+            <span class="ml-1 text-[10px] text-amber-400 font-medium">filtrar &rarr;</span>
+          </td>
           <td class="px-5 py-2.5 text-right font-bold text-slate-800"><%= s.count %></td>
           <td class="px-5 py-2.5 text-right text-slate-500"><%= pctTotal %>%</td>
           <td class="px-5 py-2.5 text-right font-bold text-blue-700"><%= valFmt %></td>
@@ -518,10 +560,13 @@
     </div>
   </div>
 
-  <%# Hunter table %>
+  <%# Hunter table — rows clickable to filter %>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
-    <div class="px-5 py-3 border-b border-slate-100">
-      <div class="font-bold text-slate-800 text-sm">Detalle por Hunter</div>
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+      <div>
+        <div class="font-bold text-slate-800 text-sm">Detalle por Hunter</div>
+        <div class="text-xs text-slate-400">Clic en una fila para filtrar &middot; Icono para abrir en Odoo</div>
+      </div>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
@@ -533,6 +578,7 @@
             <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Win Rate</th>
             <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Revenue Won</th>
             <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Rev/Lead</th>
+            <th class="px-5 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Odoo</th>
           </tr>
         </thead>
         <tbody>
@@ -542,7 +588,7 @@
                                    revPerLead >= 1e6 ? ('\u20b2' + Math.round(revPerLead/1e6) + 'M') :
                                    revPerLead > 0 ? ('\u20b2' + Math.round(revPerLead).toLocaleString('es-PY')) : '\u2014';
              %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50">
+          <tr class="drill-row border-b border-slate-50" onclick="applyFilter('hunter', '<%= h.id %>')">
             <td class="px-5 py-3">
               <div class="font-semibold text-slate-800"><%= h.name %></div>
             </td>
@@ -555,6 +601,11 @@
             </td>
             <td class="px-5 py-3 text-right font-bold text-slate-800"><%= h.revenueFmt %></td>
             <td class="px-5 py-3 text-right text-slate-500 text-xs"><%= revPerLeadFmt %></td>
+            <td class="px-5 py-3 text-center" onclick="event.stopPropagation()">
+              <a href="<%= ODOO %>/odoo/crm" target="_blank" class="odoo-link justify-center">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              </a>
+            </td>
           </tr>
           <% }); %>
         </tbody>
@@ -562,13 +613,13 @@
     </div>
   </div>
 
-  <%# Closer section %>
+  <%# Closer table — rows clickable %>
   <% var allClosers = (crm.byCloser || []).filter(function(c){ return c.name !== 'Sin Closer'; }); %>
   <% if (allClosers.length > 0) { %>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <div class="px-5 py-3 border-b border-slate-100">
       <div class="font-bold text-slate-800 text-sm">Detalle por Closer</div>
-      <div class="text-xs text-slate-400">Responsable del deal (user_id en Odoo)</div>
+      <div class="text-xs text-slate-400">Responsable del deal (user_id en Odoo) &middot; Clic para filtrar</div>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
@@ -583,7 +634,7 @@
         </thead>
         <tbody>
           <% allClosers.forEach(function(c) { %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50">
+          <tr class="drill-row border-b border-slate-50" onclick="applyFilter('closer', '<%= c.id %>')">
             <td class="px-5 py-3 font-semibold text-slate-800"><%= c.name %></td>
             <td class="px-5 py-3 text-right text-slate-700 font-medium"><%= c.leads %></td>
             <td class="px-5 py-3 text-right font-bold text-green-700"><%= c.won %></td>
@@ -618,40 +669,38 @@
   <% var totalRev12 = trendData.reduce(function(s,m){ return s + m.revenue; }, 0); %>
   <% var rev12Fmt = totalRev12 >= 1e9 ? ('\u20b2' + (totalRev12/1e9).toFixed(1) + 'B') : totalRev12 >= 1e6 ? ('\u20b2' + Math.round(totalRev12/1e6) + 'M') : ('\u20b2' + Math.round(totalRev12).toLocaleString('es-PY')); %>
 
-  <%# Trend KPI row %>
   <div class="grid grid-cols-3 gap-4">
-    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+    <div class="kpi-card bg-white rounded-xl border border-slate-200 p-4 text-center">
       <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Leads creados (12m)</div>
       <div class="text-3xl font-black text-slate-800"><%= totalCreated12 %></div>
     </div>
-    <div class="bg-white rounded-xl border border-green-200 p-4 text-center">
+    <div class="kpi-card bg-white rounded-xl border border-green-200 p-4 text-center">
       <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Won (12m)</div>
       <div class="text-3xl font-black text-green-700"><%= totalWon12 %></div>
     </div>
-    <div class="bg-white rounded-xl border border-amber-200 p-4 text-center">
+    <div class="kpi-card bg-white rounded-xl border border-amber-200 p-4 text-center">
       <div class="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">Revenue Won (12m)</div>
       <div class="text-2xl font-black text-amber-700"><%= rev12Fmt %></div>
     </div>
   </div>
 
-  <%# Volume trend chart %>
   <div class="bg-white rounded-xl border border-slate-200 p-5">
     <div class="font-bold text-slate-800 text-sm mb-0.5">Volumen Mensual - Ultimos 12 Meses</div>
     <div class="text-xs text-slate-400 mb-4">Oportunidades creadas &middot; Ganadas &middot; Perdidas</div>
     <canvas id="trendVolumeChart" height="120"></canvas>
   </div>
 
-  <%# Revenue trend chart %>
   <div class="bg-white rounded-xl border border-slate-200 p-5">
     <div class="font-bold text-slate-800 text-sm mb-0.5">Revenue Won Mensual</div>
     <div class="text-xs text-slate-400 mb-4">Revenue acumulado en deals ganados por mes de cierre</div>
     <canvas id="trendRevenueChart" height="120"></canvas>
   </div>
 
-  <%# Month-by-month table %>
+  <%# Month-by-month table — rows clickable to filter by that month %>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <div class="px-5 py-3 border-b border-slate-100">
       <div class="font-bold text-slate-800 text-sm">Detalle Mensual</div>
+      <div class="text-xs text-slate-400">Clic en un mes para filtrar el dashboard a ese periodo</div>
     </div>
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
@@ -673,10 +722,12 @@
                             m.revenue > 0    ? ('\u20b2' + Math.round(m.revenue).toLocaleString('es-PY')) : '\u2014';
                var isBest = bestWonMonth && m.month === bestWonMonth.month && m.won > 0;
              %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50 <%= isBest ? 'bg-green-50' : '' %>">
+          <tr class="drill-row border-b border-slate-50 <%= isBest ? 'bg-green-50' : '' %>"
+              onclick="applyMonthFilter('<%= m.month %>')">
             <td class="px-5 py-2.5 font-semibold text-slate-700">
               <%= m.label %>
               <% if (isBest) { %><span class="ml-1 text-xs text-green-600">mejor mes</span><% } %>
+              <span class="ml-1 text-[10px] text-amber-400 font-medium">filtrar &rarr;</span>
             </td>
             <td class="px-5 py-2.5 text-right text-slate-600"><%= m.created || '\u2014' %></td>
             <td class="px-5 py-2.5 text-right font-bold text-green-700"><%= m.won || '\u2014' %></td>
@@ -710,7 +761,6 @@
   </div>
   <% } else { %>
 
-  <%# Chart + top sources row %>
   <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
     <%# Doughnut chart %>
@@ -722,11 +772,11 @@
       </div>
     </div>
 
-    <%# Source table (right side) %>
+    <%# Source table — rows clickable to filter %>
     <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div class="px-5 py-3 border-b border-slate-100">
         <div class="font-bold text-slate-800 text-sm">Analisis por Canal</div>
-        <div class="text-xs text-slate-400">Conversion rate &middot; Revenue por fuente</div>
+        <div class="text-xs text-slate-400">Clic en una fila para filtrar el dashboard por ese origen</div>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -742,8 +792,11 @@
           </thead>
           <tbody>
             <% allSources.slice(0, 12).forEach(function(s) { %>
-            <tr class="border-b border-slate-50 hover:bg-slate-50">
-              <td class="px-4 py-2.5 font-medium text-slate-700 truncate max-w-xs"><%= s.name %></td>
+            <tr class="drill-row border-b border-slate-50" onclick="applyFilter('source', '<%= s.id || '' %>')">
+              <td class="px-4 py-2.5 font-medium text-slate-700 truncate max-w-xs">
+                <%= s.name %>
+                <span class="ml-1 text-[10px] text-amber-400 font-medium">filtrar &rarr;</span>
+              </td>
               <td class="px-4 py-2.5 text-right text-slate-700 font-medium"><%= s.count %></td>
               <td class="px-4 py-2.5 text-right text-blue-600"><%= s.active %></td>
               <td class="px-4 py-2.5 text-right font-bold text-green-700"><%= s.won %></td>
@@ -763,17 +816,17 @@
     </div>
   </div>
 
-  <%# Source bars visualization %>
+  <%# Source bars — clickable to filter %>
   <div class="bg-white rounded-xl border border-slate-200 p-5">
     <div class="font-bold text-slate-800 text-sm mb-0.5">Leads por Canal</div>
-    <div class="text-xs text-slate-400 mb-5">Volumen total de oportunidades generadas por fuente</div>
+    <div class="text-xs text-slate-400 mb-5">Clic en una barra para filtrar por ese canal</div>
     <% var maxSrcCount = allSources[0] ? allSources[0].count : 1; %>
-    <div class="space-y-2.5">
+    <div class="space-y-2">
     <% allSources.slice(0, 12).forEach(function(s) {
-         var pct = Math.max(2, Math.round(s.count / maxSrcCount * 100));
+         var pct     = Math.max(2, Math.round(s.count / maxSrcCount * 100));
          var wonPct2 = s.count > 0 ? Math.round(s.won / s.count * 100) : 0;
        %>
-      <div>
+      <div class="drill-bar -mx-2 px-2 py-1.5 rounded-lg" onclick="applyFilter('source', '<%= s.id || '' %>')">
         <div class="flex items-center justify-between mb-0.5">
           <span class="text-xs font-medium text-slate-700 truncate" style="max-width:55%"><%= s.name %></span>
           <div class="flex items-center gap-2 text-xs text-slate-400">
@@ -805,19 +858,19 @@
 <script id="crmChartData" type="application/json"><%- crmJSON %></script>
 
 <script>
-// ── Current filter state (from server) ────────────────────────────────────────
-const CRM            = JSON.parse(document.getElementById('crmChartData').textContent);
-const COLORS         = ['#3b82f6','#6366f1','#14b8a6','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#10b981','#ef4444'];
+// ── Current filter state ───────────────────────────────────────────────────────
+const CRM    = JSON.parse(document.getElementById('crmChartData').textContent);
+const COLORS = ['#3b82f6','#6366f1','#14b8a6','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#10b981','#ef4444'];
 
-let currentRange   = '<%= af.range   || "all"     %>';
-let currentFrom    = '<%= af.from    || ""        %>';
-let currentTo      = '<%= af.to      || ""        %>';
-let currentHunter  = '<%= af.hunterId || ""       %>';
-let currentCloser  = '<%= af.closerId || ""       %>';
-let currentSource  = '<%= af.sourceId || ""       %>';
-let currentStage   = '<%= af.stageId  || ""       %>';
-let currentDType   = '<%= af.dateType || "created"%>';
-let currentTab     = '<%= activeTab %>';
+let currentRange  = '<%= af.range    || "all"      %>';
+let currentFrom   = '<%= af.from     || ""         %>';
+let currentTo     = '<%= af.to       || ""         %>';
+let currentHunter = '<%= af.hunterId || ""         %>';
+let currentCloser = '<%= af.closerId || ""         %>';
+let currentSource = '<%= af.sourceId || ""         %>';
+let currentStage  = '<%= af.stageId  || ""         %>';
+let currentDType  = '<%= af.dateType || "created"  %>';
+let currentTab    = '<%= activeTab %>';
 
 // ── URL builder ───────────────────────────────────────────────────────────────
 function buildFilterUrl(overrides) {
@@ -838,27 +891,35 @@ function buildFilterUrl(overrides) {
     if (f) p.set('from', f);
     if (t) p.set('to',   t);
   }
-  if (h)   p.set('hunter',   h);
-  if (c)   p.set('closer',   c);
-  if (s)   p.set('source',   s);
-  if (st)  p.set('stage',    st);
+  if (h)  p.set('hunter',   h);
+  if (c)  p.set('closer',   c);
+  if (s)  p.set('source',   s);
+  if (st) p.set('stage',    st);
   if (dt && dt !== 'created') p.set('dateType', dt);
-  if (tab) p.set('tab',      tab);
+  if (tab) p.set('tab', tab);
   return '/crm?' + p.toString();
 }
 
-// ── Single filter change ──────────────────────────────────────────────────────
 function applyFilter(key, value) {
-  const overrides = {};
-  overrides[key] = value;
-  window.location.href = buildFilterUrl(overrides);
+  const o = {};
+  o[key] = value;
+  window.location.href = buildFilterUrl(o);
+}
+
+// Filter to a specific month (YYYY-MM) — used by Tendencia rows
+function applyMonthFilter(month) {
+  var from = month + '-01';
+  var d    = new Date(month + '-01T00:00:00');
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(0); // last day of the month
+  var to = d.toISOString().slice(0, 10);
+  window.location.href = buildFilterUrl({ range: 'custom', from: from, to: to });
 }
 
 // ── Date picker ───────────────────────────────────────────────────────────────
 function toggleDatePicker() {
   document.getElementById('datePicker').classList.toggle('hidden');
 }
-
 function selectPreset(value) {
   document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
   document.querySelectorAll('.preset-btn[data-range="' + value + '"]').forEach(function(b) { b.classList.add('active'); });
@@ -872,17 +933,14 @@ function selectPreset(value) {
     window.location.href = buildFilterUrl({ range: value, from: null, to: null });
   }
 }
-
 function applyCustomDate() {
-  const from = document.getElementById('customFrom').value;
-  const to   = document.getElementById('customTo').value;
+  var from = document.getElementById('customFrom').value;
+  var to   = document.getElementById('customTo').value;
   if (!from || !to) return;
   window.location.href = buildFilterUrl({ range: 'custom', from: from, to: to });
 }
-
-// Close picker when clicking outside
 document.addEventListener('click', function(e) {
-  const wrap = document.getElementById('datePickerWrap');
+  var wrap = document.getElementById('datePickerWrap');
   if (wrap && !wrap.contains(e.target)) {
     document.getElementById('datePicker').classList.add('hidden');
   }
@@ -894,8 +952,8 @@ function switchTab(name) {
     .forEach(function(el) { el.classList.add('hidden'); });
   document.querySelectorAll('[id^="tab-btn-"]')
     .forEach(function(el) { el.classList.remove('active'); });
-  const panel = document.getElementById('tab-' + name);
-  const btn   = document.getElementById('tab-btn-' + name);
+  var panel = document.getElementById('tab-' + name);
+  var btn   = document.getElementById('tab-btn-' + name);
   if (panel) panel.classList.remove('hidden');
   if (btn)   btn.classList.add('active');
   currentTab = name;
@@ -908,20 +966,19 @@ function fmtGsJS(n) {
   if (n >= 1e6) return '\u20b2 ' + Math.round(n / 1e6) + 'M';
   return '\u20b2 ' + Math.round(n).toLocaleString('es-PY');
 }
-
 const CHART_DEFAULTS = {
   responsive: true,
   maintainAspectRatio: true,
   plugins: { legend: { labels: { font: { family: 'Inter', size: 11 }, boxWidth: 12, padding: 12 } } },
 };
 
-// ── Hunters bar chart ─────────────────────────────────────────────────────────
+// ── Hunters charts — clicking a bar applies hunter filter ─────────────────────
 function initHunterCharts() {
-  const hunters = (CRM.byHunter || []).filter(function(h) { return h.name !== 'Sin Hunter'; }).slice(0, 10);
+  var hunters = (CRM.byHunter || []).filter(function(h) { return h.name !== 'Sin Hunter'; }).slice(0, 10);
   if (!hunters.length) return;
-  const labels = hunters.map(function(h) { return h.name.split(' ')[0]; });
+  var labels = hunters.map(function(h) { return h.name.split(' ')[0]; });
 
-  new Chart(document.getElementById('huntersBarChart'), {
+  var barChart = new Chart(document.getElementById('huntersBarChart'), {
     type: 'bar',
     data: {
       labels: labels,
@@ -932,11 +989,18 @@ function initHunterCharts() {
     },
     options: {
       ...CHART_DEFAULTS,
+      onClick: function(evt, elements) {
+        if (elements.length > 0) {
+          var idx = elements[0].index;
+          if (hunters[idx]) applyFilter('hunter', hunters[idx].id);
+        }
+      },
       scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
     },
   });
+  document.getElementById('huntersBarChart').style.cursor = 'pointer';
 
-  new Chart(document.getElementById('huntersRevenueChart'), {
+  var revChart = new Chart(document.getElementById('huntersRevenueChart'), {
     type: 'bar',
     data: {
       labels: labels,
@@ -949,23 +1013,30 @@ function initHunterCharts() {
     },
     options: {
       ...CHART_DEFAULTS,
+      onClick: function(evt, elements) {
+        if (elements.length > 0) {
+          var idx = elements[0].index;
+          if (hunters[idx]) applyFilter('hunter', hunters[idx].id);
+        }
+      },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return fmtGsJS(ctx.raw); } } } },
       scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v >= 1e6 ? Math.round(v/1e6)+'M' : v; } } } },
     },
   });
+  document.getElementById('huntersRevenueChart').style.cursor = 'pointer';
 }
 
-// ── Trend charts ──────────────────────────────────────────────────────────────
+// ── Trend charts — clicking a bar applies month filter ────────────────────────
 function initTrendCharts() {
-  const trend = CRM.trendData || [];
+  var trend = CRM.trendData || [];
   if (!trend.length) return;
-  const labels  = trend.map(function(m) { return m.label; });
-  const created = trend.map(function(m) { return m.created; });
-  const won     = trend.map(function(m) { return m.won; });
-  const lost    = trend.map(function(m) { return m.lost; });
-  const revenue = trend.map(function(m) { return m.revenue || 0; });
+  var labels  = trend.map(function(m) { return m.label; });
+  var created = trend.map(function(m) { return m.created; });
+  var won     = trend.map(function(m) { return m.won; });
+  var lost    = trend.map(function(m) { return m.lost; });
+  var revenue = trend.map(function(m) { return m.revenue || 0; });
 
-  new Chart(document.getElementById('trendVolumeChart'), {
+  var volumeChart = new Chart(document.getElementById('trendVolumeChart'), {
     type: 'bar',
     data: {
       labels: labels,
@@ -977,34 +1048,43 @@ function initTrendCharts() {
     },
     options: {
       ...CHART_DEFAULTS,
+      onClick: function(evt, elements) {
+        if (elements.length > 0) {
+          var idx = elements[0].index;
+          if (trend[idx]) applyMonthFilter(trend[idx].month);
+        }
+      },
       scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
     },
   });
+  document.getElementById('trendVolumeChart').style.cursor = 'pointer';
 
-  new Chart(document.getElementById('trendRevenueChart'), {
+  var revenueChart = new Chart(document.getElementById('trendRevenueChart'), {
     type: 'bar',
     data: {
       labels: labels,
-      datasets: [{
-        label: 'Revenue Won',
-        data: revenue,
-        backgroundColor: '#fbbf24',
-        borderRadius: 4,
-      }],
+      datasets: [{ label: 'Revenue Won', data: revenue, backgroundColor: '#fbbf24', borderRadius: 4 }],
     },
     options: {
       ...CHART_DEFAULTS,
+      onClick: function(evt, elements) {
+        if (elements.length > 0) {
+          var idx = elements[0].index;
+          if (trend[idx]) applyMonthFilter(trend[idx].month);
+        }
+      },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return fmtGsJS(ctx.raw); } } } },
       scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v >= 1e6 ? Math.round(v/1e6)+'M' : v; } } } },
     },
   });
+  document.getElementById('trendRevenueChart').style.cursor = 'pointer';
 }
 
-// ── Sources doughnut ──────────────────────────────────────────────────────────
+// ── Sources doughnut — clicking a slice filters by source ─────────────────────
 function initSourceChart() {
-  const sources = (CRM.bySource || []).slice(0, 8);
+  var sources = (CRM.bySource || []).slice(0, 8);
   if (!sources.length) return;
-  new Chart(document.getElementById('sourceDoughnut'), {
+  var chart = new Chart(document.getElementById('sourceDoughnut'), {
     type: 'doughnut',
     data: {
       labels: sources.map(function(s) { return s.name; }),
@@ -1018,12 +1098,19 @@ function initSourceChart() {
     options: {
       ...CHART_DEFAULTS,
       cutout: '62%',
+      onClick: function(evt, elements) {
+        if (elements.length > 0) {
+          var idx = elements[0].index;
+          if (sources[idx] && sources[idx].id) applyFilter('source', sources[idx].id);
+        }
+      },
       plugins: {
         legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10, padding: 8 } },
         tooltip: { callbacks: { label: function(ctx) { return ctx.label + ': ' + ctx.raw + ' leads'; } } },
       },
     },
   });
+  document.getElementById('sourceDoughnut').style.cursor = 'pointer';
 }
 
 // ── Init on load ──────────────────────────────────────────────────────────────

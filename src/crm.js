@@ -172,7 +172,8 @@ function computeCRMStats(opps) {
   const sourceMap = {};
   all.forEach(o => {
     const src = o.source_id?.[1] || 'Sin Fuente';
-    if (!sourceMap[src]) sourceMap[src] = { name: src, count: 0, active: 0, won: 0, lost: 0, revenue: 0 };
+    const sid = o.source_id?.[0] || null;
+    if (!sourceMap[src]) sourceMap[src] = { name: src, id: sid, count: 0, active: 0, won: 0, lost: 0, revenue: 0 };
     sourceMap[src].count++;
     if (o.active && o.stage_id?.[0] !== WON_STAGE_ID) sourceMap[src].active++;
     if (o.active && o.stage_id?.[0] === WON_STAGE_ID) {
@@ -192,8 +193,9 @@ function computeCRMStats(opps) {
   // ── By Stage (active pipeline snapshot) ──────────────────────────────────────
   const stageMap = {};
   open.forEach(o => {
-    const stage = o.stage_id?.[1] || 'Sin etapa';
-    if (!stageMap[stage]) stageMap[stage] = { name: stage, count: 0, value: 0 };
+    const stageId = o.stage_id?.[0] || null;
+    const stage   = o.stage_id?.[1] || 'Sin etapa';
+    if (!stageMap[stage]) stageMap[stage] = { id: stageId, name: stage, count: 0, value: 0 };
     stageMap[stage].count++;
     stageMap[stage].value += (o.expected_revenue || 0);
   });
@@ -203,8 +205,9 @@ function computeCRMStats(opps) {
   const STAGE_ORDER = ['New', 'Discovery', 'Calificado', 'Propuesta', 'On Hold'];
   const openStageMap = {};
   open.forEach(o => {
-    const s = o.stage_id?.[1] || 'Sin etapa';
-    if (!openStageMap[s]) openStageMap[s] = { count: 0, value: 0 };
+    const s   = o.stage_id?.[1] || 'Sin etapa';
+    const sid = o.stage_id?.[0] || null;
+    if (!openStageMap[s]) openStageMap[s] = { id: sid, count: 0, value: 0 };
     openStageMap[s].count++;
     openStageMap[s].value += (o.expected_revenue || 0);
   });
@@ -218,7 +221,7 @@ function computeCRMStats(opps) {
   });
   const funnelData = [];
   orderedStageKeys.forEach(key => {
-    funnelData.push({ name: key, count: openStageMap[key].count, value: openStageMap[key].value, type: 'active' });
+    funnelData.push({ name: key, stageId: openStageMap[key].id, count: openStageMap[key].count, value: openStageMap[key].value, type: 'active' });
   });
   funnelData.push({ name: 'Ganados', count: won.length,  value: revenueWon, type: 'won'  });
   funnelData.push({ name: 'Perdidos', count: lost.length, value: 0,          type: 'lost' });
@@ -263,9 +266,13 @@ function computeCRMStats(opps) {
     .map(o => ({
       id:         o.id,
       name:       o.name,
-      stage:      o.stage_id?.[1] || '—',
+      stageId:    o.stage_id?.[0]  || null,
+      stage:      o.stage_id?.[1]  || '—',
+      hunterId:   o.x_hunter_id?.[0] || o.user_id?.[0] || null,
       hunter:     (o.x_hunter_id?.[1] || o.user_id?.[1] || '—').split(' ')[0],
-      closer:     (o.user_id?.[1] || '—').split(' ')[0],
+      closerId:   o.user_id?.[0]   || null,
+      closer:     (o.user_id?.[1]  || '—').split(' ')[0],
+      sourceId:   o.source_id?.[0] || null,
       source:     o.source_id?.[1] || 'Sin Fuente',
       revenue:    o.expected_revenue || 0,
       revenueFmt: fmtGs(o.expected_revenue || 0),
