@@ -33,6 +33,14 @@
     .odoo-link:hover { color: #d97706; }
     .kpi-card { position: relative; transition: all .15s; }
     .kpi-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+    /* ── Opportunity detail panel ── */
+    #oppPanel {
+      transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      transform: translateX(100%);
+    }
+    #oppPanel.is-open { transform: translateX(0); }
+    #oppBackdrop { transition: opacity 0.2s ease; }
+    .opp-row-active { background-color: #FEF3C7 !important; }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -365,7 +373,7 @@
     <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
       <div>
         <div class="font-bold text-slate-800 text-sm">Pipeline Activo</div>
-        <div class="text-xs text-slate-400">Clic en el nombre para abrir en Odoo &middot; Etapa/Hunter/Closer/Origen filtran el dashboard</div>
+        <div class="text-xs text-slate-400">Clic en una fila para ver detalle &middot; Nombre abre directamente en Odoo</div>
       </div>
       <a href="<%= ODOO %>/odoo/crm" target="_blank" class="odoo-link px-2 py-1 rounded hover:bg-slate-50">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
@@ -386,11 +394,13 @@
           </tr>
         </thead>
         <tbody>
-          <% (crm.topActive || []).forEach(function(o) { %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+          <% (crm.topActive || []).forEach(function(o, idx) { %>
+          <tr class="border-b border-slate-50 hover:bg-amber-50 transition-colors cursor-pointer"
+              data-idx="<%= idx %>" onclick="openOppPanel(this)">
             <td class="px-4 py-2.5">
               <a href="<%= ODOO %>/odoo/crm/<%= o.id %>" target="_blank"
-                 class="font-medium text-slate-800 hover:text-amber-600 transition-colors flex items-center gap-1 group">
+                 class="font-medium text-slate-800 hover:text-amber-600 transition-colors flex items-center gap-1 group"
+                 onclick="event.stopPropagation()">
                 <%= o.name %>
                 <svg class="w-3 h-3 text-slate-300 group-hover:text-amber-400 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
               </a>
@@ -854,6 +864,63 @@
 </div><!-- /tab-fuentes -->
 
 
+<!-- ── Opportunity Detail Panel ──────────────────────────────────────────── -->
+<div id="oppBackdrop" class="fixed inset-0 bg-slate-900/30 z-50 opacity-0 pointer-events-none"
+     onclick="closeOppPanel()"></div>
+
+<aside id="oppPanel" class="fixed top-0 right-0 h-full w-96 max-w-full bg-white shadow-2xl z-50 flex flex-col border-l border-slate-200">
+  <!-- Header -->
+  <div class="px-5 py-4 border-b border-slate-100 flex items-start gap-3 bg-white">
+    <div class="flex-1 min-w-0">
+      <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Oportunidad</div>
+      <div id="oppName" class="font-bold text-slate-900 text-sm leading-snug"></div>
+      <a id="oppOdooLink" href="#" target="_blank"
+         class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        Abrir en Odoo
+      </a>
+    </div>
+    <button onclick="closeOppPanel()"
+            class="flex-none mt-0.5 p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <!-- Stage + Days -->
+  <div class="px-5 py-3 flex items-center justify-between bg-slate-50 border-b border-slate-100">
+    <span id="oppStage" class="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-bold"></span>
+    <span id="oppDays" class="text-sm font-bold"></span>
+  </div>
+
+  <!-- Revenue -->
+  <div class="px-5 py-6 border-b border-slate-100 text-center bg-gradient-to-b from-green-50 to-white">
+    <div class="text-xs font-bold uppercase tracking-widest text-green-600 mb-1">Valor estimado</div>
+    <div id="oppRevenue" class="text-4xl font-black text-green-700"></div>
+  </div>
+
+  <!-- People grid -->
+  <div class="px-5 py-4 border-b border-slate-100 grid grid-cols-2 gap-x-4 gap-y-3">
+    <div>
+      <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Hunter</div>
+      <div id="oppHunter" class="text-sm font-semibold text-slate-800"></div>
+    </div>
+    <div>
+      <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Closer</div>
+      <div id="oppCloser" class="text-sm font-semibold text-slate-800"></div>
+    </div>
+    <div class="col-span-2">
+      <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Origen</div>
+      <div id="oppSource" class="text-sm font-semibold text-slate-800"></div>
+    </div>
+  </div>
+
+  <!-- Quick filters -->
+  <div class="px-5 py-4 flex-1 overflow-y-auto">
+    <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-3">Filtrar dashboard por</div>
+    <div id="oppQuickFilters" class="flex flex-wrap gap-2"></div>
+  </div>
+</aside>
+
 <!-- ── Hidden chart data ──────────────────────────────────────────────────── -->
 <script id="crmChartData" type="application/json"><%- crmJSON %></script>
 
@@ -1119,6 +1186,69 @@ document.addEventListener('DOMContentLoaded', function() {
   initHunterCharts();
   initTrendCharts();
   initSourceChart();
+});
+
+// ── Opportunity detail panel ───────────────────────────────────────────────────
+const TOP_ACTIVE = <%- JSON.stringify(crm.topActive || []) %>;
+
+function openOppPanel(row) {
+  const idx = parseInt(row.getAttribute('data-idx'), 10);
+  const o   = TOP_ACTIVE[idx];
+  if (!o) return;
+
+  document.getElementById('oppName').textContent    = o.name;
+  document.getElementById('oppOdooLink').href       = '<%= ODOO %>/odoo/crm/' + o.id;
+  document.getElementById('oppRevenue').textContent = o.revenueFmt || '₲ 0';
+  document.getElementById('oppHunter').textContent  = o.hunter || '—';
+  document.getElementById('oppCloser').textContent  = o.closer || '—';
+  document.getElementById('oppSource').textContent  = o.source || '—';
+
+  const stageEl = document.getElementById('oppStage');
+  stageEl.textContent = o.stage || '—';
+
+  const daysEl = document.getElementById('oppDays');
+  daysEl.textContent = o.daysOpen + ' días abierta';
+  daysEl.className   = 'text-sm font-bold ' + (o.daysOpen > 90 ? 'text-amber-600' : o.daysOpen > 30 ? 'text-slate-600' : 'text-green-600');
+
+  // Build quick-filter pills
+  const qf = document.getElementById('oppQuickFilters');
+  qf.innerHTML = '';
+  const pills = [
+    o.stageId   && { label: 'Etapa: '  + (o.stage  || ''),            key: 'stage',  val: o.stageId,  color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100' },
+    o.hunterId  && { label: 'Hunter: ' + (o.hunter || '').split(' ')[0], key: 'hunter', val: o.hunterId, color: 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' },
+    o.closerId  && { label: 'Closer: ' + (o.closer || '').split(' ')[0], key: 'closer', val: o.closerId, color: 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100' },
+    o.sourceId  && { label: 'Origen: ' + (o.source || '').slice(0, 18), key: 'source', val: o.sourceId, color: 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100' },
+  ].filter(Boolean);
+
+  pills.forEach(function(p) {
+    const btn = document.createElement('button');
+    btn.className = 'px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ' + p.color;
+    btn.textContent = p.label;
+    btn.addEventListener('click', function() { closeOppPanel(); applyFilter(p.key, p.val); });
+    qf.appendChild(btn);
+  });
+
+  // Highlight row
+  document.querySelectorAll('[data-idx]').forEach(function(tr) { tr.classList.remove('opp-row-active'); });
+  row.classList.add('opp-row-active');
+
+  // Show panel + backdrop + lock body scroll
+  const backdrop = document.getElementById('oppBackdrop');
+  backdrop.classList.remove('opacity-0', 'pointer-events-none');
+  document.getElementById('oppPanel').classList.add('is-open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeOppPanel() {
+  document.getElementById('oppBackdrop').classList.add('opacity-0', 'pointer-events-none');
+  document.getElementById('oppPanel').classList.remove('is-open');
+  document.querySelectorAll('[data-idx]').forEach(function(tr) { tr.classList.remove('opp-row-active'); });
+  document.body.style.overflow = '';
+}
+
+// Close on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeOppPanel();
 });
 </script>
 

@@ -13,10 +13,14 @@
     details > summary::-webkit-details-marker { display:none; }
     details[open] .chevron { transform:rotate(180deg); }
     .role-card {
-      border-radius:14px; border:1.5px solid #E2E8F0; background:white;
+      border-radius:16px; border:1.5px solid #E2E8F0; background:white;
       transition: all .2s cubic-bezier(.4,0,.2,1);
+      overflow: hidden;
     }
     .role-card:hover { box-shadow:0 8px 32px rgba(0,0,0,.1); transform:translateY(-2px); }
+    .role-card summary {
+      border-left: 4px solid var(--role-color, #E2E8F0);
+    }
     .phase-row:hover { background:#F8FAFC; }
     .product-code {
       font-family: 'SF Mono','Fira Code',monospace;
@@ -47,6 +51,51 @@
     /* Scrum table */
     .scrum-table th { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:#94A3B8; }
     .scrum-table td { font-size:13px; padding:10px 14px; border-bottom:1px solid #F1F5F9; }
+    /* Role type badge */
+    .role-type-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 800;
+      padding: 2px 8px; border-radius: 100px;
+      letter-spacing: .04em; text-transform: uppercase;
+    }
+    /* Section divider header */
+    .ref-section-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 20px;
+    }
+    .ref-section-header h2 {
+      font-size: 18px; font-weight: 900; color: #0f172a;
+      white-space: nowrap;
+    }
+    .ref-section-divider {
+      flex: 1; height: 1px; background: #e2e8f0;
+    }
+    /* Phase number badge enhanced */
+    .phase-num-badge {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 900; color: white;
+      flex-shrink: 0;
+    }
+    /* Catalog category header */
+    .cat-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 0 14px;
+      border-bottom: 2px solid;
+      margin-bottom: 14px;
+    }
+    /* Product card enhanced */
+    .product-card {
+      background: white; border-radius: 12px;
+      border: 1.5px solid #e2e8f0;
+      border-left-width: 3px;
+      padding: 14px 16px;
+      transition: box-shadow .18s;
+    }
+    .product-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 99px; }
   </style>
 </head>
 <body class="bg-slate-50 min-h-screen">
@@ -107,8 +156,11 @@
 <% if (pageId === 'organigrama') { %>
 
   <!-- Org tree visual -->
+  <div class="ref-section-header">
+    <h2>Estructura de la Empresa</h2>
+    <div class="ref-section-divider"></div>
+  </div>
   <div class="bg-white rounded-2xl border border-slate-200 p-6">
-    <h2 class="text-base font-extrabold text-slate-800 mb-6">Estructura de la Empresa</h2>
     <% pageData.sections.forEach(sec => { %>
     <div class="mb-6">
       <div class="text-xs font-black uppercase tracking-widest text-slate-400 mb-3"><%= sec.title %></div>
@@ -128,20 +180,27 @@
   </div>
 
   <!-- Role types -->
+  <div class="ref-section-header mt-2">
+    <h2>Tipos de Rol</h2>
+    <div class="ref-section-divider"></div>
+  </div>
   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
     <% pageData.roleTypes.forEach(rt => { %>
-    <div class="bg-white rounded-xl border border-slate-200 p-4">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 border-l-4" style="border-left-color: <%= pageColor %>">
       <div class="font-extrabold text-slate-800 text-sm mb-1"><%= rt.label %></div>
-      <p class="text-sm text-slate-500"><%= rt.description %></p>
+      <p class="text-sm text-slate-500 leading-relaxed"><%= rt.description %></p>
     </div>
     <% }) %>
   </div>
 
   <!-- Project roles table -->
+  <div class="ref-section-header mt-2">
+    <h2>Roles en Proyecto</h2>
+    <div class="ref-section-divider"></div>
+  </div>
   <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-    <div class="px-6 py-4 border-b border-slate-100">
-      <h2 class="text-base font-extrabold text-slate-800">Roles en Proyecto</h2>
-      <p class="text-xs text-slate-500 mt-0.5">Se asignan por proyecto — un consultor puede tener múltiples roles simultáneamente</p>
+    <div class="px-6 py-3 border-b border-slate-100 bg-slate-50">
+      <p class="text-xs text-slate-500 font-semibold">Se asignan por proyecto — un consultor puede tener múltiples roles simultáneamente</p>
     </div>
     <table class="w-full">
       <thead>
@@ -166,17 +225,47 @@
 <!-- ═══════════ ROLES ═══════════ -->
 <% if (pageId === 'roles') { %>
 
-  <div class="space-y-5">
-    <% pageData.roles.forEach(role => { %>
-    <details class="role-card">
+  <%
+    // Role type classification for badges
+    const roleTypeBadge = (name) => {
+      const n = (name || '').toLowerCase();
+      if (n.includes('project') || n.includes('pm') || n.includes('director') || n.includes('leader')) return { label: 'PM', bg: '#EFF6FF', color: '#1D4ED8' };
+      if (n.includes('técni') || n.includes('tecni') || n.includes('developer') || n.includes('technical')) return { label: 'Technical', bg: '#FDF4FF', color: '#7C3AED' };
+      if (n.includes('funcio') || n.includes('contable')) return { label: 'Functional', bg: '#ECFDF5', color: '#059669' };
+      if (n.includes('comerci') || n.includes('hunter') || n.includes('closer') || n.includes('ventas')) return { label: 'Sales', bg: '#FEF9C3', color: '#A16207' };
+      if (n.includes('support') || n.includes('soporte') || n.includes('success')) return { label: 'Support', bg: '#FFF1F2', color: '#BE123C' };
+      return { label: 'Mgmt', bg: '#F1F5F9', color: '#475569' };
+    };
+  %>
+
+  <div class="ref-section-header">
+    <h2>Roles del Equipo</h2>
+    <div class="ref-section-divider"></div>
+    <div class="flex gap-2 flex-wrap">
+      <span class="role-type-badge" style="background:#EFF6FF;color:#1D4ED8">PM</span>
+      <span class="role-type-badge" style="background:#FDF4FF;color:#7C3AED">Technical</span>
+      <span class="role-type-badge" style="background:#ECFDF5;color:#059669">Functional</span>
+      <span class="role-type-badge" style="background:#FEF9C3;color:#A16207">Sales</span>
+      <span class="role-type-badge" style="background:#FFF1F2;color:#BE123C">Support</span>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    <% pageData.roles.forEach(role => {
+       const badge = roleTypeBadge(role.name);
+    %>
+    <details class="role-card" style="--role-color: <%= role.color %>">
       <summary class="p-5 flex items-center gap-4">
         <div class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
              style="background:<%=role.color%>15; border:2px solid <%=role.color%>25">
           <%= role.emoji %>
         </div>
-        <div class="flex-1">
-          <div class="font-black text-slate-900 text-base"><%= role.name %></div>
-          <div class="text-sm font-medium mt-0.5" style="color:<%= role.color %>"><%= role.tagline %></div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <div class="font-black text-slate-900 text-base"><%= role.name %></div>
+            <span class="role-type-badge" style="background:<%= badge.bg %>; color:<%= badge.color %>"><%= badge.label %></span>
+          </div>
+          <div class="text-sm font-medium mt-0.5 truncate" style="color:<%= role.color %>"><%= role.tagline %></div>
         </div>
         <svg class="chevron w-5 h-5 text-slate-400 transition-transform flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
@@ -241,10 +330,13 @@
 <% if (pageId === 'metodologia') { %>
 
   <!-- Phases -->
-  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-    <div class="px-6 py-4 border-b border-slate-100">
-      <h2 class="text-base font-extrabold text-slate-800">Fases de Implementación Odoo</h2>
-      <p class="text-xs text-slate-500 mt-0.5">Cada fase tiene un punto de control (gate) — no se avanza sin él</p>
+  <div class="ref-section-header">
+    <h2>Fases de Implementación</h2>
+    <div class="ref-section-divider"></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-2">
+    <div class="px-6 py-3 border-b border-slate-100 bg-slate-50">
+      <p class="text-xs text-slate-500 font-semibold">Cada fase tiene un punto de control (gate) — no se avanza sin él</p>
     </div>
     <div class="divide-y divide-slate-100">
       <% pageData.phases.forEach(ph => { %>
@@ -271,7 +363,10 @@
 
   <!-- SCRUM ceremonies -->
   <div>
-    <h2 class="text-base font-extrabold text-slate-800 mb-4">Ceremonias SCRUM</h2>
+    <div class="ref-section-header mb-4">
+      <h2>Ceremonias SCRUM</h2>
+      <div class="ref-section-divider"></div>
+    </div>
     <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <table class="w-full scrum-table">
         <thead>
@@ -298,7 +393,10 @@
 
   <!-- Story points scale -->
   <div>
-    <h2 class="text-base font-extrabold text-slate-800 mb-4">Escala de Story Points (Fibonacci)</h2>
+    <div class="ref-section-header mb-4">
+      <h2>Story Points (Fibonacci)</h2>
+      <div class="ref-section-divider"></div>
+    </div>
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
       <%
         const spColors = {1:'#ECFDF5',2:'#D1FAE5',3:'#FEF9C3',5:'#FEF3C7',8:'#FEE2E2',13:'#F5F3FF'};
@@ -333,7 +431,10 @@
 
   <!-- SLA -->
   <div>
-    <h2 class="text-base font-extrabold text-slate-800 mb-4">SLA de Soporte Post Go-Live</h2>
+    <div class="ref-section-header mb-4">
+      <h2>SLA Post Go-Live</h2>
+      <div class="ref-section-divider"></div>
+    </div>
     <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
       <table class="w-full">
         <thead>
@@ -369,14 +470,16 @@
 <% if (pageId === 'catalogo-torus') { %>
 
   <% pageData.products.forEach(cat => { %>
-  <div>
-    <div class="flex items-center gap-3 mb-4">
-      <div class="w-1 h-6 rounded-full" style="background:<%= cat.color %>"></div>
-      <h2 class="text-base font-extrabold text-slate-800"><%= cat.category %></h2>
+  <div class="mb-8">
+    <div class="cat-header" style="border-color:<%= cat.color %>30">
+      <div class="w-3 h-3 rounded-full flex-shrink-0" style="background:<%= cat.color %>"></div>
+      <h2 class="text-base font-extrabold" style="color:<%= cat.color %>"><%= cat.category %></h2>
+      <div class="flex-1 h-px ml-2" style="background:<%= cat.color %>20"></div>
+      <span class="text-xs font-bold text-slate-400 ml-2"><%= cat.items.length %> producto<%= cat.items.length !== 1 ? 's' : '' %></span>
     </div>
     <div class="space-y-3">
       <% cat.items.forEach(item => { %>
-      <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="product-card" style="border-left-color:<%= cat.color %>">
         <div class="flex items-start gap-3 flex-wrap">
           <span class="product-code" style="background:<%=cat.color%>15; color:<%=cat.color%>">[<%= item.code %>]</span>
           <div class="flex-1 min-w-0">
@@ -402,8 +505,12 @@
   <% }) %>
 
   <!-- Decision tree -->
-  <div class="bg-white rounded-2xl border border-slate-200 p-6" style="--accent:<%= pageData.color %>">
-    <h2 class="text-base font-extrabold text-slate-800 mb-5">¿Qué producto ofrecer?</h2>
+  <div class="ref-section-header mb-0">
+    <h2>¿Qué producto ofrecer?</h2>
+    <div class="ref-section-divider"></div>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-6 mt-4" style="--accent:<%= pageData.color %>">
+    <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Árbol de decisión rápido</div>
     <div class="space-y-2">
       <% pageData.decisionTree.forEach((dt, i) => { %>
       <div class="dt-row" style="--accent:<%= pageData.color %>; border-left-color:<%= pageData.color %>22">

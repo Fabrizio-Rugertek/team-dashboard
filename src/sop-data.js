@@ -938,7 +938,7 @@ const SCRUM_STEPS = [
     mistakes: ['Demostrar work in progress o funcionalidades no terminadas', 'PO ausente en la review — sin validación no hay ciclo cerrado', 'Mezclar la review con la retrospectiva — son ceremonias distintas'],
   },
   {
-    id: 'sc6', col: 6, lane: 0, label: 'Retrospectiva', sublabel: 'Mejora continua del equipo',
+    id: 'sc6', col: 6, lane: 0, label: 'Retrospectiva', sublabel: 'Mejora continua · ↺ vuelve a Refinamiento',
     time: '1h', stage: 'Fin Sprint',
     description: 'El Dev Team y SM reflexionan sobre el proceso del sprint para identificar mejoras concretas. Es una reunión del equipo — confidencial, sin presencia del PO ni management externo. Los action items se implementan en el próximo sprint.',
     substeps: [
@@ -958,11 +958,11 @@ const SCRUM_STEPS = [
 ];
 
 const SCRUM_EDGES = [
-  { from: 'sc1', to: 'sc2', type: 'normal'  },
-  { from: 'sc2', to: 'sc3', type: 'normal'  },
-  { from: 'sc3', to: 'sc4', type: 'normal'  },
-  { from: 'sc4', to: 'sc5', type: 'handoff' },
-  { from: 'sc5', to: 'sc6', type: 'normal'  },
+  { from: 'sc1', to: 'sc2', type: 'normal'   },
+  { from: 'sc2', to: 'sc3', type: 'handoff'  },  // SM → Dev Team: sprint kicked off
+  { from: 'sc3', to: 'sc4', type: 'parallel' },  // Daily runs every day DURING execution
+  { from: 'sc4', to: 'sc5', type: 'handoff'  },  // Dev delivers increment → PO reviews
+  { from: 'sc5', to: 'sc6', type: 'handoff'  },  // PO done → SM leads retro
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1031,7 +1031,7 @@ const TAREAS_STEPS = [
     mistakes: ['Registrar horas en lote al final de la semana — pierde trazabilidad', 'Superar el 100% de las horas estimadas sin avisar al PM', 'Cambiar el alcance de la tarea durante la ejecución sin actualizar la especificación'],
   },
   {
-    id: 'ta4', col: 4, lane: 1, label: 'Alerta 48hs', sublabel: 'Protocolo de bloqueo / riesgo',
+    id: 'ta4', col: 4, lane: 1, label: 'Alerta 48hs', sublabel: '⚠ Solo si hay bloqueo',
     time: '< 48h de detectado', stage: 'Escalamiento',
     description: 'Si una situación no puede resolverse por decisión propia del consultor en menos de 48 horas, se registra en el Risk Log de Odoo y se notifica al PM. No esperar a que sea crisis. Es un protocolo de protección, no de penalización.',
     substeps: [
@@ -1087,12 +1087,12 @@ const TAREAS_STEPS = [
 ];
 
 const TAREAS_EDGES = [
-  { from: 'ta1', to: 'ta2', type: 'normal'  },
-  { from: 'ta2', to: 'ta3', type: 'handoff' },
-  { from: 'ta3', to: 'ta4', type: 'normal'  },
-  { from: 'ta3', to: 'ta5', type: 'normal'  },
-  { from: 'ta4', to: 'ta5', type: 'handoff' },
-  { from: 'ta5', to: 'ta6', type: 'handoff' },
+  { from: 'ta1', to: 'ta2', type: 'normal'   },
+  { from: 'ta2', to: 'ta3', type: 'handoff'  },  // PM → Consultor: tarea especificada y asignada
+  { from: 'ta3', to: 'ta4', type: 'parallel' },  // Excepción: solo si hay bloqueo >48h
+  { from: 'ta3', to: 'ta5', type: 'handoff'  },  // Camino principal: Consultor → QA
+  { from: 'ta4', to: 'ta5', type: 'handoff'  },  // Escalamiento resuelto → QA valida
+  { from: 'ta5', to: 'ta6', type: 'handoff'  },  // QA aprueba → PM cierra
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
