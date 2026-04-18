@@ -912,6 +912,10 @@
       <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Origen</div>
       <div id="oppSource" class="text-sm font-semibold text-slate-800"></div>
     </div>
+    <div class="col-span-2">
+      <div class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Proyecto</div>
+      <div class="text-sm font-medium text-slate-700" id="opp-project">—</div>
+    </div>
   </div>
 
   <!-- Quick filters -->
@@ -1190,6 +1194,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ── Opportunity detail panel ───────────────────────────────────────────────────
 const TOP_ACTIVE = <%- JSON.stringify(crm.topActive || []) %>;
+const OPP_TO_PROJECT = <%- oppToProjectJson %>;
+const ODOO_URL = '<%= odooUrl %>';
 
 function openOppPanel(row) {
   const idx = parseInt(row.getAttribute('data-idx'), 10);
@@ -1197,11 +1203,21 @@ function openOppPanel(row) {
   if (!o) return;
 
   document.getElementById('oppName').textContent    = o.name;
-  document.getElementById('oppOdooLink').href       = '<%= ODOO %>/odoo/crm/' + o.id;
+  document.getElementById('oppOdooLink').href       = ODOO_URL + '/odoo/crm/' + o.id;
   document.getElementById('oppRevenue').textContent = o.revenueFmt || '₲ 0';
   document.getElementById('oppHunter').textContent  = o.hunter || '—';
   document.getElementById('oppCloser').textContent  = o.closer || '—';
   document.getElementById('oppSource').textContent  = o.source || '—';
+
+  const proj = OPP_TO_PROJECT[o.id];
+  const projEl = document.getElementById('opp-project');
+  if (projEl) {
+    if (proj) {
+      projEl.innerHTML = '<a href="' + ODOO_URL + '/odoo/project/' + proj.id + '" target="_blank" class="text-blue-600 hover:underline font-medium">' + proj.name + '</a>';
+    } else {
+      projEl.textContent = '—';
+    }
+  }
 
   const stageEl = document.getElementById('oppStage');
   stageEl.textContent = o.stage || '—';

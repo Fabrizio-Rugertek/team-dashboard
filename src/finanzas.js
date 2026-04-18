@@ -949,3 +949,46 @@ module.exports = {
   fetchClientProfitability, fetchYoY, fetchExchangeRate,
   fetchDataQualityAlerts, fetchPayroll,
 };
+
+// ── Project Revenue Forecast ─────────────────────────────────────────────
+const { getDashboardCached } = require('./cache');
+
+async function fetchProjectForecast(usdRate) {
+  try {
+    const data = await getDashboardCached({ range: '30d' });
+    const projects = (data.projectStatuses || [])
+      .filter(p => !p.isInternal && !p.isCompleted && p.totalAlloc > 0);
+
+    const rate = usdRate || 7500;
+    const USD_PER_HOUR = 35;
+
+    const items = projects.map(p => {
+      const remaining = Math.max(0, p.totalAlloc - p.totalLog);
+      const estimatedRevenuePyg = remaining * USD_PER_HOUR * rate;
+      return {
+        id: p.id,
+        name: p.name,
+        client: p.client || null,
+        totalAlloc: p.totalAlloc,
+        totalLog: p.totalLog,
+        hoursPct: p.hoursPct,
+        remaining: Math.round(remaining * 10) / 10,
+        estimatedRevenuePyg: Math.round(estimatedRevenuePyg),
+        rag: p.hoursPct >= 120 ? 'red' : p.hoursPct >= 80 ? 'amber' : 'green',
+      };
+    })
+    .filter(p => p.remaining > 0)
+    .sort((a, b) => b.estimatedRevenuePyg - a.estimatedRevenuePyg)
+    .slice(0, 10);
+
+    const totalRemainingHours = items.reduce((s, p) => s + p.remaining, 0);
+    const totalForecastPyg = items.reduce((s, p) => s + p.estimatedRevenuePyg, 0);
+
+    return { items, totalRemainingHours: Math.round(totalRemainingHours * 10) / 10, totalForecastPyg };
+  } catch (e) {
+    console.error('[Finanzas] fetchProjectForecast:', e.message);
+    return { items: [], totalRemainingHours: 0, totalForecastPyg: 0 };
+  }
+}
+
+module.exports.fetchProjectForecast = fetchProjectForecast;

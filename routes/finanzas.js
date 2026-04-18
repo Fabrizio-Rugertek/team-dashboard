@@ -6,7 +6,7 @@ const {
   fetchFinancialData, fetchCXC, fetchCXP,
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
   fetchClientProfitability, fetchYoY, fetchExchangeRate,
-  fetchDataQualityAlerts, fetchPayroll,
+  fetchDataQualityAlerts, fetchPayroll, fetchProjectForecast,
 } = require('../src/finanzas');
 
 router.get('/', async (req, res) => {
@@ -38,6 +38,8 @@ router.get('/', async (req, res) => {
       fetchPayroll(year, { from, to }),
     ]);
 
+    const projectForecast = await fetchProjectForecast(usdRate);
+
     res.render('dashboards/finanzas', {
       title: 'Finanzas - Torus Dashboard',
       user:  req.user || null,
@@ -55,6 +57,7 @@ router.get('/', async (req, res) => {
       usdRate,
       dqAlerts,
       payroll,
+      projectForecast,
       lastUpdate: new Date().toLocaleString('es-PY', { dateStyle: 'medium', timeStyle: 'short' }),
     });
   } catch (err) {

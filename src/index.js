@@ -64,9 +64,13 @@ const crmRoutes       = require('../routes/crm');
 const sopRoutes       = require('../routes/sop');
 const apiRoutes       = require('../routes/api');
 const adminRoutes     = require('../routes/admin');
+const proyectosRoutes = require('../routes/proyectos');
 
 // /equipo — users with equipo view access
 app.use('/equipo',    requireView('equipo'),    equipoRoutes);
+
+// /proyectos — users with equipo view access
+app.use('/proyectos', requireView('equipo'),    proyectosRoutes);
 
 // /finanzas — users with finanzas view access
 app.use('/finanzas',  requireView('finanzas'),  finanzasRoutes);
@@ -94,6 +98,10 @@ app.get('/', requireAuth, (req, res) => {
     dashboards.push({ id: 'equipo', name: 'Control de Equipo',
       description: 'Horas por consultor, anomalías, estado de proyectos',
       icon: '👥', color: '#3B82F6', href: '/equipo', status: 'active' });
+  if (hasViewAccess(req.user, 'equipo'))
+    dashboards.push({ id: 'proyectos', name: 'Portfolio de Proyectos',
+      description: 'Estado, presupuesto de horas y capacidad por proyecto',
+      icon: '📋', color: '#0EA5E9', href: '/proyectos', status: 'active' });
   if (hasViewAccess(req.user, 'finanzas'))
     dashboards.push({ id: 'finanzas', name: 'Finanzas',
       description: 'Ingresos, gastos, rentabilidad por proyecto y flujo de caja',

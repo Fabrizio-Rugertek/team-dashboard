@@ -112,7 +112,7 @@ async function fetchProjectsWithTasks() {
   const [projects, tasks, stages] = await Promise.all([
     callKw('project.project', 'search_read',
       [[['active', 'in', [true, false]]]],
-      { fields: ['id', 'name', 'date_start', 'write_date', 'user_id'], context: { bin_size: true } }
+      { fields: ['id', 'name', 'date_start', 'write_date', 'user_id', 'date', 'partner_id', 'planned_hours'], context: { bin_size: true } }
     ),
     callKw('project.task', 'search_read',
       [['|', ['active', '=', true], ['active', '=', false]]],
@@ -337,7 +337,7 @@ async function fetchCRMOpportunities() {
     { fields: [
         'id', 'name', 'stage_id', 'probability', 'expected_revenue',
         'user_id', 'x_hunter_id', 'source_id', 'create_date',
-        'date_closed', 'active', 'type',
+        'date_closed', 'active', 'type', 'order_ids',
       ],
       order: 'create_date desc',
       context: { bin_size: true },

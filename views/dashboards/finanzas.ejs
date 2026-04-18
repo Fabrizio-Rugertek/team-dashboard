@@ -326,6 +326,7 @@
         <span class="<%= dqAlerts.highCount > 0 ? 'bg-red-500' : 'bg-amber-400' %> text-white text-[10px] font-extrabold rounded-full px-1.5 py-0.5 leading-none"><%= dqAlerts.count %></span>
         <% } %>
       </button>
+      <button class="tab-btn text-sm text-slate-600 px-5 py-3.5 whitespace-nowrap" data-tab="proyeccion" onclick="switchTab('proyeccion')">Proyección</button>
     </div>
   </div>
 </div>
@@ -1582,6 +1583,94 @@
   </div>
 
 </div><!-- /tab-cashflow -->
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     TAB: PROYECCIÓN DE CIERRE
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-proyeccion" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <div>
+    <h2 class="text-xl font-extrabold text-slate-900">Proyección de Cierre — Proyectos Activos</h2>
+    <p class="text-xs text-slate-400 mt-0.5">Estimado basado en horas restantes × USD 35/h × tipo de cambio. Solo proyectos no completados con presupuesto de horas.</p>
+  </div>
+
+  <% if (projectForecast && projectForecast.items && projectForecast.items.length > 0) { %>
+
+  <!-- Summary KPIs -->
+  <div class="grid grid-cols-2 gap-4">
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Horas Pendientes</div>
+      <div class="text-3xl font-black text-slate-900"><%= projectForecast.totalRemainingHours %>h</div>
+      <div class="text-xs text-slate-400 mt-1"><%= projectForecast.items.length %> proyectos activos</div>
+    </div>
+    <div class="bg-white rounded-xl border border-emerald-200 p-5">
+      <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Ingreso Estimado</div>
+      <div class="text-3xl font-black text-emerald-700"><%- amt(projectForecast.totalForecastPyg) %></div>
+      <div class="text-xs text-slate-400 mt-1">USD 35/h × <%= (usdRate || 7500).toLocaleString('es-PY') %> PYG/USD</div>
+    </div>
+  </div>
+
+  <!-- Projects table -->
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="bg-slate-50 border-b border-slate-200 px-5 py-2.5 flex items-center justify-between">
+      <span class="text-xs font-extrabold text-slate-700 uppercase tracking-wide">Detalle por Proyecto</span>
+      <span class="text-xs text-slate-400"><%= projectForecast.items.length %> proyectos</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead class="border-b border-slate-100 bg-slate-50 sticky top-0">
+          <tr>
+            <th class="text-left px-5 py-2.5 font-bold text-slate-600">Proyecto</th>
+            <th class="text-left px-4 py-2.5 font-bold text-slate-500">Cliente</th>
+            <th class="text-right px-4 py-2.5 font-bold text-slate-500">Horas Usadas</th>
+            <th class="text-right px-4 py-2.5 font-bold text-slate-500">Horas Restantes</th>
+            <th class="text-right px-4 py-2.5 font-bold text-emerald-700">Ingreso Estimado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% projectForecast.items.forEach(function(p) {
+               const barPct = Math.min(100, p.hoursPct || 0);
+               const barColor = p.rag === 'red' ? 'bg-red-500' : p.rag === 'amber' ? 'bg-amber-400' : 'bg-emerald-500';
+               const pctColor = p.rag === 'red' ? 'text-red-600 font-bold' : p.rag === 'amber' ? 'text-amber-600 font-semibold' : 'text-emerald-600';
+             %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+            <td class="px-5 py-3 font-semibold text-slate-800 max-w-xs truncate"><%= p.name %></td>
+            <td class="px-4 py-3 text-slate-500 max-w-[160px] truncate"><%= p.client || '—' %></td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="w-20 bg-slate-100 rounded-full h-2 flex-none">
+                  <div class="<%= barColor %> h-2 rounded-full" style="width:<%= barPct %>%"></div>
+                </div>
+                <span class="<%= pctColor %> w-10 text-right"><%= p.hoursPct !== null ? p.hoursPct + '%' : '—' %></span>
+              </div>
+              <div class="text-slate-400 text-right mt-0.5"><%= p.totalLog %>/<%= p.totalAlloc %>h</div>
+            </td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700"><%= p.remaining %>h</td>
+            <td class="px-4 py-3 text-right font-bold text-emerald-700"><%- amt(p.estimatedRevenuePyg) %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+        <tfoot class="border-t-2 border-slate-200 bg-slate-50">
+          <tr>
+            <td class="px-5 py-3 font-extrabold text-slate-700" colspan="3">Total</td>
+            <td class="px-4 py-3 text-right font-extrabold text-slate-800"><%= projectForecast.totalRemainingHours %>h</td>
+            <td class="px-4 py-3 text-right font-extrabold text-emerald-700"><%- amt(projectForecast.totalForecastPyg) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <% } else { %>
+  <div class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+    <div class="text-slate-500 font-medium">No hay proyectos activos con horas pendientes</div>
+    <div class="text-xs text-slate-400 mt-1">Los proyectos completos o sin presupuesto de horas no aparecen aquí</div>
+  </div>
+  <% } %>
+
+</div><!-- /tab-proyeccion -->
+
 
 <div class="text-center text-xs text-slate-400 py-6 flex items-center justify-center gap-3">
   <span>Torus Finanzas · Datos al <%= lastUpdate %> · Cache: 1h financiero · 15min CXC</span>

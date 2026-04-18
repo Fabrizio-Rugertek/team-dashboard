@@ -16,7 +16,7 @@
 
 const express = require('express');
 const router  = express.Router();
-const { fetchCRMOpportunities } = require('../src/odoo');
+const { fetchCRMOpportunities, callKw } = require('../src/odoo');
 const { extractFilterOptions, applyFilters, computeCRMStats } = require('../src/crm');
 
 const VALID_RANGES     = ['7d', '30d', 'mtd', '60d', '90d', 'custom', 'all'];
@@ -102,6 +102,28 @@ router.get('/', async (req, res) => {
       return [];
     });
 
+    // ── Batch-fetch linked projects via SO IDs ────────────────────────────────
+    const allSoIds = [...new Set(allOpps.flatMap(o => Array.isArray(o.order_ids) ? o.order_ids : []))];
+    const linkedProjects = allSoIds.length > 0 ? await callKw('project.project', 'search_read',
+      [[['sale_order_id', 'in', allSoIds]]],
+      { fields: ['id', 'name', 'sale_order_id', 'last_update_status'] }
+    ).catch(() => []) : [];
+
+    // soId → project
+    const soToProject = new Map(linkedProjects.map(p => [p.sale_order_id[0], p]));
+
+    // oppId → project (first matching SO wins)
+    const oppToProject = new Map();
+    for (const opp of allOpps) {
+      const soIds = Array.isArray(opp.order_ids) ? opp.order_ids : [];
+      for (const soId of soIds) {
+        if (soToProject.has(soId)) {
+          oppToProject.set(opp.id, soToProject.get(soId));
+          break;
+        }
+      }
+    }
+
     const filterOptions = extractFilterOptions(allOpps);
     const filteredOpps  = applyFilters(allOpps, filters);
     const crmStats      = computeCRMStats(filteredOpps);
@@ -118,6 +140,8 @@ router.get('/', async (req, res) => {
       rangeLabel:       buildRangeLabel(range, from, to),
       dateRanges:       CRM_DATE_RANGES,
       lastUpdate:       new Date().toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' }),
+      oppToProjectJson: JSON.stringify(Object.fromEntries(oppToProject)),
+      odooUrl:          process.env.ODOO_URL || 'https://www.torus.dev',
     });
 
   } catch (err) {
