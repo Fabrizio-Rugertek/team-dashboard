@@ -71,7 +71,8 @@
           "linkedProcess": "desarrollo",
           "description": "Los GAPs identificados generan tickets de desarrollo customizado"
         }
-      ]
+      ],
+      "shape": "start"
     },
     {
       "id": "i2",
@@ -354,7 +355,8 @@
         "Go-live viernes",
         "No tener plan de rollback",
         "PM no disponible las primeras 48 horas"
-      ]
+      ],
+      "shape": "end"
     }
   ],
   "edges": [

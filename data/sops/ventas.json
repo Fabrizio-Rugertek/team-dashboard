@@ -70,7 +70,8 @@
       "mistakes": [
         "Agregar leads sin datos mínimos (empresa + contacto)",
         "Olvidar registrar la interacción en CRM"
-      ]
+      ],
+      "shape": "start"
     },
     {
       "id": "s2",
@@ -487,7 +488,8 @@
           "linkedProcess": "soporte",
           "description": "Ir al proceso detallado de gestión de soporte y tickets"
         }
-      ]
+      ],
+      "shape": "end"
     }
   ],
   "edges": [

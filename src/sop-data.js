@@ -23,6 +23,11 @@ function cardBounds(col, lane) {
 function edgePath(from, to) {
   const x1 = from.bounds.right,  y1 = from.bounds.cy;
   const x2 = to.bounds.left,     y2 = to.bounds.cy;
+  // Backward / loop edge — arc above the canvas
+  if (x2 < x1 - 20) {
+    const arcY = Math.min(from.bounds.top, to.bounds.top) - 72;
+    return `M ${x1} ${y1} C ${x1+100} ${arcY} ${x2-100} ${arcY} ${x2} ${y2}`;
+  }
   if (from.lane === to.lane) return `M ${x1} ${y1} L ${x2} ${y2}`;
   // Extended control points ensure horizontal entry/exit even for adjacent columns
   const hGap  = x2 - x1;

@@ -63,7 +63,8 @@
       "mistakes": [
         "Dar instrucciones verbales sin documentar",
         "Especificación ambigua que el dev interpreta a su criterio"
-      ]
+      ],
+      "shape": "start"
     },
     {
       "id": "d2",
@@ -226,7 +227,8 @@
       "mistakes": [
         "Deploy en horario pico del cliente",
         "No notificar al cliente que el feature está disponible"
-      ]
+      ],
+      "shape": "end"
     }
   ],
   "edges": [

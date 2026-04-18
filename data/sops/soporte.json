@@ -63,7 +63,8 @@
       "mistakes": [
         "Dejar tickets sin clasificar",
         "No confirmar recepción al cliente"
-      ]
+      ],
+      "shape": "start"
     },
     {
       "id": "sp2",
@@ -260,7 +261,8 @@
       "mistakes": [
         "No hacer la revisión mensual por \"falta de tiempo\"",
         "Revisión solo reactiva a tickets"
-      ]
+      ],
+      "shape": "end"
     }
   ],
   "edges": [

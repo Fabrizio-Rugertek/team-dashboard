@@ -54,7 +54,8 @@
       "mistakes": [
         "Facturar sin validar la OV",
         "No confirmar RUC del cliente para SIFEN"
-      ]
+      ],
+      "shape": "start"
     },
     {
       "id": "f2",
@@ -285,7 +286,8 @@
       "mistakes": [
         "Cerrar el mes sin verificar todas las facturas",
         "No comunicar el resultado mensual al equipo directivo"
-      ]
+      ],
+      "shape": "end"
     }
   ],
   "edges": [

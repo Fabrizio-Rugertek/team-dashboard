@@ -30,6 +30,7 @@
       "id": "sc1",
       "col": 1,
       "lane": 0,
+      "shape": "start",
       "label": "Refinamiento",
       "sublabel": "Backlog grooming pre-sprint",
       "time": "1-2h / semana",
@@ -248,6 +249,7 @@
       "id": "sc6",
       "col": 6,
       "lane": 0,
+      "shape": "end",
       "label": "Retrospectiva",
       "sublabel": "Mejora continua · ↺ vuelve a Refinamiento",
       "time": "1h",
@@ -312,6 +314,11 @@
       "from": "sc5",
       "to": "sc6",
       "type": "handoff"
+    },
+    {
+      "from": "sc6",
+      "to": "sc1",
+      "type": "loop"
     }
   ]
 }
