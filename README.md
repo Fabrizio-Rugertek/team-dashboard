@@ -155,3 +155,30 @@ Operational notes, service commands, cache behavior, and troubleshooting live in
 ```text
 docs/OPERATIONS.md
 ```
+
+## Coding Guidelines
+
+### No Emojis in UI
+**Do not use emojis anywhere in the UI** — not in tab labels, filter options, empty states, buttons, table cells, or any other rendered HTML.
+Use plain text instead. Rationale: emojis render inconsistently across OS/browsers and look unprofessional in a business dashboard.
+
+Bad:
+```html
+<button>📊 Resumen</button>
+<option>👤 Hunter: Todos</option>
+<div class="text-4xl">🏹</div>
+```
+
+Good:
+```html
+<button>Resumen</button>
+<option>Hunter: Todos</option>
+<div class="text-slate-400 text-sm">Sin datos</div>
+```
+
+### Filter Pattern
+All dashboards use the same filter bar pattern — **no raw `<form>` + `onchange submit()`**.
+- Date range: button + dropdown with preset list (left) and info/custom panel (right), using `selectPreset()` / `applyCustomDate()`
+- All other filters: `<select onchange="applyFilter('key', this.value)">`
+- URL builder: `buildFilterUrl(overrides)` — reads current state from JS vars, applies overrides, navigates via `window.location.href`
+- Reference implementation: `views/dashboards/equipo.ejs` and `views/dashboards/crm.ejs`

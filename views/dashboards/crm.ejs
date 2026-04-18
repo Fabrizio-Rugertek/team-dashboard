@@ -13,8 +13,13 @@
     .tab-btn { border-bottom: 3px solid transparent; transition: all .15s; }
     .tab-btn.active { border-bottom-color: #d97706; color: #d97706; font-weight: 700; }
     select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2394a3b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px !important; }
-    .filter-select { @apply text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer; }
+    .filter-select { font-size: 12px; border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 0.375rem 0.75rem; background-color: #fff; color: #334155; font-weight: 500; cursor: pointer; }
+    .filter-select:hover { border-color: #fbbf24; }
+    .filter-select:focus { outline: none; border-color: #f59e0b; }
     .funnel-bar { transition: width 0.5s ease; }
+    .preset-btn { display: block; width: 100%; text-align: left; padding: 8px 16px; font-size: 12px; font-weight: 500; color: #475569; transition: background .1s; }
+    .preset-btn:hover { background: #f8fafc; }
+    .preset-btn.active { background: #eff6ff; color: #2563eb; font-weight: 700; }
   </style>
 </head>
 <body class="bg-slate-100 min-h-screen">
@@ -56,83 +61,121 @@
 
 <!-- ── Filter Bar ─────────────────────────────────────────────────────────── -->
 <div class="bg-white border-b border-slate-200 sticky top-[57px] z-40 shadow-sm">
-  <form id="crmFilters" method="GET" action="/crm">
-    <input type="hidden" name="tab" id="hiddenTab" value="<%= activeTab %>">
-    <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-2">
+  <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-2">
 
-      <!-- Hunter -->
-      <select name="hunter" onchange="document.getElementById('crmFilters').submit()"
-              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
-        <option value="">👤 Hunter: Todos</option>
-        <% (fo.allHunters || []).forEach(function(h) { %>
-        <option value="<%= h.id %>" <%= af.hunterId == h.id ? 'selected' : '' %>><%= h.name.split(' ')[0] %></option>
-        <% }); %>
-      </select>
+    <!-- Date range picker -->
+    <div class="relative" id="datePickerWrap">
+      <button onclick="toggleDatePicker()" id="datePickerBtn"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:border-amber-400 transition-colors">
+        <svg class="w-3.5 h-3.5 text-slate-400 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        <span id="datePickerLabel"><%= rangeLabel %></span>
+        <svg class="w-3 h-3 text-slate-400 flex-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
 
-      <!-- Closer -->
-      <select name="closer" onchange="document.getElementById('crmFilters').submit()"
-              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
-        <option value="">🎯 Closer: Todos</option>
-        <% (fo.allClosers || []).forEach(function(c) { %>
-        <option value="<%= c.id %>" <%= af.closerId == c.id ? 'selected' : '' %>><%= c.name.split(' ')[0] %></option>
-        <% }); %>
-      </select>
-
-      <!-- Source -->
-      <select name="source" onchange="document.getElementById('crmFilters').submit()"
-              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
-        <option value="">📍 Origen: Todos</option>
-        <% (fo.allSources || []).forEach(function(s) { %>
-        <option value="<%= s.id %>" <%= af.sourceId == s.id ? 'selected' : '' %>>
-          <%= s.name.length > 22 ? s.name.slice(0, 22) + '…' : s.name %>
-        </option>
-        <% }); %>
-      </select>
-
-      <!-- Stage -->
-      <select name="stage" onchange="document.getElementById('crmFilters').submit()"
-              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
-        <option value="">📋 Etapa: Todas</option>
-        <% (fo.allStages || []).forEach(function(s) { %>
-        <option value="<%= s.id %>" <%= af.stageId == s.id ? 'selected' : '' %>>
-          <%= s.name.length > 20 ? s.name.slice(0, 20) + '…' : s.name %>
-        </option>
-        <% }); %>
-      </select>
-
-      <div class="flex items-center gap-1">
-        <span class="text-xs text-slate-400 font-medium">Desde</span>
-        <input type="date" name="from" value="<%= af.from || '' %>"
-               onchange="document.getElementById('crmFilters').submit()"
-               class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-amber-500 hover:border-amber-400">
-        <span class="text-xs text-slate-400 font-medium">hasta</span>
-        <input type="date" name="to" value="<%= af.to || '' %>"
-               onchange="document.getElementById('crmFilters').submit()"
-               class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-amber-500 hover:border-amber-400">
+      <div id="datePicker" class="hidden absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
+        <div class="flex">
+          <!-- Left: preset list -->
+          <div class="w-40 border-r border-slate-100 py-2">
+            <% (dateRanges || []).forEach(function(r) { %>
+            <button class="preset-btn <%= af.range === r.value ? 'active' : '' %>"
+                    data-range="<%= r.value %>" onclick="selectPreset('<%= r.value %>')">
+              <%= r.label %>
+            </button>
+            <% }); %>
+            <button class="preset-btn <%= af.range === 'custom' ? 'active' : '' %>"
+                    data-range="custom" onclick="selectPreset('custom')">Personalizado</button>
+          </div>
+          <!-- Right: info or custom inputs -->
+          <div class="flex-1 p-4 min-w-56">
+            <div id="customPanel" class="<%= af.range === 'custom' ? '' : 'hidden' %>">
+              <div class="text-xs font-semibold text-slate-700 mb-3">Rango personalizado</div>
+              <div class="space-y-2">
+                <div>
+                  <label class="text-xs text-slate-500 block mb-1">Desde</label>
+                  <input type="date" id="customFrom" value="<%= af.from || '' %>"
+                         class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                  <label class="text-xs text-slate-500 block mb-1">Hasta</label>
+                  <input type="date" id="customTo" value="<%= af.to || '' %>"
+                         class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 w-full focus:outline-none focus:border-amber-500">
+                </div>
+                <button onclick="applyCustomDate()"
+                        class="w-full mt-1 px-3 py-1.5 bg-amber-500 text-white text-xs font-bold rounded-lg hover:bg-amber-600 transition-colors">
+                  Aplicar
+                </button>
+              </div>
+            </div>
+            <div id="presetInfoPanel" class="<%= af.range === 'custom' ? 'hidden' : '' %>">
+              <div class="text-xs font-semibold text-slate-700 mb-1">Rango seleccionado</div>
+              <div class="text-xs text-slate-500"><%= rangeLabel %></div>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <!-- Date type -->
-      <select name="dateType" onchange="document.getElementById('crmFilters').submit()"
-              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
-        <option value="created" <%= af.dateType !== 'closed' ? 'selected' : '' %>>Por: Creación</option>
-        <option value="closed"  <%= af.dateType === 'closed' ? 'selected' : '' %>>Por: Cierre</option>
-      </select>
-
-      <!-- Active filter count + reset -->
-      <% if (activeFilterCount > 0) { %>
-      <a href="/crm?tab=<%= activeTab %>"
-         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-xs font-bold text-amber-700 hover:bg-amber-200 transition-colors">
-        <span class="bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5"><%= activeFilterCount %></span>
-        Limpiar
-      </a>
-      <% } %>
-
-      <span class="ml-auto text-xs text-slate-400">
-        <span class="font-semibold text-slate-600"><%= crm.totalAll || 0 %></span> oportunidades
-        <% if (crm.openCount > 0) { %>&middot; <span class="font-semibold text-blue-600"><%= crm.openCount %></span> activas<% } %>
-      </span>
     </div>
-  </form>
+
+    <!-- Date type -->
+    <select onchange="applyFilter('dateType', this.value)" class="filter-select">
+      <option value="created" <%= af.dateType !== 'closed' ? 'selected' : '' %>>Por: Creacion</option>
+      <option value="closed"  <%= af.dateType === 'closed' ? 'selected' : '' %>>Por: Cierre</option>
+    </select>
+
+    <!-- Hunter -->
+    <select onchange="applyFilter('hunter', this.value)" class="filter-select">
+      <option value="">Hunter: Todos</option>
+      <% (fo.allHunters || []).forEach(function(h) { %>
+      <option value="<%= h.id %>" <%= af.hunterId == h.id ? 'selected' : '' %>><%= h.name.split(' ')[0] %></option>
+      <% }); %>
+    </select>
+
+    <!-- Closer -->
+    <select onchange="applyFilter('closer', this.value)" class="filter-select">
+      <option value="">Closer: Todos</option>
+      <% (fo.allClosers || []).forEach(function(c) { %>
+      <option value="<%= c.id %>" <%= af.closerId == c.id ? 'selected' : '' %>><%= c.name.split(' ')[0] %></option>
+      <% }); %>
+    </select>
+
+    <!-- Source -->
+    <select onchange="applyFilter('source', this.value)" class="filter-select">
+      <option value="">Origen: Todos</option>
+      <% (fo.allSources || []).forEach(function(s) { %>
+      <option value="<%= s.id %>" <%= af.sourceId == s.id ? 'selected' : '' %>>
+        <%= s.name.length > 22 ? s.name.slice(0, 22) + '\u2026' : s.name %>
+      </option>
+      <% }); %>
+    </select>
+
+    <!-- Stage -->
+    <select onchange="applyFilter('stage', this.value)" class="filter-select">
+      <option value="">Etapa: Todas</option>
+      <% (fo.allStages || []).forEach(function(s) { %>
+      <option value="<%= s.id %>" <%= af.stageId == s.id ? 'selected' : '' %>>
+        <%= s.name.length > 20 ? s.name.slice(0, 20) + '\u2026' : s.name %>
+      </option>
+      <% }); %>
+    </select>
+
+    <!-- Active filter count + reset -->
+    <% if (activeFilterCount > 0) { %>
+    <a href="/crm?tab=<%= activeTab %>"
+       class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-xs font-bold text-amber-700 hover:bg-amber-200 transition-colors">
+      <span class="bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5"><%= activeFilterCount %></span>
+      Limpiar
+    </a>
+    <% } %>
+
+    <span class="ml-auto text-xs text-slate-400">
+      <span class="font-semibold text-slate-600"><%= crm.totalAll || 0 %></span> oportunidades
+      <% if (crm.openCount > 0) { %>&middot; <span class="font-semibold text-blue-600"><%= crm.openCount %></span> activas<% } %>
+    </span>
+  </div>
 </div>
 
 <!-- ── Tab Navigation ─────────────────────────────────────────────────────── -->
@@ -140,15 +183,15 @@
   <div class="max-w-7xl mx-auto px-4">
     <div class="flex items-center gap-1 overflow-x-auto">
       <% [
-        { id: 'resumen',   label: 'Resumen',   icon: '📊' },
-        { id: 'funnel',    label: 'Funnel',     icon: '🔽' },
-        { id: 'hunters',   label: 'Hunters',    icon: '🏹' },
-        { id: 'tendencia', label: 'Tendencia',  icon: '📈' },
-        { id: 'fuentes',   label: 'Fuentes',    icon: '🗂️' },
+        { id: 'resumen',   label: 'Resumen'   },
+        { id: 'funnel',    label: 'Funnel'    },
+        { id: 'hunters',   label: 'Hunters'   },
+        { id: 'tendencia', label: 'Tendencia' },
+        { id: 'fuentes',   label: 'Fuentes'   },
       ].forEach(function(t) { %>
       <button onclick="switchTab('<%= t.id %>')" id="tab-btn-<%= t.id %>"
               class="tab-btn px-5 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800 whitespace-nowrap transition-all">
-        <%= t.icon %> <%= t.label %>
+        <%= t.label %>
       </button>
       <% }); %>
     </div>
@@ -257,7 +300,7 @@
     <%# Source breakdown %>
     <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
       <div class="font-bold text-slate-800 text-sm mb-0.5">Leads por Origen</div>
-      <div class="text-xs text-slate-400 mb-4">Distribución total por canal</div>
+      <div class="text-xs text-slate-400 mb-4">Distribucion total por canal</div>
       <% var sources = (crm.bySource || []); %>
       <% if (sources.length > 0) { %>
         <% var maxSrc = sources[0].count || 1; %>
@@ -376,14 +419,14 @@
       <div class="text-4xl font-black <%= convRate !== null && convRate >= 50 ? 'text-green-700' : convRate !== null && convRate >= 30 ? 'text-amber-600' : 'text-red-600' %>">
         <%= convRate !== null ? convRate + '%' : 'N/D' %>
       </div>
-      <div class="text-xs text-slate-400 mt-1"><%= totalWon %> Won · <%= totalLost %> Lost</div>
+      <div class="text-xs text-slate-400 mt-1"><%= totalWon %> Won &middot; <%= totalLost %> Lost</div>
     </div>
   </div>
 
   <%# Funnel visualization %>
   <div class="bg-white rounded-xl border border-slate-200 p-6">
-    <div class="font-bold text-slate-800 text-sm mb-1">Distribución de Oportunidades por Etapa</div>
-    <div class="text-xs text-slate-400 mb-6">Pipeline activo · Ganados · Perdidos</div>
+    <div class="font-bold text-slate-800 text-sm mb-1">Distribucion de Oportunidades por Etapa</div>
+    <div class="text-xs text-slate-400 mb-6">Pipeline activo &middot; Ganados &middot; Perdidos</div>
     <% var funnelItems = crm.funnelData || [];
        var maxFunnelCount = Math.max.apply(null, funnelItems.map(function(f){ return f.count || 0; }).concat([1]));
     %>
@@ -457,7 +500,6 @@
 
   <% if (allHunters.length === 0) { %>
   <div class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-    <div class="text-4xl mb-3">🏹</div>
     <div class="text-slate-500 font-medium">Sin datos de Hunter para los filtros seleccionados</div>
   </div>
   <% } else { %>
@@ -466,7 +508,7 @@
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <div class="bg-white rounded-xl border border-slate-200 p-5">
       <div class="font-bold text-slate-800 text-sm mb-0.5">Leads vs Won por Hunter</div>
-      <div class="text-xs text-slate-400 mb-4">Comparación de oportunidades generadas y ganadas</div>
+      <div class="text-xs text-slate-400 mb-4">Comparacion de oportunidades generadas y ganadas</div>
       <canvas id="huntersBarChart" height="220"></canvas>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-5">
@@ -498,7 +540,7 @@
                var revPerLead = h.leads > 0 ? h.wonRevenue / h.leads : 0;
                var revPerLeadFmt = revPerLead >= 1e9 ? ('\u20b2' + (revPerLead/1e9).toFixed(1) + 'B') :
                                    revPerLead >= 1e6 ? ('\u20b2' + Math.round(revPerLead/1e6) + 'M') :
-                                   revPerLead > 0 ? ('\u20b2' + Math.round(revPerLead).toLocaleString('es-PY')) : '—';
+                                   revPerLead > 0 ? ('\u20b2' + Math.round(revPerLead).toLocaleString('es-PY')) : '\u2014';
              %>
           <tr class="border-b border-slate-50 hover:bg-slate-50">
             <td class="px-5 py-3">
@@ -520,7 +562,7 @@
     </div>
   </div>
 
-  <%# Closer section (if different from hunter) %>
+  <%# Closer section %>
   <% var allClosers = (crm.byCloser || []).filter(function(c){ return c.name !== 'Sin Closer'; }); %>
   <% if (allClosers.length > 0) { %>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
@@ -594,7 +636,7 @@
 
   <%# Volume trend chart %>
   <div class="bg-white rounded-xl border border-slate-200 p-5">
-    <div class="font-bold text-slate-800 text-sm mb-0.5">Volumen Mensual — Últimos 12 Meses</div>
+    <div class="font-bold text-slate-800 text-sm mb-0.5">Volumen Mensual - Ultimos 12 Meses</div>
     <div class="text-xs text-slate-400 mb-4">Oportunidades creadas &middot; Ganadas &middot; Perdidas</div>
     <canvas id="trendVolumeChart" height="120"></canvas>
   </div>
@@ -628,21 +670,21 @@
                var wr = (m.won + m.lost) > 0 ? Math.round(m.won / (m.won + m.lost) * 100) : null;
                var revFmt = m.revenue >= 1e9 ? ('\u20b2' + (m.revenue/1e9).toFixed(1) + 'B') :
                             m.revenue >= 1e6 ? ('\u20b2' + Math.round(m.revenue/1e6) + 'M') :
-                            m.revenue > 0    ? ('\u20b2' + Math.round(m.revenue).toLocaleString('es-PY')) : '—';
+                            m.revenue > 0    ? ('\u20b2' + Math.round(m.revenue).toLocaleString('es-PY')) : '\u2014';
                var isBest = bestWonMonth && m.month === bestWonMonth.month && m.won > 0;
              %>
           <tr class="border-b border-slate-50 hover:bg-slate-50 <%= isBest ? 'bg-green-50' : '' %>">
             <td class="px-5 py-2.5 font-semibold text-slate-700">
               <%= m.label %>
-              <% if (isBest) { %><span class="ml-1 text-xs text-green-600">★ mejor</span><% } %>
+              <% if (isBest) { %><span class="ml-1 text-xs text-green-600">mejor mes</span><% } %>
             </td>
-            <td class="px-5 py-2.5 text-right text-slate-600"><%= m.created || '—' %></td>
-            <td class="px-5 py-2.5 text-right font-bold text-green-700"><%= m.won || '—' %></td>
-            <td class="px-5 py-2.5 text-right text-red-500"><%= m.lost || '—' %></td>
+            <td class="px-5 py-2.5 text-right text-slate-600"><%= m.created || '\u2014' %></td>
+            <td class="px-5 py-2.5 text-right font-bold text-green-700"><%= m.won || '\u2014' %></td>
+            <td class="px-5 py-2.5 text-right text-red-500"><%= m.lost || '\u2014' %></td>
             <td class="px-5 py-2.5 text-right">
               <% if (wr !== null) { %>
               <span class="text-xs font-bold <%= wr >= 50 ? 'text-green-700' : wr >= 30 ? 'text-amber-600' : 'text-red-600' %>"><%= wr %>%</span>
-              <% } else { %><span class="text-slate-300">—</span><% } %>
+              <% } else { %><span class="text-slate-300">\u2014</span><% } %>
             </td>
             <td class="px-5 py-2.5 text-right font-bold text-amber-700"><%= revFmt %></td>
           </tr>
@@ -664,7 +706,6 @@
 
   <% if (allSources.length === 0) { %>
   <div class="bg-white rounded-xl border border-slate-200 p-12 text-center">
-    <div class="text-4xl mb-3">🗂️</div>
     <div class="text-slate-500 font-medium">Sin datos de origen para los filtros seleccionados</div>
   </div>
   <% } else { %>
@@ -674,7 +715,7 @@
 
     <%# Doughnut chart %>
     <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 flex flex-col">
-      <div class="font-bold text-slate-800 text-sm mb-0.5">Distribución por Origen</div>
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Distribucion por Origen</div>
       <div class="text-xs text-slate-400 mb-4">% de oportunidades totales</div>
       <div class="flex-1 flex items-center justify-center">
         <canvas id="sourceDoughnut" style="max-height:280px"></canvas>
@@ -684,8 +725,8 @@
     <%# Source table (right side) %>
     <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 overflow-hidden">
       <div class="px-5 py-3 border-b border-slate-100">
-        <div class="font-bold text-slate-800 text-sm">Análisis por Canal</div>
-        <div class="text-xs text-slate-400">Conversion rate · Revenue por fuente</div>
+        <div class="font-bold text-slate-800 text-sm">Analisis por Canal</div>
+        <div class="text-xs text-slate-400">Conversion rate &middot; Revenue por fuente</div>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -711,9 +752,9 @@
                 <span class="px-2 py-0.5 rounded-full text-xs font-bold <%= s.winPct >= 50 ? 'bg-green-100 text-green-700' : s.winPct >= 30 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700' %>">
                   <%= s.winPct %>%
                 </span>
-                <% } else { %><span class="text-slate-300 text-xs">—</span><% } %>
+                <% } else { %><span class="text-slate-300 text-xs">\u2014</span><% } %>
               </td>
-              <td class="px-4 py-2.5 text-right text-xs font-bold text-slate-800"><%= s.revenue > 0 ? s.revenueFmt : '—' %></td>
+              <td class="px-4 py-2.5 text-right text-xs font-bold text-slate-800"><%= s.revenue > 0 ? s.revenueFmt : '\u2014' %></td>
             </tr>
             <% }); %>
           </tbody>
@@ -764,31 +805,108 @@
 <script id="crmChartData" type="application/json"><%- crmJSON %></script>
 
 <script>
-// ── Data ──────────────────────────────────────────────────────────────────────
-const CRM = JSON.parse(document.getElementById('crmChartData').textContent);
-const COLORS = ['#3b82f6','#6366f1','#14b8a6','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#10b981','#ef4444'];
+// ── Current filter state (from server) ────────────────────────────────────────
+const CRM            = JSON.parse(document.getElementById('crmChartData').textContent);
+const COLORS         = ['#3b82f6','#6366f1','#14b8a6','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#10b981','#ef4444'];
+
+let currentRange   = '<%= af.range   || "all"     %>';
+let currentFrom    = '<%= af.from    || ""        %>';
+let currentTo      = '<%= af.to      || ""        %>';
+let currentHunter  = '<%= af.hunterId || ""       %>';
+let currentCloser  = '<%= af.closerId || ""       %>';
+let currentSource  = '<%= af.sourceId || ""       %>';
+let currentStage   = '<%= af.stageId  || ""       %>';
+let currentDType   = '<%= af.dateType || "created"%>';
+let currentTab     = '<%= activeTab %>';
+
+// ── URL builder ───────────────────────────────────────────────────────────────
+function buildFilterUrl(overrides) {
+  overrides = overrides || {};
+  const r   = overrides.range    !== undefined ? overrides.range    : currentRange;
+  const f   = overrides.from     !== undefined ? overrides.from     : currentFrom;
+  const t   = overrides.to       !== undefined ? overrides.to       : currentTo;
+  const h   = overrides.hunter   !== undefined ? overrides.hunter   : currentHunter;
+  const c   = overrides.closer   !== undefined ? overrides.closer   : currentCloser;
+  const s   = overrides.source   !== undefined ? overrides.source   : currentSource;
+  const st  = overrides.stage    !== undefined ? overrides.stage    : currentStage;
+  const dt  = overrides.dateType !== undefined ? overrides.dateType : currentDType;
+  const tab = overrides.tab      !== undefined ? overrides.tab      : currentTab;
+
+  const p = new URLSearchParams();
+  p.set('range', r || 'all');
+  if (r === 'custom') {
+    if (f) p.set('from', f);
+    if (t) p.set('to',   t);
+  }
+  if (h)   p.set('hunter',   h);
+  if (c)   p.set('closer',   c);
+  if (s)   p.set('source',   s);
+  if (st)  p.set('stage',    st);
+  if (dt && dt !== 'created') p.set('dateType', dt);
+  if (tab) p.set('tab',      tab);
+  return '/crm?' + p.toString();
+}
+
+// ── Single filter change ──────────────────────────────────────────────────────
+function applyFilter(key, value) {
+  const overrides = {};
+  overrides[key] = value;
+  window.location.href = buildFilterUrl(overrides);
+}
+
+// ── Date picker ───────────────────────────────────────────────────────────────
+function toggleDatePicker() {
+  document.getElementById('datePicker').classList.toggle('hidden');
+}
+
+function selectPreset(value) {
+  document.querySelectorAll('.preset-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelectorAll('.preset-btn[data-range="' + value + '"]').forEach(function(b) { b.classList.add('active'); });
+  if (value === 'custom') {
+    document.getElementById('presetInfoPanel').classList.add('hidden');
+    document.getElementById('customPanel').classList.remove('hidden');
+  } else {
+    document.getElementById('customPanel').classList.add('hidden');
+    document.getElementById('presetInfoPanel').classList.remove('hidden');
+    document.getElementById('datePicker').classList.add('hidden');
+    window.location.href = buildFilterUrl({ range: value, from: null, to: null });
+  }
+}
+
+function applyCustomDate() {
+  const from = document.getElementById('customFrom').value;
+  const to   = document.getElementById('customTo').value;
+  if (!from || !to) return;
+  window.location.href = buildFilterUrl({ range: 'custom', from: from, to: to });
+}
+
+// Close picker when clicking outside
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('datePickerWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('datePicker').classList.add('hidden');
+  }
+});
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(name) {
   document.querySelectorAll('[id^="tab-"]:not([id^="tab-btn-"])')
-    .forEach(el => el.classList.add('hidden'));
+    .forEach(function(el) { el.classList.add('hidden'); });
   document.querySelectorAll('[id^="tab-btn-"]')
-    .forEach(el => el.classList.remove('active'));
+    .forEach(function(el) { el.classList.remove('active'); });
   const panel = document.getElementById('tab-' + name);
   const btn   = document.getElementById('tab-btn-' + name);
   if (panel) panel.classList.remove('hidden');
   if (btn)   btn.classList.add('active');
-  // Keep hidden form input in sync so filters preserve tab
-  const inp = document.getElementById('hiddenTab');
-  if (inp) inp.value = name;
+  currentTab = name;
 }
 
 // ── Chart helpers ─────────────────────────────────────────────────────────────
 function fmtGsJS(n) {
-  if (!n || n === 0) return '₲ 0';
-  if (n >= 1e9) return '₲ ' + (n / 1e9).toFixed(1) + 'B';
-  if (n >= 1e6) return '₲ ' + Math.round(n / 1e6) + 'M';
-  return '₲ ' + Math.round(n).toLocaleString('es-PY');
+  if (!n || n === 0) return '\u20b2 0';
+  if (n >= 1e9) return '\u20b2 ' + (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return '\u20b2 ' + Math.round(n / 1e6) + 'M';
+  return '\u20b2 ' + Math.round(n).toLocaleString('es-PY');
 }
 
 const CHART_DEFAULTS = {
@@ -799,18 +917,17 @@ const CHART_DEFAULTS = {
 
 // ── Hunters bar chart ─────────────────────────────────────────────────────────
 function initHunterCharts() {
-  const hunters = (CRM.byHunter || []).filter(h => h.name !== 'Sin Hunter').slice(0, 10);
+  const hunters = (CRM.byHunter || []).filter(function(h) { return h.name !== 'Sin Hunter'; }).slice(0, 10);
   if (!hunters.length) return;
-
-  const labels = hunters.map(h => h.name.split(' ')[0]);
+  const labels = hunters.map(function(h) { return h.name.split(' ')[0]; });
 
   new Chart(document.getElementById('huntersBarChart'), {
     type: 'bar',
     data: {
-      labels,
+      labels: labels,
       datasets: [
-        { label: 'Leads', data: hunters.map(h => h.leads), backgroundColor: '#93c5fd', borderRadius: 4 },
-        { label: 'Won',   data: hunters.map(h => h.won),   backgroundColor: '#34d399', borderRadius: 4 },
+        { label: 'Leads', data: hunters.map(function(h) { return h.leads; }), backgroundColor: '#93c5fd', borderRadius: 4 },
+        { label: 'Won',   data: hunters.map(function(h) { return h.won;   }), backgroundColor: '#34d399', borderRadius: 4 },
       ],
     },
     options: {
@@ -822,18 +939,18 @@ function initHunterCharts() {
   new Chart(document.getElementById('huntersRevenueChart'), {
     type: 'bar',
     data: {
-      labels,
+      labels: labels,
       datasets: [{
         label: 'Revenue Won',
-        data: hunters.map(h => h.revenue || 0),
-        backgroundColor: hunters.map((_, i) => COLORS[i % COLORS.length] + 'cc'),
+        data: hunters.map(function(h) { return h.revenue || 0; }),
+        backgroundColor: hunters.map(function(_, i) { return COLORS[i % COLORS.length] + 'cc'; }),
         borderRadius: 4,
       }],
     },
     options: {
       ...CHART_DEFAULTS,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtGsJS(ctx.raw) } } },
-      scales: { y: { beginAtZero: true, ticks: { callback: v => v >= 1e6 ? Math.round(v/1e6)+'M' : v } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return fmtGsJS(ctx.raw); } } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v >= 1e6 ? Math.round(v/1e6)+'M' : v; } } } },
     },
   });
 }
@@ -842,17 +959,16 @@ function initHunterCharts() {
 function initTrendCharts() {
   const trend = CRM.trendData || [];
   if (!trend.length) return;
-
-  const labels  = trend.map(m => m.label);
-  const created = trend.map(m => m.created);
-  const won     = trend.map(m => m.won);
-  const lost    = trend.map(m => m.lost);
-  const revenue = trend.map(m => m.revenue || 0);
+  const labels  = trend.map(function(m) { return m.label; });
+  const created = trend.map(function(m) { return m.created; });
+  const won     = trend.map(function(m) { return m.won; });
+  const lost    = trend.map(function(m) { return m.lost; });
+  const revenue = trend.map(function(m) { return m.revenue || 0; });
 
   new Chart(document.getElementById('trendVolumeChart'), {
     type: 'bar',
     data: {
-      labels,
+      labels: labels,
       datasets: [
         { label: 'Creados', data: created, backgroundColor: '#93c5fd', borderRadius: 3 },
         { label: 'Won',     data: won,     backgroundColor: '#34d399', borderRadius: 3 },
@@ -868,19 +984,18 @@ function initTrendCharts() {
   new Chart(document.getElementById('trendRevenueChart'), {
     type: 'bar',
     data: {
-      labels,
+      labels: labels,
       datasets: [{
         label: 'Revenue Won',
         data: revenue,
         backgroundColor: '#fbbf24',
         borderRadius: 4,
-        type: 'bar',
       }],
     },
     options: {
       ...CHART_DEFAULTS,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtGsJS(ctx.raw) } } },
-      scales: { y: { beginAtZero: true, ticks: { callback: v => v >= 1e6 ? Math.round(v/1e6)+'M' : v } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(ctx) { return fmtGsJS(ctx.raw); } } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v >= 1e6 ? Math.round(v/1e6)+'M' : v; } } } },
     },
   });
 }
@@ -889,14 +1004,13 @@ function initTrendCharts() {
 function initSourceChart() {
   const sources = (CRM.bySource || []).slice(0, 8);
   if (!sources.length) return;
-
   new Chart(document.getElementById('sourceDoughnut'), {
     type: 'doughnut',
     data: {
-      labels: sources.map(s => s.name),
+      labels: sources.map(function(s) { return s.name; }),
       datasets: [{
-        data:            sources.map(s => s.count),
-        backgroundColor: sources.map((_, i) => COLORS[i % COLORS.length]),
+        data:            sources.map(function(s) { return s.count; }),
+        backgroundColor: sources.map(function(_, i) { return COLORS[i % COLORS.length]; }),
         borderWidth:     2,
         borderColor:     '#fff',
       }],
@@ -906,14 +1020,14 @@ function initSourceChart() {
       cutout: '62%',
       plugins: {
         legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10, padding: 8 } },
-        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} leads` } },
+        tooltip: { callbacks: { label: function(ctx) { return ctx.label + ': ' + ctx.raw + ' leads'; } } },
       },
     },
   });
 }
 
-// ── Init all on load ──────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+// ── Init on load ──────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
   switchTab('<%= activeTab %>');
   initHunterCharts();
   initTrendCharts();
