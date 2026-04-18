@@ -29,12 +29,12 @@ function _save(users) {
 }
 
 const VALID_ROLES = ['admin', 'director', 'consultant'];
-const VALID_VIEWS = ['equipo', 'finanzas', 'ejecutivo', 'admin'];
+const VALID_VIEWS = ['equipo', 'finanzas', 'ejecutivo', 'crm', 'admin'];
 
 // Default views when allowedViews not explicitly set
 function getDefaultViews(role) {
-  if (role === 'admin')     return ['equipo', 'finanzas', 'ejecutivo', 'admin'];
-  if (role === 'director')  return ['equipo', 'finanzas', 'ejecutivo'];
+  if (role === 'admin')     return ['equipo', 'finanzas', 'ejecutivo', 'crm', 'admin'];
+  if (role === 'director')  return ['equipo', 'finanzas', 'ejecutivo', 'crm'];
   return ['equipo'];
 }
 

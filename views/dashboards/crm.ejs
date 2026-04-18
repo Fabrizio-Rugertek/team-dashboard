@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    .tab-btn { border-bottom: 3px solid transparent; transition: all .15s; }
+    .tab-btn.active { border-bottom-color: #d97706; color: #d97706; font-weight: 700; }
+    select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2394a3b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; padding-right: 24px !important; }
+    .filter-select { @apply text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer; }
+    .funnel-bar { transition: width 0.5s ease; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+<%
+  const crm = crmStats || {};
+  const af  = activeFilters || {};
+  const fo  = filterOptions || {};
+%>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-8 w-auto">
+      <span class="text-slate-300 text-sm">·</span>
+      <a href="/"        class="text-sm font-semibold text-blue-600 hover:text-blue-800">Inicio</a>
+      <span class="text-slate-300 text-sm">·</span>
+      <a href="/equipo"  class="text-sm font-semibold text-blue-600 hover:text-blue-800">Equipo</a>
+      <span class="text-slate-300 text-sm">·</span>
+      <a href="/finanzas" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Finanzas</a>
+      <span class="text-slate-300 text-sm">·</span>
+      <span class="text-sm font-bold text-slate-900">CRM</span>
+      <% if (typeof user !== 'undefined' && user && user.role === 'admin') { %>
+      <span class="text-slate-300 text-sm">·</span>
+      <a href="/admin/users" class="text-sm font-medium text-slate-500 hover:text-slate-700">Usuarios</a>
+      <% } %>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="https://www.torus.dev/odoo/crm" target="_blank"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-700 hover:bg-amber-100 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+        Ver en Odoo
+      </a>
+      <span class="text-xs text-slate-400"><%= lastUpdate %></span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Filter Bar ─────────────────────────────────────────────────────────── -->
+<div class="bg-white border-b border-slate-200 sticky top-[57px] z-40 shadow-sm">
+  <form id="crmFilters" method="GET" action="/crm">
+    <input type="hidden" name="tab" id="hiddenTab" value="<%= activeTab %>">
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-2">
+
+      <!-- Hunter -->
+      <select name="hunter" onchange="document.getElementById('crmFilters').submit()"
+              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
+        <option value="">👤 Hunter: Todos</option>
+        <% (fo.allHunters || []).forEach(function(h) { %>
+        <option value="<%= h.id %>" <%= af.hunterId == h.id ? 'selected' : '' %>><%= h.name.split(' ')[0] %></option>
+        <% }); %>
+      </select>
+
+      <!-- Closer -->
+      <select name="closer" onchange="document.getElementById('crmFilters').submit()"
+              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
+        <option value="">🎯 Closer: Todos</option>
+        <% (fo.allClosers || []).forEach(function(c) { %>
+        <option value="<%= c.id %>" <%= af.closerId == c.id ? 'selected' : '' %>><%= c.name.split(' ')[0] %></option>
+        <% }); %>
+      </select>
+
+      <!-- Source -->
+      <select name="source" onchange="document.getElementById('crmFilters').submit()"
+              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
+        <option value="">📍 Origen: Todos</option>
+        <% (fo.allSources || []).forEach(function(s) { %>
+        <option value="<%= s.id %>" <%= af.sourceId == s.id ? 'selected' : '' %>>
+          <%= s.name.length > 22 ? s.name.slice(0, 22) + '…' : s.name %>
+        </option>
+        <% }); %>
+      </select>
+
+      <!-- Stage -->
+      <select name="stage" onchange="document.getElementById('crmFilters').submit()"
+              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
+        <option value="">📋 Etapa: Todas</option>
+        <% (fo.allStages || []).forEach(function(s) { %>
+        <option value="<%= s.id %>" <%= af.stageId == s.id ? 'selected' : '' %>>
+          <%= s.name.length > 20 ? s.name.slice(0, 20) + '…' : s.name %>
+        </option>
+        <% }); %>
+      </select>
+
+      <div class="flex items-center gap-1">
+        <span class="text-xs text-slate-400 font-medium">Desde</span>
+        <input type="date" name="from" value="<%= af.from || '' %>"
+               onchange="document.getElementById('crmFilters').submit()"
+               class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-amber-500 hover:border-amber-400">
+        <span class="text-xs text-slate-400 font-medium">hasta</span>
+        <input type="date" name="to" value="<%= af.to || '' %>"
+               onchange="document.getElementById('crmFilters').submit()"
+               class="text-xs border border-slate-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:border-amber-500 hover:border-amber-400">
+      </div>
+
+      <!-- Date type -->
+      <select name="dateType" onchange="document.getElementById('crmFilters').submit()"
+              class="filter-select text-xs border border-slate-200 rounded-lg px-3 py-1.5 bg-white text-slate-700 font-medium hover:border-amber-400 focus:outline-none focus:border-amber-500 cursor-pointer">
+        <option value="created" <%= af.dateType !== 'closed' ? 'selected' : '' %>>Por: Creación</option>
+        <option value="closed"  <%= af.dateType === 'closed' ? 'selected' : '' %>>Por: Cierre</option>
+      </select>
+
+      <!-- Active filter count + reset -->
+      <% if (activeFilterCount > 0) { %>
+      <a href="/crm?tab=<%= activeTab %>"
+         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 border border-amber-300 text-xs font-bold text-amber-700 hover:bg-amber-200 transition-colors">
+        <span class="bg-amber-500 text-white text-[10px] font-black rounded-full px-1.5 py-0.5"><%= activeFilterCount %></span>
+        Limpiar
+      </a>
+      <% } %>
+
+      <span class="ml-auto text-xs text-slate-400">
+        <span class="font-semibold text-slate-600"><%= crm.totalAll || 0 %></span> oportunidades
+        <% if (crm.openCount > 0) { %>&middot; <span class="font-semibold text-blue-600"><%= crm.openCount %></span> activas<% } %>
+      </span>
+    </div>
+  </form>
+</div>
+
+<!-- ── Tab Navigation ─────────────────────────────────────────────────────── -->
+<div class="bg-white border-b border-slate-200 sticky top-[104px] z-30">
+  <div class="max-w-7xl mx-auto px-4">
+    <div class="flex items-center gap-1 overflow-x-auto">
+      <% [
+        { id: 'resumen',   label: 'Resumen',   icon: '📊' },
+        { id: 'funnel',    label: 'Funnel',     icon: '🔽' },
+        { id: 'hunters',   label: 'Hunters',    icon: '🏹' },
+        { id: 'tendencia', label: 'Tendencia',  icon: '📈' },
+        { id: 'fuentes',   label: 'Fuentes',    icon: '🗂️' },
+      ].forEach(function(t) { %>
+      <button onclick="switchTab('<%= t.id %>')" id="tab-btn-<%= t.id %>"
+              class="tab-btn px-5 py-3 text-sm font-semibold text-slate-500 hover:text-slate-800 whitespace-nowrap transition-all">
+        <%= t.icon %> <%= t.label %>
+      </button>
+      <% }); %>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TAB 1: RESUMEN
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-resumen" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <%# ── KPI Cards (6) ── %>
+  <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+
+    <%# Win Rate %>
+    <div class="bg-white rounded-xl border p-4 <%=
+      crm.winRateColor === 'green' ? 'border-green-200' :
+      crm.winRateColor === 'amber' ? 'border-amber-200' :
+      crm.winRateColor === 'red'   ? 'border-red-200'   : 'border-slate-200' %>">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 <%=
+        crm.winRateColor === 'green' ? 'text-green-600' :
+        crm.winRateColor === 'amber' ? 'text-amber-600' :
+        crm.winRateColor === 'red'   ? 'text-red-500'   : 'text-slate-500' %>">Win Rate</div>
+      <div class="text-3xl font-black <%=
+        crm.winRateColor === 'green' ? 'text-green-600' :
+        crm.winRateColor === 'amber' ? 'text-amber-600' :
+        crm.winRateColor === 'red'   ? 'text-red-600'   : 'text-slate-400' %>"><%= crm.winRateLabel || 'N/D' %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= crm.won90Count || 0 %> Won &middot; <%= crm.lost90Count || 0 %> Lost (90d)</div>
+    </div>
+
+    <%# Revenue Won %>
+    <div class="bg-white rounded-xl border border-green-200 p-4">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-green-600">Revenue Won</div>
+      <div class="text-2xl font-black text-green-700"><%= crm.revenueWonFmt || '₲ 0' %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= crm.wonTotal || 0 %> deals ganados</div>
+    </div>
+
+    <%# Pipeline %>
+    <div class="bg-white rounded-xl border border-blue-200 p-4">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-blue-600">Pipeline</div>
+      <div class="text-2xl font-black text-blue-700"><%= crm.pipelineFmt || '₲ 0' %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= crm.pipelineCount || 0 %> oportunidades activas</div>
+    </div>
+
+    <%# Avg Ticket %>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Ticket Prom.</div>
+      <div class="text-2xl font-black text-slate-800"><%= crm.avgTicketFmt || '₲ 0' %></div>
+      <div class="text-xs text-slate-400 mt-1"><%= crm.wonWithRevCount || 0 %> deals con revenue</div>
+    </div>
+
+    <%# Velocidad %>
+    <div class="bg-white rounded-xl border p-4 <%=
+      crm.avgDaysColor === 'green' ? 'border-green-200' :
+      crm.avgDaysColor === 'amber' ? 'border-amber-200' :
+      crm.avgDaysColor === 'red'   ? 'border-red-200'   : 'border-slate-200' %>">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Velocidad</div>
+      <div class="text-3xl font-black <%=
+        crm.avgDaysColor === 'green' ? 'text-green-600' :
+        crm.avgDaysColor === 'amber' ? 'text-amber-600' :
+        crm.avgDaysColor === 'red'   ? 'text-red-600'   : 'text-slate-400' %>"><%= crm.avgDaysLabel || 'N/D' %></div>
+      <div class="text-xs text-slate-400 mt-1">Prom. d&iacute;as hasta Won (180d)</div>
+    </div>
+
+    <%# Lost %>
+    <div class="bg-white rounded-xl border border-slate-200 p-4">
+      <div class="text-xs font-semibold uppercase tracking-wide mb-1 text-slate-500">Perdidos</div>
+      <div class="text-3xl font-black text-slate-800"><%= crm.lostTotal || 0 %></div>
+      <div class="text-xs text-slate-400 mt-1">de <%= crm.totalAll || 0 %> oportunidades totales</div>
+    </div>
+  </div>
+
+  <%# ── Hunter + Source row ── %>
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+    <%# Hunter performance bars %>
+    <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 p-5">
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Performance por Hunter</div>
+      <div class="text-xs text-slate-400 mb-4">Leads generados &middot; Won &middot; Revenue acumulado</div>
+      <% var hunters = (crm.byHunter || []).filter(function(h){ return h.name !== 'Sin Hunter'; }); %>
+      <% if (hunters.length > 0) { %>
+        <div class="space-y-3">
+        <% hunters.forEach(function(h) {
+             var maxRev = hunters[0].revenue || 1;
+             var pct = Math.round((h.revenue / maxRev) * 100);
+           %>
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-semibold text-slate-700"><%= h.name.split(' ')[0] %></span>
+                <span class="text-xs text-slate-400"><%= h.leads %> leads &middot; <%= h.won %> won (<%= h.winPct %>%)</span>
+              </div>
+              <span class="text-xs font-bold text-slate-700"><%= h.revenueFmt %></span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-2">
+              <div class="bg-amber-400 h-2 rounded-full" style="width:<%= pct %>%"></div>
+            </div>
+          </div>
+        <% }); %>
+        </div>
+      <% } else { %>
+        <div class="text-center text-slate-400 text-sm py-8">Sin datos de Hunter</div>
+      <% } %>
+    </div>
+
+    <%# Source breakdown %>
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5">
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Leads por Origen</div>
+      <div class="text-xs text-slate-400 mb-4">Distribución total por canal</div>
+      <% var sources = (crm.bySource || []); %>
+      <% if (sources.length > 0) { %>
+        <% var maxSrc = sources[0].count || 1; %>
+        <div class="space-y-2.5">
+        <% sources.slice(0, 8).forEach(function(s) {
+             var pct = Math.round(s.count / maxSrc * 100);
+           %>
+          <div>
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="text-xs font-medium text-slate-600 truncate" style="max-width:68%"><%= s.name %></span>
+              <span class="text-xs font-bold text-slate-500"><%= s.count %></span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-1.5">
+              <div class="bg-indigo-400 h-1.5 rounded-full" style="width:<%= pct %>%"></div>
+            </div>
+          </div>
+        <% }); %>
+        </div>
+      <% } else { %>
+        <div class="text-center text-slate-400 text-sm py-8">Sin datos</div>
+      <% } %>
+    </div>
+  </div>
+
+  <%# ── Stage mini cards ── %>
+  <% if ((crm.byStage || []).length > 0) { %>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <% (crm.byStage || []).forEach(function(s) {
+         var val = s.value;
+         var valFmt = val >= 1e9 ? ('\u20b2' + (val/1e9).toFixed(1) + 'B') :
+                      val >= 1e6 ? ('\u20b2' + Math.round(val/1e6) + 'M') :
+                      ('\u20b2' + Math.round(val).toLocaleString('es-PY'));
+       %>
+      <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 truncate"><%= s.name %></div>
+        <div class="text-2xl font-black text-slate-800"><%= s.count %></div>
+        <div class="text-xs text-slate-400 mt-0.5"><%= valFmt %></div>
+      </div>
+    <% }); %>
+  </div>
+  <% } %>
+
+  <%# ── Top Active Pipeline table ── %>
+  <% if ((crm.topActive || []).length > 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100">
+      <div class="font-bold text-slate-800 text-sm">Pipeline Activo</div>
+      <div class="text-xs text-slate-400">Top oportunidades ordenadas por valor esperado</div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 bg-slate-50">
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Oportunidad</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Etapa</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Hunter</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Closer</th>
+            <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Origen</th>
+            <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Valor</th>
+            <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">D&iacute;as</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% (crm.topActive || []).forEach(function(o) { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+            <td class="px-4 py-2.5">
+              <a href="https://www.torus.dev/odoo/crm/<%= o.id %>" target="_blank"
+                 class="font-medium text-slate-800 hover:text-amber-600 transition-colors"><%= o.name %></a>
+            </td>
+            <td class="px-4 py-2.5">
+              <span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-medium whitespace-nowrap"><%= o.stage %></span>
+            </td>
+            <td class="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap"><%= o.hunter %></td>
+            <td class="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap"><%= o.closer %></td>
+            <td class="px-4 py-2.5 text-xs text-slate-500 max-w-xs truncate"><%= o.source %></td>
+            <td class="px-4 py-2.5 text-right text-xs font-bold text-slate-700 whitespace-nowrap"><%= o.revenueFmt %></td>
+            <td class="px-4 py-2.5 text-right text-xs whitespace-nowrap <%= o.daysOpen > 90 ? 'text-amber-600 font-semibold' : 'text-slate-400' %>"><%= o.daysOpen %>d</td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+</div><!-- /tab-resumen -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TAB 2: FUNNEL
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-funnel" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <%# KPI row %>
+  <% var totalFunnel = crm.totalAll || 0;
+     var totalOpen   = crm.openCount || 0;
+     var totalWon    = crm.wonTotal || 0;
+     var totalLost   = crm.lostTotal || 0;
+     var convRate    = (totalWon + totalLost) > 0 ? Math.round(totalWon / (totalWon + totalLost) * 100) : null;
+  %>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Total Oportunidades</div>
+      <div class="text-4xl font-black text-slate-800"><%= totalFunnel %></div>
+    </div>
+    <div class="bg-white rounded-xl border border-blue-200 p-4 text-center">
+      <div class="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">En Pipeline</div>
+      <div class="text-4xl font-black text-blue-700"><%= totalOpen %></div>
+    </div>
+    <div class="bg-white rounded-xl border border-green-200 p-4 text-center">
+      <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Ganados</div>
+      <div class="text-4xl font-black text-green-700"><%= totalWon %></div>
+    </div>
+    <div class="bg-white rounded-xl border <%= convRate !== null && convRate >= 50 ? 'border-green-200' : convRate !== null && convRate >= 30 ? 'border-amber-200' : 'border-red-200' %> p-4 text-center">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Tasa Cierre</div>
+      <div class="text-4xl font-black <%= convRate !== null && convRate >= 50 ? 'text-green-700' : convRate !== null && convRate >= 30 ? 'text-amber-600' : 'text-red-600' %>">
+        <%= convRate !== null ? convRate + '%' : 'N/D' %>
+      </div>
+      <div class="text-xs text-slate-400 mt-1"><%= totalWon %> Won · <%= totalLost %> Lost</div>
+    </div>
+  </div>
+
+  <%# Funnel visualization %>
+  <div class="bg-white rounded-xl border border-slate-200 p-6">
+    <div class="font-bold text-slate-800 text-sm mb-1">Distribución de Oportunidades por Etapa</div>
+    <div class="text-xs text-slate-400 mb-6">Pipeline activo · Ganados · Perdidos</div>
+    <% var funnelItems = crm.funnelData || [];
+       var maxFunnelCount = Math.max.apply(null, funnelItems.map(function(f){ return f.count || 0; }).concat([1]));
+    %>
+    <div class="space-y-3">
+    <% funnelItems.forEach(function(f) {
+         var pct = Math.max(4, Math.round((f.count / maxFunnelCount) * 100));
+         var barColor = f.type === 'won'  ? 'bg-green-500' :
+                        f.type === 'lost' ? 'bg-red-400'   : 'bg-blue-500';
+         var textColor = f.type === 'won' ? 'text-green-700' : f.type === 'lost' ? 'text-red-600' : 'text-slate-700';
+         var valFmt = f.value >= 1e9 ? ('\u20b2' + (f.value/1e9).toFixed(1) + 'B') :
+                      f.value >= 1e6 ? ('\u20b2' + Math.round(f.value/1e6) + 'M') :
+                      f.value > 0    ? ('\u20b2' + Math.round(f.value).toLocaleString('es-PY')) : '';
+       %>
+      <div class="flex items-center gap-3">
+        <div class="w-36 text-xs font-semibold <%= textColor %> truncate text-right flex-none"><%= f.name %></div>
+        <div class="flex-1 bg-slate-100 rounded-full h-8 relative overflow-hidden">
+          <div class="funnel-bar <%= barColor %> h-full rounded-full flex items-center pl-3"
+               style="width:<%= pct %>%">
+            <span class="text-white text-xs font-bold whitespace-nowrap"><%= f.count %></span>
+          </div>
+        </div>
+        <div class="w-24 text-xs text-slate-500 flex-none"><%= valFmt %></div>
+      </div>
+    <% }); %>
+    </div>
+  </div>
+
+  <%# Stage detail table %>
+  <% if ((crm.byStage || []).length > 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100">
+      <div class="font-bold text-slate-800 text-sm">Pipeline Activo por Etapa</div>
+    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-slate-100 bg-slate-50">
+          <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Etapa</th>
+          <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Oportunidades</th>
+          <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">% del Total</th>
+          <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Valor Pipeline</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% (crm.byStage || []).forEach(function(s) {
+             var pctTotal = totalFunnel > 0 ? Math.round(s.count / totalFunnel * 100) : 0;
+             var valFmt = s.value >= 1e9 ? ('\u20b2' + (s.value/1e9).toFixed(1) + 'B') :
+                          s.value >= 1e6 ? ('\u20b2' + Math.round(s.value/1e6) + 'M') :
+                          ('\u20b2' + Math.round(s.value).toLocaleString('es-PY'));
+           %>
+        <tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="px-5 py-2.5 font-medium text-slate-700"><%= s.name %></td>
+          <td class="px-5 py-2.5 text-right font-bold text-slate-800"><%= s.count %></td>
+          <td class="px-5 py-2.5 text-right text-slate-500"><%= pctTotal %>%</td>
+          <td class="px-5 py-2.5 text-right font-bold text-blue-700"><%= valFmt %></td>
+        </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+
+</div><!-- /tab-funnel -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TAB 3: HUNTERS
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-hunters" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <% var allHunters = (crm.byHunter || []).filter(function(h){ return h.name !== 'Sin Hunter'; }); %>
+
+  <% if (allHunters.length === 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+    <div class="text-4xl mb-3">🏹</div>
+    <div class="text-slate-500 font-medium">Sin datos de Hunter para los filtros seleccionados</div>
+  </div>
+  <% } else { %>
+
+  <%# Chart row %>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Leads vs Won por Hunter</div>
+      <div class="text-xs text-slate-400 mb-4">Comparación de oportunidades generadas y ganadas</div>
+      <canvas id="huntersBarChart" height="220"></canvas>
+    </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-5">
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Revenue Won por Hunter</div>
+      <div class="text-xs text-slate-400 mb-4">Revenue total acumulado en deals ganados</div>
+      <canvas id="huntersRevenueChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <%# Hunter table %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100">
+      <div class="font-bold text-slate-800 text-sm">Detalle por Hunter</div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 bg-slate-50">
+            <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Hunter</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Leads</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Won</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Win Rate</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Revenue Won</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Rev/Lead</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% allHunters.forEach(function(h) {
+               var revPerLead = h.leads > 0 ? h.wonRevenue / h.leads : 0;
+               var revPerLeadFmt = revPerLead >= 1e9 ? ('\u20b2' + (revPerLead/1e9).toFixed(1) + 'B') :
+                                   revPerLead >= 1e6 ? ('\u20b2' + Math.round(revPerLead/1e6) + 'M') :
+                                   revPerLead > 0 ? ('\u20b2' + Math.round(revPerLead).toLocaleString('es-PY')) : '—';
+             %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50">
+            <td class="px-5 py-3">
+              <div class="font-semibold text-slate-800"><%= h.name %></div>
+            </td>
+            <td class="px-5 py-3 text-right text-slate-700 font-medium"><%= h.leads %></td>
+            <td class="px-5 py-3 text-right font-bold text-green-700"><%= h.won %></td>
+            <td class="px-5 py-3 text-right">
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold <%= h.winPct >= 50 ? 'bg-green-100 text-green-700' : h.winPct >= 30 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700' %>">
+                <%= h.winPct %>%
+              </span>
+            </td>
+            <td class="px-5 py-3 text-right font-bold text-slate-800"><%= h.revenueFmt %></td>
+            <td class="px-5 py-3 text-right text-slate-500 text-xs"><%= revPerLeadFmt %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <%# Closer section (if different from hunter) %>
+  <% var allClosers = (crm.byCloser || []).filter(function(c){ return c.name !== 'Sin Closer'; }); %>
+  <% if (allClosers.length > 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100">
+      <div class="font-bold text-slate-800 text-sm">Detalle por Closer</div>
+      <div class="text-xs text-slate-400">Responsable del deal (user_id en Odoo)</div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 bg-slate-50">
+            <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Closer</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Leads Asignados</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Won</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Win Rate</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Revenue Won</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% allClosers.forEach(function(c) { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50">
+            <td class="px-5 py-3 font-semibold text-slate-800"><%= c.name %></td>
+            <td class="px-5 py-3 text-right text-slate-700 font-medium"><%= c.leads %></td>
+            <td class="px-5 py-3 text-right font-bold text-green-700"><%= c.won %></td>
+            <td class="px-5 py-3 text-right">
+              <span class="px-2 py-0.5 rounded-full text-xs font-bold <%= c.winPct >= 50 ? 'bg-green-100 text-green-700' : c.winPct >= 30 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700' %>">
+                <%= c.winPct %>%
+              </span>
+            </td>
+            <td class="px-5 py-3 text-right font-bold text-slate-800"><%= c.revenueFmt %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <% } %>
+
+  <% } /* end if allHunters.length > 0 */ %>
+
+</div><!-- /tab-hunters -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TAB 4: TENDENCIA
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-tendencia" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <% var trendData = crm.trendData || []; %>
+  <% var bestWonMonth = trendData.reduce(function(best, m){ return m.won > (best ? best.won : 0) ? m : best; }, null); %>
+  <% var totalCreated12 = trendData.reduce(function(s,m){ return s + m.created; }, 0); %>
+  <% var totalWon12 = trendData.reduce(function(s,m){ return s + m.won; }, 0); %>
+  <% var totalRev12 = trendData.reduce(function(s,m){ return s + m.revenue; }, 0); %>
+  <% var rev12Fmt = totalRev12 >= 1e9 ? ('\u20b2' + (totalRev12/1e9).toFixed(1) + 'B') : totalRev12 >= 1e6 ? ('\u20b2' + Math.round(totalRev12/1e6) + 'M') : ('\u20b2' + Math.round(totalRev12).toLocaleString('es-PY')); %>
+
+  <%# Trend KPI row %>
+  <div class="grid grid-cols-3 gap-4">
+    <div class="bg-white rounded-xl border border-slate-200 p-4 text-center">
+      <div class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Leads creados (12m)</div>
+      <div class="text-3xl font-black text-slate-800"><%= totalCreated12 %></div>
+    </div>
+    <div class="bg-white rounded-xl border border-green-200 p-4 text-center">
+      <div class="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">Won (12m)</div>
+      <div class="text-3xl font-black text-green-700"><%= totalWon12 %></div>
+    </div>
+    <div class="bg-white rounded-xl border border-amber-200 p-4 text-center">
+      <div class="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1">Revenue Won (12m)</div>
+      <div class="text-2xl font-black text-amber-700"><%= rev12Fmt %></div>
+    </div>
+  </div>
+
+  <%# Volume trend chart %>
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="font-bold text-slate-800 text-sm mb-0.5">Volumen Mensual — Últimos 12 Meses</div>
+    <div class="text-xs text-slate-400 mb-4">Oportunidades creadas &middot; Ganadas &middot; Perdidas</div>
+    <canvas id="trendVolumeChart" height="120"></canvas>
+  </div>
+
+  <%# Revenue trend chart %>
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="font-bold text-slate-800 text-sm mb-0.5">Revenue Won Mensual</div>
+    <div class="text-xs text-slate-400 mb-4">Revenue acumulado en deals ganados por mes de cierre</div>
+    <canvas id="trendRevenueChart" height="120"></canvas>
+  </div>
+
+  <%# Month-by-month table %>
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-100">
+      <div class="font-bold text-slate-800 text-sm">Detalle Mensual</div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-100 bg-slate-50">
+            <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Mes</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Creados</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Won</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Lost</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Win Rate</th>
+            <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Revenue Won</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% trendData.slice().reverse().forEach(function(m) {
+               var wr = (m.won + m.lost) > 0 ? Math.round(m.won / (m.won + m.lost) * 100) : null;
+               var revFmt = m.revenue >= 1e9 ? ('\u20b2' + (m.revenue/1e9).toFixed(1) + 'B') :
+                            m.revenue >= 1e6 ? ('\u20b2' + Math.round(m.revenue/1e6) + 'M') :
+                            m.revenue > 0    ? ('\u20b2' + Math.round(m.revenue).toLocaleString('es-PY')) : '—';
+               var isBest = bestWonMonth && m.month === bestWonMonth.month && m.won > 0;
+             %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 <%= isBest ? 'bg-green-50' : '' %>">
+            <td class="px-5 py-2.5 font-semibold text-slate-700">
+              <%= m.label %>
+              <% if (isBest) { %><span class="ml-1 text-xs text-green-600">★ mejor</span><% } %>
+            </td>
+            <td class="px-5 py-2.5 text-right text-slate-600"><%= m.created || '—' %></td>
+            <td class="px-5 py-2.5 text-right font-bold text-green-700"><%= m.won || '—' %></td>
+            <td class="px-5 py-2.5 text-right text-red-500"><%= m.lost || '—' %></td>
+            <td class="px-5 py-2.5 text-right">
+              <% if (wr !== null) { %>
+              <span class="text-xs font-bold <%= wr >= 50 ? 'text-green-700' : wr >= 30 ? 'text-amber-600' : 'text-red-600' %>"><%= wr %>%</span>
+              <% } else { %><span class="text-slate-300">—</span><% } %>
+            </td>
+            <td class="px-5 py-2.5 text-right font-bold text-amber-700"><%= revFmt %></td>
+          </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /tab-tendencia -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     TAB 5: FUENTES
+══════════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-fuentes" class="hidden max-w-7xl mx-auto px-4 py-6 space-y-6">
+
+  <% var allSources = crm.bySource || []; %>
+
+  <% if (allSources.length === 0) { %>
+  <div class="bg-white rounded-xl border border-slate-200 p-12 text-center">
+    <div class="text-4xl mb-3">🗂️</div>
+    <div class="text-slate-500 font-medium">Sin datos de origen para los filtros seleccionados</div>
+  </div>
+  <% } else { %>
+
+  <%# Chart + top sources row %>
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+    <%# Doughnut chart %>
+    <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 flex flex-col">
+      <div class="font-bold text-slate-800 text-sm mb-0.5">Distribución por Origen</div>
+      <div class="text-xs text-slate-400 mb-4">% de oportunidades totales</div>
+      <div class="flex-1 flex items-center justify-center">
+        <canvas id="sourceDoughnut" style="max-height:280px"></canvas>
+      </div>
+    </div>
+
+    <%# Source table (right side) %>
+    <div class="lg:col-span-3 bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-100">
+        <div class="font-bold text-slate-800 text-sm">Análisis por Canal</div>
+        <div class="text-xs text-slate-400">Conversion rate · Revenue por fuente</div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-slate-100 bg-slate-50">
+              <th class="px-4 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Origen</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Activos</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Won</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Conv.</th>
+              <th class="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Revenue Won</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% allSources.slice(0, 12).forEach(function(s) { %>
+            <tr class="border-b border-slate-50 hover:bg-slate-50">
+              <td class="px-4 py-2.5 font-medium text-slate-700 truncate max-w-xs"><%= s.name %></td>
+              <td class="px-4 py-2.5 text-right text-slate-700 font-medium"><%= s.count %></td>
+              <td class="px-4 py-2.5 text-right text-blue-600"><%= s.active %></td>
+              <td class="px-4 py-2.5 text-right font-bold text-green-700"><%= s.won %></td>
+              <td class="px-4 py-2.5 text-right">
+                <% if ((s.won + s.lost) > 0) { %>
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold <%= s.winPct >= 50 ? 'bg-green-100 text-green-700' : s.winPct >= 30 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700' %>">
+                  <%= s.winPct %>%
+                </span>
+                <% } else { %><span class="text-slate-300 text-xs">—</span><% } %>
+              </td>
+              <td class="px-4 py-2.5 text-right text-xs font-bold text-slate-800"><%= s.revenue > 0 ? s.revenueFmt : '—' %></td>
+            </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <%# Source bars visualization %>
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="font-bold text-slate-800 text-sm mb-0.5">Leads por Canal</div>
+    <div class="text-xs text-slate-400 mb-5">Volumen total de oportunidades generadas por fuente</div>
+    <% var maxSrcCount = allSources[0] ? allSources[0].count : 1; %>
+    <div class="space-y-2.5">
+    <% allSources.slice(0, 12).forEach(function(s) {
+         var pct = Math.max(2, Math.round(s.count / maxSrcCount * 100));
+         var wonPct2 = s.count > 0 ? Math.round(s.won / s.count * 100) : 0;
+       %>
+      <div>
+        <div class="flex items-center justify-between mb-0.5">
+          <span class="text-xs font-medium text-slate-700 truncate" style="max-width:55%"><%= s.name %></span>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span><%= s.count %> leads</span>
+            <% if (s.won > 0) { %><span class="text-green-600 font-semibold"><%= s.won %> won</span><% } %>
+          </div>
+        </div>
+        <div class="w-full bg-slate-100 rounded-full h-2 relative">
+          <div class="bg-indigo-400 h-2 rounded-full absolute top-0 left-0" style="width:<%= pct %>%"></div>
+          <% if (wonPct2 > 0) { %>
+          <div class="bg-green-500 h-2 rounded-full absolute top-0 left-0" style="width:<%= Math.max(1, Math.round(wonPct2 * pct / 100)) %>%"></div>
+          <% } %>
+        </div>
+      </div>
+    <% }); %>
+    </div>
+    <div class="mt-3 flex items-center gap-4 text-xs text-slate-400">
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span>Total leads</span>
+      <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>Won</span>
+    </div>
+  </div>
+
+  <% } /* end if allSources.length > 0 */ %>
+
+</div><!-- /tab-fuentes -->
+
+
+<!-- ── Hidden chart data ──────────────────────────────────────────────────── -->
+<script id="crmChartData" type="application/json"><%- crmJSON %></script>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────────────
+const CRM = JSON.parse(document.getElementById('crmChartData').textContent);
+const COLORS = ['#3b82f6','#6366f1','#14b8a6','#f59e0b','#8b5cf6','#ec4899','#06b6d4','#f97316','#10b981','#ef4444'];
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('[id^="tab-"]:not([id^="tab-btn-"])')
+    .forEach(el => el.classList.add('hidden'));
+  document.querySelectorAll('[id^="tab-btn-"]')
+    .forEach(el => el.classList.remove('active'));
+  const panel = document.getElementById('tab-' + name);
+  const btn   = document.getElementById('tab-btn-' + name);
+  if (panel) panel.classList.remove('hidden');
+  if (btn)   btn.classList.add('active');
+  // Keep hidden form input in sync so filters preserve tab
+  const inp = document.getElementById('hiddenTab');
+  if (inp) inp.value = name;
+}
+
+// ── Chart helpers ─────────────────────────────────────────────────────────────
+function fmtGsJS(n) {
+  if (!n || n === 0) return '₲ 0';
+  if (n >= 1e9) return '₲ ' + (n / 1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return '₲ ' + Math.round(n / 1e6) + 'M';
+  return '₲ ' + Math.round(n).toLocaleString('es-PY');
+}
+
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: true,
+  plugins: { legend: { labels: { font: { family: 'Inter', size: 11 }, boxWidth: 12, padding: 12 } } },
+};
+
+// ── Hunters bar chart ─────────────────────────────────────────────────────────
+function initHunterCharts() {
+  const hunters = (CRM.byHunter || []).filter(h => h.name !== 'Sin Hunter').slice(0, 10);
+  if (!hunters.length) return;
+
+  const labels = hunters.map(h => h.name.split(' ')[0]);
+
+  new Chart(document.getElementById('huntersBarChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Leads', data: hunters.map(h => h.leads), backgroundColor: '#93c5fd', borderRadius: 4 },
+        { label: 'Won',   data: hunters.map(h => h.won),   backgroundColor: '#34d399', borderRadius: 4 },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+    },
+  });
+
+  new Chart(document.getElementById('huntersRevenueChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Revenue Won',
+        data: hunters.map(h => h.revenue || 0),
+        backgroundColor: hunters.map((_, i) => COLORS[i % COLORS.length] + 'cc'),
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtGsJS(ctx.raw) } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v >= 1e6 ? Math.round(v/1e6)+'M' : v } } },
+    },
+  });
+}
+
+// ── Trend charts ──────────────────────────────────────────────────────────────
+function initTrendCharts() {
+  const trend = CRM.trendData || [];
+  if (!trend.length) return;
+
+  const labels  = trend.map(m => m.label);
+  const created = trend.map(m => m.created);
+  const won     = trend.map(m => m.won);
+  const lost    = trend.map(m => m.lost);
+  const revenue = trend.map(m => m.revenue || 0);
+
+  new Chart(document.getElementById('trendVolumeChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Creados', data: created, backgroundColor: '#93c5fd', borderRadius: 3 },
+        { label: 'Won',     data: won,     backgroundColor: '#34d399', borderRadius: 3 },
+        { label: 'Lost',    data: lost,    backgroundColor: '#fca5a5', borderRadius: 3 },
+      ],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: { x: { stacked: false }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+    },
+  });
+
+  new Chart(document.getElementById('trendRevenueChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Revenue Won',
+        data: revenue,
+        backgroundColor: '#fbbf24',
+        borderRadius: 4,
+        type: 'bar',
+      }],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => fmtGsJS(ctx.raw) } } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v >= 1e6 ? Math.round(v/1e6)+'M' : v } } },
+    },
+  });
+}
+
+// ── Sources doughnut ──────────────────────────────────────────────────────────
+function initSourceChart() {
+  const sources = (CRM.bySource || []).slice(0, 8);
+  if (!sources.length) return;
+
+  new Chart(document.getElementById('sourceDoughnut'), {
+    type: 'doughnut',
+    data: {
+      labels: sources.map(s => s.name),
+      datasets: [{
+        data:            sources.map(s => s.count),
+        backgroundColor: sources.map((_, i) => COLORS[i % COLORS.length]),
+        borderWidth:     2,
+        borderColor:     '#fff',
+      }],
+    },
+    options: {
+      ...CHART_DEFAULTS,
+      cutout: '62%',
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 }, boxWidth: 10, padding: 8 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.raw} leads` } },
+      },
+    },
+  });
+}
+
+// ── Init all on load ──────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  switchTab('<%= activeTab %>');
+  initHunterCharts();
+  initTrendCharts();
+  initSourceChart();
+});
+</script>
+
+</body>
+</html>

@@ -60,6 +60,7 @@ app.use('/auth', require('../routes/auth'));
 const equipoRoutes    = require('../routes/equipo');
 const finanzasRoutes  = require('../routes/finanzas');
 const ejecutivoRoutes = require('../routes/ejecutivo');
+const crmRoutes       = require('../routes/crm');
 const apiRoutes       = require('../routes/api');
 const adminRoutes     = require('../routes/admin');
 
@@ -71,6 +72,9 @@ app.use('/finanzas',  requireView('finanzas'),  finanzasRoutes);
 
 // /ejecutivo — directors and admins
 app.use('/ejecutivo', requireView('ejecutivo'), ejecutivoRoutes);
+
+// /crm — directors and admins
+app.use('/crm',       requireView('crm'),       crmRoutes);
 
 // /api — authenticated only
 app.use('/api', requireAuth, apiRoutes);
@@ -94,6 +98,10 @@ app.get('/', requireAuth, (req, res) => {
     dashboards.push({ id: 'ejecutivo', name: 'Vista Ejecutiva',
       description: 'KPIs del directorio: ingresos, margen, utilización, CXC y salud de proyectos',
       icon: '🎯', color: '#8B5CF6', href: '/ejecutivo', status: 'active' });
+  if (hasViewAccess(req.user, 'crm'))
+    dashboards.push({ id: 'crm', name: 'CRM',
+      description: 'Pipeline, win rate, hunters, tendencia mensual y análisis de fuentes',
+      icon: '💼', color: '#D97706', href: '/crm', status: 'active' });
   if (hasViewAccess(req.user, 'admin'))
     dashboards.push({ id: 'admin', name: 'Administración',
       description: 'Gestión de usuarios, roles y permisos de acceso',
