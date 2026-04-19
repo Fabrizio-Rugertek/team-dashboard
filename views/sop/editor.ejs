@@ -240,6 +240,15 @@
               <input type="number" id="ed-col" class="ed-input" min="1" oninput="updateSelectedStep('col', parseInt(this.value)||1)">
             </div>
             <div>
+              <label class="ed-label">Tipo de paso (forma)</label>
+              <select id="ed-shape" class="ed-input" onchange="updateSelectedStep('shape', this.value || undefined)">
+                <option value="">Tarea estándar</option>
+                <option value="start">● Inicio (oval)</option>
+                <option value="end">■ Fin (oval doble)</option>
+                <option value="decision">◆ Decisión / Gateway</option>
+              </select>
+            </div>
+            <div>
               <label class="ed-label">Descripción</label>
               <textarea id="ed-desc" class="ed-textarea" rows="4" oninput="updateSelectedStep('description', this.value)"></textarea>
             </div>
@@ -388,6 +397,11 @@ function edgePath(fromStep, toStep) {
   const y1 = cardCy(fromStep.lane);
   const x2 = cardLeft(toStep.col);
   const y2 = cardCy(toStep.lane);
+  // Backward / loop edge — arc above the canvas
+  if (x2 < x1 - 20) {
+    const arcY = Math.min(cardTop(fromStep.lane), cardTop(toStep.lane)) - 72;
+    return `M ${x1} ${y1} C ${x1+100} ${arcY} ${x2-100} ${arcY} ${x2} ${y2}`;
+  }
   if (fromStep.lane === toStep.lane) return `M ${x1} ${y1} L ${x2} ${y2}`;
   // Extended control points ensure horizontal entry/exit even for adjacent columns
   const hGap = x2 - x1;
@@ -443,6 +457,9 @@ function renderCanvas(data, containerId, editable) {
     <marker id="${editable?'ed':'ai'}arrowParallel" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
       <path d="M0,0 L0,6 L8,3 z" fill="#94A3B8"/>
     </marker>
+    <marker id="${editable?'ed':'ai'}arrowLoop" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#8B5CF6"/>
+    </marker>
   </defs>`;
 
   data.edges.forEach(edge => {
@@ -455,6 +472,8 @@ function renderCanvas(data, containerId, editable) {
       html += `<path d="${d}" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" marker-end="url(#${prefix}arrowHandoff)"/>`;
     } else if (edge.type === 'parallel') {
       html += `<path d="${d}" fill="none" stroke="#94A3B8" stroke-width="1.5" stroke-dasharray="6,3" opacity="0.75" marker-end="url(#${prefix}arrowParallel)"/>`;
+    } else if (edge.type === 'loop') {
+      html += `<path d="${d}" fill="none" stroke="#8B5CF6" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.6" marker-end="url(#${prefix}arrowLoop)"/>`;
     } else {
       html += `<path d="${d}" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="4 6" marker-end="url(#${prefix}arrowNormal)"/>`;
     }
@@ -534,6 +553,7 @@ function renderSidebar() {
   document.getElementById('ed-sublabel').value = step.sublabel || '';
   document.getElementById('ed-desc').value     = step.description || '';
   document.getElementById('ed-col').value      = step.col;
+  document.getElementById('ed-shape').value    = step.shape || '';
 
   // Populate lane select
   const laneSelect = document.getElementById('ed-lane');
@@ -681,6 +701,7 @@ function renderEdgeManager() {
         <option value="normal"   ${edge.type==='normal'  ?'selected':''}>normal</option>
         <option value="handoff"  ${edge.type==='handoff' ?'selected':''}>handoff</option>
         <option value="parallel" ${edge.type==='parallel'?'selected':''}>paralelo</option>
+        <option value="loop"     ${edge.type==='loop'    ?'selected':''}>loop ↺</option>
       </select>
       <button onclick="deleteEdge(${i})" class="text-red-300 hover:text-red-600 text-sm flex-shrink-0 ml-1">&#x2715;</button>
     </div>`;
