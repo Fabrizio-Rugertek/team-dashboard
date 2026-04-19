@@ -110,6 +110,37 @@
     if (!_egGroups[cat]) _egGroups[cat] = [];
     _egGroups[cat].push(row);
   }
+
+  // ── P&L completo ─────────────────────────────────────────────────────────
+  const eerrResult = totalIngRev - totalIngCost - totalEgCost;
+  const eerrResultPct = totalIngRev > 0 ? Math.round(eerrResult / totalIngRev * 100) : 0;
+
+  // Period payroll to subtract (year-to-date from contracts)
+  const nominaYTD = payroll.totalPayroll || 0;
+  const netEstimado = eerrResult - nominaYTD;
+  const netEstimadoPct = totalIngRev > 0 ? Math.round(netEstimado / totalIngRev * 100) : 0;
+
+  // Month labels for cashflow projection
+  const MONTH_LABELS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  // Next 3 months cashflow projection from payroll
+  const _today3 = new Date();
+  const nextMonthsPayroll = [];
+  for (let i = 0; i < 3; i++) {
+    const _d = new Date(_today3.getFullYear(), _today3.getMonth() + i, 1);
+    const _ms = _d.getFullYear() + '-' + String(_d.getMonth()+1).padStart(2,'0');
+    const _pm = (payroll.monthlyPayroll || []).find(m => m.month === _ms);
+    nextMonthsPayroll.push({
+      month: _ms,
+      label: MONTH_LABELS[_d.getMonth()] + ' ' + String(_d.getFullYear()).slice(2),
+      salary: _pm ? _pm.amount : (payroll.curPayroll || 0),
+      count: _pm ? _pm.activeCount : payroll.contractCount,
+    });
+  }
+
+  // Pipeline inflows: confirmed (sent) quotes as expected future cash
+  const pipelineSent = pipeline.totalSent || 0;
+  const pipelineDraft = pipeline.totalDraft || 0;
 %>
 
 <!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
@@ -225,7 +256,7 @@
 <!-- ── KPI Cards (always visible) ────────────────────────────────────────── -->
 <div class="bg-white border-b border-slate-200">
   <div class="max-w-7xl mx-auto px-4 py-4">
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-9 gap-3">
 
       <!-- Ingresos YTD -->
       <div class="xl:col-span-1 bg-slate-50 rounded-xl border border-slate-200 p-4">
@@ -250,12 +281,21 @@
       </div>
 
       <!-- Margen de contribución -->
-      <div class="bg-slate-50 rounded-xl border-2 <%= totalIngMgn >= 0 ? 'border-emerald-300' : 'border-red-300' %> p-4">
-        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Margen</div>
+      <div class="bg-slate-50 rounded-xl border border-slate-200 p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">Margen Contrib.</div>
         <div class="text-xl font-black <%= totalIngMgn >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
           <%= totalIngMgnPct %>%
         </div>
         <div class="text-[11px] mt-1 font-semibold text-slate-500"><%- amt(totalIngMgn) %></div>
+      </div>
+
+      <!-- Resultado EERR (ingresos - todos los costos registrados) -->
+      <div class="bg-slate-50 rounded-xl border-2 <%= eerrResult >= 0 ? 'border-emerald-400' : 'border-red-400' %> p-4 cursor-pointer hover:opacity-90" onclick="switchTab('eerr')">
+        <div class="text-[10px] font-bold <%= eerrResult >= 0 ? 'text-emerald-600' : 'text-red-600' %> uppercase tracking-wide mb-1">Resultado EERR</div>
+        <div class="text-xl font-black <%= eerrResult >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
+          <%= eerrResultPct >= 0 ? '+' : '' %><%= eerrResultPct %>%
+        </div>
+        <div class="text-[11px] mt-1 font-semibold <%= eerrResult >= 0 ? 'text-emerald-700' : 'text-red-600' %>"><%- amt(eerrResult) %></div>
       </div>
 
       <!-- Egresos indirectos -->
@@ -359,6 +399,83 @@
     </div>
   </div>
   <% } %>
+
+  <!-- ── P&L cascade — ¿Ganamos? ───────────────────────────────────────────── -->
+  <div class="bg-white rounded-xl border-2 <%= eerrResult >= 0 ? 'border-emerald-200' : 'border-red-200' %> p-5">
+    <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+      <div>
+        <h2 class="text-base font-bold text-slate-800">Estado de Resultados simplificado — <%= year %></h2>
+        <p class="text-xs text-slate-400 mt-0.5">Ingresos y costos registrados en Odoo · nómina estimada desde contratos vigentes</p>
+      </div>
+      <div class="flex items-center gap-2 px-4 py-2 rounded-xl <%= netEstimado >= 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-red-50 border border-red-200' %>">
+        <span class="text-xl"><%= netEstimado >= 0 ? '✅' : '🔴' %></span>
+        <div>
+          <div class="text-[11px] font-bold <%= netEstimado >= 0 ? 'text-emerald-700' : 'text-red-700' %> uppercase tracking-wide"><%= netEstimado >= 0 ? 'Resultado positivo' : 'Resultado negativo' %></div>
+          <div class="text-lg font-black <%= netEstimado >= 0 ? 'text-emerald-700' : 'text-red-600' %>"><%- amt(netEstimado) %></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Waterfall rows -->
+    <div class="space-y-1 text-sm max-w-2xl">
+      <!-- Ingresos -->
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-100">
+        <span class="font-semibold text-slate-700 flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Ingresos facturados
+        </span>
+        <span class="font-black text-emerald-700"><%- amt(totalIngRev) %></span>
+      </div>
+      <!-- Costos directos -->
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 pl-4">
+        <span class="text-slate-600 flex items-center gap-2">
+          <span class="text-red-400">−</span> Costos directos (atribuidos a proyectos)
+        </span>
+        <span class="font-semibold text-red-600"><%- amt(-totalIngCost) %></span>
+      </div>
+      <!-- Margen de contribución -->
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-200 bg-slate-50 px-3 rounded-lg">
+        <span class="font-bold text-slate-800">= Margen de contribución</span>
+        <span class="font-black <%= totalIngMgn >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
+          <%- amt(totalIngMgn) %> <span class="text-xs font-semibold ml-1">(<%= totalIngMgnPct %>%)</span>
+        </span>
+      </div>
+      <!-- Egresos indirectos -->
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 pl-4">
+        <span class="text-slate-600 flex items-center gap-2">
+          <span class="text-red-400">−</span> Egresos indirectos (gastos generales, proveedores)
+        </span>
+        <span class="font-semibold text-red-600"><%- amt(-totalEgCost) %></span>
+      </div>
+      <!-- Resultado EERR -->
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-200 bg-slate-50 px-3 rounded-lg">
+        <span class="font-bold text-slate-800">= Resultado EERR (Odoo)</span>
+        <span class="font-black <%= eerrResult >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
+          <%- amt(eerrResult) %> <span class="text-xs font-semibold ml-1">(<%= eerrResultPct %>%)</span>
+        </span>
+      </div>
+      <!-- Nómina comprometida -->
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 pl-4">
+        <span class="text-slate-600 flex items-center gap-2">
+          <span class="text-orange-400">−</span>
+          Nómina estimada (<%= payroll.contractCount %> contratos vigentes)
+          <span class="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">no en Odoo</span>
+        </span>
+        <span class="font-semibold text-orange-600"><%- amt(-nominaYTD) %></span>
+      </div>
+      <!-- Resultado final estimado -->
+      <div class="flex items-center justify-between py-3 px-3 rounded-xl mt-1 <%= netEstimado >= 0 ? 'bg-emerald-50 border-2 border-emerald-300' : 'bg-red-50 border-2 border-red-300' %>">
+        <span class="font-extrabold text-slate-900 text-base">= Resultado estimado</span>
+        <div class="text-right">
+          <div class="font-black text-xl <%= netEstimado >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
+            <%- amt(netEstimado) %>
+          </div>
+          <div class="text-[11px] font-bold <%= netEstimado >= 0 ? 'text-emerald-600' : 'text-red-500' %>">
+            <%= netEstimadoPct %>% del ingreso
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Monthly chart + Revenue donut side by side -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1524,6 +1641,137 @@
         <div class="mt-3 space-y-1 text-xs">
           <div class="flex justify-between text-emerald-600"><span>Entradas</span><span class="font-semibold"><%- amt(inf) %></span></div>
           <div class="flex justify-between text-orange-600"><span>Salidas</span><span class="font-semibold"><%- amt(out) %></span></div>
+          <div class="border-t border-slate-200 pt-1 flex justify-between font-bold <%= net >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
+            <span>Neto</span><span><%- amt(net) %></span>
+          </div>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+
+  <!-- Pipeline — Ingresos esperados (cotizaciones) -->
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center gap-3 mb-4 flex-wrap">
+      <h3 class="text-sm font-bold text-slate-800">Ingresos Esperados — Cotizaciones en Curso</h3>
+      <span class="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded-full"><%= pipeline.count %> cotizaciones activas</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+      <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div class="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">Enviadas (confirmadas)</div>
+        <div class="text-xl font-black text-blue-700"><%- amt(pipelineSent) %></div>
+        <div class="text-[11px] text-blue-500 mt-1"><%= pipeline.countSent %> cotizaciones · alta probabilidad</div>
+      </div>
+      <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1">En Borrador</div>
+        <div class="text-xl font-black text-slate-700"><%- amt(pipelineDraft) %></div>
+        <div class="text-[11px] text-slate-400 mt-1"><%= pipeline.countDraft %> cotizaciones · pendiente de envío</div>
+      </div>
+      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+        <div class="text-[10px] font-bold text-emerald-600 uppercase tracking-wide mb-1">Total Pipeline</div>
+        <div class="text-xl font-black text-emerald-700"><%- amt(pipeline.total) %></div>
+        <div class="text-[11px] text-emerald-600 mt-1">Si se confirman y facturan</div>
+      </div>
+    </div>
+    <!-- Top pipeline items -->
+    <% if (pipeline.items.length > 0) { %>
+    <div class="overflow-x-auto" style="max-height:200px;overflow-y:auto">
+      <table class="w-full text-xs">
+        <thead class="sticky top-0 bg-white border-b border-slate-100">
+          <tr>
+            <th class="text-left py-2 px-3 font-semibold text-slate-500">Cliente</th>
+            <th class="text-left py-2 px-3 font-semibold text-slate-500">Cotización</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-500">Estado</th>
+            <th class="text-right py-2 px-3 font-semibold text-slate-500">Monto</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pipeline.items.slice(0,10).forEach(function(o) { %>
+          <tr class="border-b border-slate-50 hover:bg-slate-50">
+            <td class="px-3 py-2 font-medium text-slate-700 truncate max-w-[150px]"><%= o.partner %></td>
+            <td class="px-3 py-2 text-slate-500"><%= o.name %></td>
+            <td class="px-3 py-2 text-center">
+              <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold <%= o.state === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500' %>">
+                <%= o.state === 'sent' ? 'Enviada' : 'Borrador' %>
+              </span>
+            </td>
+            <td class="px-3 py-2 text-right font-bold text-slate-900"><%- amt(o.amount) %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Nómina comprometida — próximos 3 meses -->
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <div class="flex items-center gap-3 mb-4 flex-wrap">
+      <h3 class="text-sm font-bold text-slate-800">Salidas Comprometidas — Nómina Próximos 3 Meses</h3>
+      <span class="text-xs font-semibold bg-orange-100 text-orange-700 px-2 py-1 rounded-full"><%= payroll.contractCount %> contratos vigentes</span>
+    </div>
+    <div class="grid grid-cols-3 gap-4 mb-5">
+      <% nextMonthsPayroll.forEach(function(m, idx) { %>
+      <div class="<%= idx === 0 ? 'bg-orange-50 border-2 border-orange-300' : 'bg-slate-50 border border-slate-200' %> rounded-xl p-4 text-center">
+        <div class="text-[10px] font-bold <%= idx === 0 ? 'text-orange-600' : 'text-slate-500' %> uppercase tracking-wide mb-1">
+          <%= m.label %><%= idx === 0 ? ' (este mes)' : '' %>
+        </div>
+        <div class="text-xl font-black <%= idx === 0 ? 'text-orange-700' : 'text-slate-700' %>"><%- amt(m.salary) %></div>
+        <div class="text-[11px] <%= idx === 0 ? 'text-orange-500' : 'text-slate-400' %> mt-1"><%= m.count %> empleados</div>
+      </div>
+      <% }) %>
+    </div>
+
+    <!-- Employee breakdown -->
+    <% if (payroll.byEmployee && payroll.byEmployee.length > 0) { %>
+    <div class="overflow-x-auto" style="max-height:200px;overflow-y:auto">
+      <table class="w-full text-xs">
+        <thead class="sticky top-0 bg-white border-b border-slate-100">
+          <tr>
+            <th class="text-left py-2 px-3 font-semibold text-slate-500">Empleado</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-500">Estado</th>
+            <th class="text-center py-2 px-3 font-semibold text-slate-500">Inicio</th>
+            <th class="text-right py-2 px-3 font-semibold text-slate-500">Salario/mes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% payroll.byEmployee.forEach(function(e) { %>
+          <tr class="border-b border-slate-50 hover:bg-orange-50/30">
+            <td class="px-3 py-2 font-medium text-slate-700"><%= e.name %></td>
+            <td class="px-3 py-2 text-center">
+              <span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold <%= e.state === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>">
+                <%= e.state === 'open' ? 'Vigente' : 'Borrador' %>
+              </span>
+            </td>
+            <td class="px-3 py-2 text-center text-slate-400"><%= e.dateStart || '—' %></td>
+            <td class="px-3 py-2 text-right font-black text-slate-900"><%- amt(e.wage) %></td>
+          </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+
+  <!-- Posición de caja estimada mes a mes -->
+  <div class="bg-white rounded-xl border border-slate-200 p-5">
+    <h3 class="text-sm font-bold text-slate-800 mb-4">Posición de Caja Estimada — Próximos 3 Meses</h3>
+    <p class="text-xs text-slate-400 mb-4">CXC cobrable + cotizaciones enviadas vs CXP a pagar + nómina comprometida</p>
+    <div class="grid grid-cols-3 gap-4">
+      <% nextMonthsPayroll.forEach(function(m, idx) {
+        const inflow  = idx === 0 ? cashInflow.d30  : idx === 1 ? cashInflow.d60  : cashInflow.d90;
+        const cxpOut  = idx === 0 ? cashOutflow.d30 : idx === 1 ? cashOutflow.d60 : cashOutflow.d90;
+        const payOut  = m.salary;
+        const totalOut = cxpOut + payOut;
+        const net = inflow - totalOut;
+      %>
+      <div class="rounded-xl border-2 <%= net >= 0 ? 'border-emerald-300 bg-emerald-50' : 'border-red-300 bg-red-50' %> p-4">
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2"><%= m.label %></div>
+        <div class="text-2xl font-black mb-3 <%= net >= 0 ? 'text-emerald-700' : 'text-red-600' %>"><%- amt(net) %></div>
+        <div class="space-y-1 text-xs">
+          <div class="flex justify-between text-emerald-700"><span>+ CXC a cobrar</span><span class="font-semibold"><%- amt(inflow) %></span></div>
+          <div class="flex justify-between text-slate-500"><span>− CXP a pagar</span><span class="font-semibold"><%- amt(-cxpOut) %></span></div>
+          <div class="flex justify-between text-orange-600"><span>− Nómina</span><span class="font-semibold"><%- amt(-payOut) %></span></div>
           <div class="border-t border-slate-200 pt-1 flex justify-between font-bold <%= net >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
             <span>Neto</span><span><%- amt(net) %></span>
           </div>
