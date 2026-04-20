@@ -520,6 +520,24 @@ function computeDashboard(raw, filters = {}) {
     });
   }
 
+  // ── Build leaveByEmpId for anomaly detection (mirror of buildLoggingControl) ─
+  const leaveByEmpId = new Map();
+  for (const leave of leaves) {
+    const empId = leave.employee_id?.[0];
+    if (!empId) continue;
+    if (!leaveByEmpId.has(empId)) leaveByEmpId.set(empId, new Set());
+    const leaveDates = leaveByEmpId.get(empId);
+    const fromStr = (leave.date_from || '').slice(0, 10);
+    const toStr   = (leave.date_to   || '').slice(0, 10);
+    if (!fromStr || !toStr) continue;
+    let cursor = fromDateOnly(fromStr);
+    const end  = fromDateOnly(toStr);
+    while (cursor <= end) {
+      leaveDates.add(toDateOnly(cursor));
+      cursor = addDays(cursor, 1);
+    }
+  }
+
   // ── Anomaly detection ─────────────────────────────────────────────────────
   const anomalies = [];
 

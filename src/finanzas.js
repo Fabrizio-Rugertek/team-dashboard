@@ -686,7 +686,7 @@ async function fetchCRMPipeline() {
       ['company_id', '=',  TORUS_COMPANY_ID],
     ]], {
       fields: ['name', 'partner_id', 'stage_id', 'expected_revenue', 'probability',
-               'user_id', 'date_deadline', 'create_date', 'planned_revenue'],
+               'user_id', 'date_deadline', 'create_date'],
       limit: 200,
     });
 
@@ -695,7 +695,7 @@ async function fetchCRMPipeline() {
     const today = new Date().toISOString().slice(0, 10);
 
     const items = leads.map(l => {
-      const expected = l.expected_revenue || l.planned_revenue || 0;
+      const expected = l.expected_revenue || 0;
       const weighted = Math.round(expected * (l.probability || 0) / 100);
       const stageName = l.stage_id?.[1] || 'Sin etapa';
       const agedays = l.create_date ? Math.floor((new Date(today) - new Date(l.create_date.slice(0,10))) / 86400000) : 0;
