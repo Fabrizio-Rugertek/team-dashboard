@@ -541,6 +541,43 @@
     </div>
   </div>
 
+  <!-- SO Budget Rules -->
+  <div class="ref-section-header mt-8 mb-0">
+    <h2>Reglas de Presupuestos (SO)</h2>
+    <div class="ref-section-divider"></div>
+  </div>
+  <% if (pageData.soRules) { %>
+  <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mt-4 flex gap-3 items-start">
+    <span class="text-xl flex-shrink-0">⚠️</span>
+    <p class="text-sm font-bold text-amber-800"><%= pageData.soRules.alert %></p>
+  </div>
+  <div class="grid gap-3 mt-4">
+    <% pageData.soRules.rules.forEach(r => { %>
+    <div class="bg-white border border-slate-200 rounded-xl p-4 flex gap-3">
+      <span class="text-xl flex-shrink-0"><%= r.icon %></span>
+      <div>
+        <div class="text-sm font-extrabold text-slate-900"><%= r.label %></div>
+        <div class="text-xs text-slate-500 mt-0.5 leading-relaxed"><%= r.text %></div>
+      </div>
+    </div>
+    <% }) %>
+  </div>
+  <div class="bg-white border border-slate-200 rounded-2xl p-5 mt-4">
+    <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Checklist antes de confirmar SO</div>
+    <div class="space-y-2">
+      <% pageData.soRules.checklist.forEach(item => { %>
+      <div class="flex items-start gap-2">
+        <div class="w-4 h-4 rounded border-2 border-green-400 flex-shrink-0 mt-0.5 flex items-center justify-center" style="background:#F0FDF4">
+          <svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1.5 4L3 5.5L6.5 2" stroke="#22C55E" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <span class="text-sm text-slate-700"><%= item %></span>
+      </div>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+
+
 <% } %>
 
 </div><!-- /main content -->

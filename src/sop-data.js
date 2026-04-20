@@ -1274,14 +1274,14 @@ const REFERENCE_PAGES = {
         category: 'Implementación Odoo',
         color: '#8B5CF6',
         items: [
-          { code: 'CORE', name: 'Core Administrativo',    when: 'Siempre. Base operativa: contabilidad, facturación, compras, ventas, inventario.',      billing: 'Monto fijo', crossSell: ['LOC', 'MAINT'] },
+          { code: 'CORE', name: 'Core Administrativo',    when: 'Siempre. Base operativa: contabilidad, facturación, compras, ventas, inventario.',      billing: 'Monto fijo', crossSell: ['LOC', 'SUPP'] },
           { code: 'LOC',  name: 'Localización Paraguay',  when: 'Siempre que el cliente opere en PY. Impuestos, SIFEN, documentos fiscales locales.',    billing: 'Incluido en CORE o separado', crossSell: ['CORE'] },
-          { code: 'CDEV', name: 'Desarrollo a Medida',    when: 'El estándar Odoo no cubre el req. o se necesitan integraciones/automatizaciones.',       billing: 'Monto fijo por desarrollo', crossSell: ['MAINT', 'HOURS'] },
-          { code: 'SALES',name: 'Ventas & CRM',           when: 'Alcance incluye frente comercial.',                                                        billing: 'Incluido en implementación', crossSell: ['PROJ', 'MAINT'] },
-          { code: 'SCM',  name: 'Supply Chain',           when: 'Alcance incluye operación, abastecimiento o logística.',                                   billing: 'Incluido en implementación', crossSell: ['CORE', 'MAINT'] },
-          { code: 'HR',   name: 'Recursos Humanos',       when: 'Alcance incluye procesos de personas.',                                                    billing: 'Incluido en implementación', crossSell: ['CORE', 'MAINT'] },
-          { code: 'PROJ', name: 'Proyectos & Servicios',  when: 'Alcance incluye delivery o servicios postventa.',                                          billing: 'Incluido en implementación', crossSell: ['MAINT', 'HOURS'] },
-          { code: 'WEB',  name: 'Web & eCommerce',        when: 'Alcance incluye presencia digital o canal online.',                                        billing: 'Monto fijo por implementación', crossSell: ['MAINT'] },
+          { code: 'CDEV', name: 'Desarrollo a Medida',    when: 'El estándar Odoo no cubre el req. o se necesitan integraciones/automatizaciones.',       billing: 'Monto fijo por desarrollo', crossSell: ['SUPP', 'HOURS'] },
+          { code: 'SALES',name: 'Ventas & CRM',           when: 'Alcance incluye frente comercial.',                                                        billing: 'Incluido en implementación', crossSell: ['PROJ', 'SUPP'] },
+          { code: 'SCM',  name: 'Supply Chain',           when: 'Alcance incluye operación, abastecimiento o logística.',                                   billing: 'Incluido en implementación', crossSell: ['CORE', 'SUPP'] },
+          { code: 'HR',   name: 'Recursos Humanos',       when: 'Alcance incluye procesos de personas.',                                                    billing: 'Incluido en implementación', crossSell: ['CORE', 'SUPP'] },
+          { code: 'PROJ', name: 'Proyectos & Servicios',  when: 'Alcance incluye delivery o servicios postventa.',                                          billing: 'Incluido en implementación', crossSell: ['SUPP', 'HOURS'] },
+          { code: 'WEB',  name: 'Web & eCommerce',        when: 'Alcance incluye presencia digital o canal online.',                                        billing: 'Monto fijo por implementación', crossSell: ['SUPP'] },
         ],
       },
       {
@@ -1289,8 +1289,8 @@ const REFERENCE_PAGES = {
         color: '#10B981',
         items: [
           { code: 'MAINT', name: 'Soporte y Mantenimiento', when: 'Post go-live o clientes con continuidad operativa.',                                   billing: 'Mensual fijo, tope de horas', crossSell: ['HOURS', 'CDEV'] },
-          { code: 'HOURS', name: 'Bolsa de Horas',           when: 'Soporte puntual, ajustes, demanda variable. Saldo arrastrable 2 meses.',              billing: 'Pack prepago mensual', crossSell: ['MAINT'] },
-          { code: 'HOURLY',name: 'Servicio por Hora',        when: 'Por horas efectivamente trabajadas, sin pack cerrado.',                               billing: 'Mensual variable por consumo', crossSell: ['MAINT', 'HOURS'] },
+          { code: 'HOURS', name: 'Bolsa de Horas',           when: 'Soporte puntual, ajustes, demanda variable. Saldo arrastrable 2 meses.',              billing: 'Pack prepago mensual', crossSell: ['SUPP'] },
+          { code: 'HOURLY',name: 'Servicio por Hora',        when: 'Por horas efectivamente trabajadas, sin pack cerrado.',                               billing: 'Mensual variable por consumo', crossSell: ['SUPP', 'HOURS'] },
         ],
       },
       {
@@ -1315,6 +1315,23 @@ const REFERENCE_PAGES = {
       downPayment: '25%',
       currency: 'PYG',
       trialExtension: 'M241203194687082',
+    },
+    soRules: {
+      title: 'Reglas de Creación de Presupuestos (SO)',
+      alert: 'Cada línea con producto en el SO crea un proyecto en Odoo. Máximo una línea por código de producto.',
+      rules: [
+        { icon: '🚫', label: 'Sin [MOD] legacy',      text: 'Usar solo los nuevos códigos: [CORE], [LOC], [SALES], [SCM], [HR], [PROJ], [CDEV], [SUPP], [HOURS].'},
+        { icon: '1️⃣',  label: 'Una línea por producto', text: 'Consolidar horas de módulos en una sola línea por código. Si [SALES] cubre CRM + Ventas → 1 línea [SALES] con el total.'},
+        { icon: '📝', label: 'Separar fases con texto', text: 'Usar líneas sin producto (qty=0) como encabezados de sección. No crean proyecto.'},
+        { icon: '💰', label: 'Precio vía API',          text: 'Al cambiar product_id con XML-RPC: siempre incluir price_unit en el mismo write() o Odoo lo pisa con el list_price.'},
+      ],
+      checklist: [
+        'Sin filas duplicadas con el mismo producto',
+        'Precio USD 35/h en todas las líneas de implementación',
+        '[HOURS] Bolsa de Horas siempre antes del [SUPP]',
+        'Descuento por relevamiento previo: línea con precio negativo',
+        'Condiciones de pago: 25% down, hasta 12 cuotas',
+      ],
     },
   },
 };
@@ -1360,7 +1377,7 @@ const ENCYCLOPEDIA = {
       icon: '📦',
       description: 'Líneas de servicio, condiciones comerciales y árbol de decisión',
       processes: [
-        { id: 'catalogo-torus',    name: 'Productos Torus',    description: 'CORE, LOC, SALES, SCM, HR, PROJ, WEB, MAINT, HOURS — cuándo ofrecer cada uno y condiciones.', steps: null, status: 'reference' },
+        { id: 'catalogo-torus',    name: 'Productos Torus',    description: 'CORE, LOC, SALES, SCM, HR, PROJ, WEB, SUPP, HOURS — cuándo ofrecer cada uno y condiciones.', steps: null, status: 'reference' },
         { id: 'catalogo-rugertek', name: 'Productos RügerTek', description: 'AUG, DEDICATED, CDEV, WEB, HOURLY, MAINT — árbol de decisión comercial y tarifas.', steps: null, status: 'planned' },
       ],
     },
