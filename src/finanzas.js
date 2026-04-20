@@ -943,11 +943,196 @@ async function fetchPayroll(year, opts = {}) {
   return result;
 }
 
+// ── Cobranzas del mes (estado de cobro por cliente en el mes actual) ──────────
+const _cobranzasCache = { data: null, time: 0 };
+
+async function fetchCobranzasMes() {
+  const now = Date.now();
+  if (_cobranzasCache.data && now - _cobranzasCache.time < 15 * 60 * 1000) return _cobranzasCache.data;
+
+  const today   = new Date();
+  const msStart = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-01`;
+  const msEnd   = today.toISOString().slice(0, 10);
+
+  // Posted + draft customer invoices for the current month
+  const moves = await callKw('account.move', 'search_read', [[
+    ['move_type',    '=',  'out_invoice'],
+    ['state',        'in', ['posted', 'draft']],
+    ['invoice_date', '>=', msStart],
+    ['invoice_date', '<=', msEnd],
+    ['company_id',   '=',  TORUS_COMPANY_ID],
+  ]], {
+    fields: ['id', 'name', 'partner_id', 'invoice_date', 'invoice_date_due',
+             'amount_total_signed', 'amount_residual_signed', 'payment_state', 'state'],
+    order: 'invoice_date asc',
+    limit: 500,
+  });
+
+  const byClient = {};
+  let totalBilled = 0, totalCollected = 0, totalPending = 0;
+
+  for (const m of moves) {
+    const pid  = m.partner_id?.[0];
+    const name = m.partner_id?.[1] || 'Sin cliente';
+    if (!pid) continue;
+
+    const total     = Math.abs(m.amount_total_signed    || 0);
+    const residual  = Math.abs(m.amount_residual_signed || 0);
+    const collected = Math.max(0, total - residual);
+
+    if (!byClient[pid]) byClient[pid] = { id: pid, name, invoices: [], billed: 0, collected: 0, pending: 0 };
+    byClient[pid].invoices.push({
+      name: m.name, date: m.invoice_date, dueDate: m.invoice_date_due,
+      total, residual, collected, paymentState: m.payment_state, state: m.state,
+    });
+
+    if (m.state === 'posted') {
+      byClient[pid].billed    += total;
+      byClient[pid].collected += collected;
+      byClient[pid].pending   += residual;
+      totalBilled    += total;
+      totalCollected += collected;
+      totalPending   += residual;
+    }
+  }
+
+  const clients = Object.values(byClient).map(c => ({
+    ...c,
+    pctCollected: c.billed > 0 ? Math.round(c.collected / c.billed * 100) : 0,
+    status: (c.pending === 0 && c.billed > 0) ? 'paid'
+          : (c.collected > 0)                  ? 'partial'
+          : (c.billed > 0)                     ? 'unpaid'
+          : 'draft',
+  })).sort((a, b) => b.pending - a.pending || b.billed - a.billed);
+
+  const pctCollected = totalBilled > 0 ? Math.round(totalCollected / totalBilled * 100) : 0;
+
+  const data = {
+    month: msStart.slice(0, 7),
+    monthLabel: MONTH_LABELS[today.getMonth()] + ' ' + today.getFullYear(),
+    clients, totalBilled, totalCollected, totalPending, pctCollected,
+    paidCount:      clients.filter(c => c.status === 'paid').length,
+    partialCount:   clients.filter(c => c.status === 'partial').length,
+    unpaidCount:    clients.filter(c => c.status === 'unpaid').length,
+    draftOnlyCount: clients.filter(c => c.status === 'draft').length,
+  };
+  _cobranzasCache.data = data;
+  _cobranzasCache.time = Date.now();
+  console.log(`[Finanzas] cobranzas mes=${data.month} billed=${totalBilled.toLocaleString()} pct=${pctCollected}%`);
+  return data;
+}
+
+// ── CXC por Orden de Venta ────────────────────────────────────────────────────
+const _soInvCache = { data: null, time: 0 };
+
+async function fetchCXCporSO() {
+  const now = Date.now();
+  if (_soInvCache.data && now - _soInvCache.time < 15 * 60 * 1000) return _soInvCache.data;
+
+  const orders = await callKw('sale.order', 'search_read', [[
+    ['state',          'in', ['sale', 'done']],
+    ['company_id',     '=',  TORUS_COMPANY_ID],
+    ['invoice_status', 'in', ['to invoice', 'invoiced', 'partial']],
+  ]], {
+    fields: ['id', 'name', 'partner_id', 'amount_total', 'invoice_status',
+             'date_order', 'invoice_ids', 'user_id'],
+    order: 'date_order desc',
+    limit: 200,
+  });
+
+  if (!orders.length) {
+    const empty = { orders: [], total: 0, totalPending: 0, count: 0, draftSOCount: 0 };
+    _soInvCache.data = empty; _soInvCache.time = Date.now();
+    return empty;
+  }
+
+  // Batch-fetch all linked invoices in one query
+  const allInvIds = [...new Set(orders.flatMap(o => o.invoice_ids || []))];
+  const invoiceMap = {};
+  if (allInvIds.length) {
+    const invoices = await callKw('account.move', 'search_read', [[
+      ['id',        'in', allInvIds],
+      ['move_type', '=',  'out_invoice'],
+    ]], {
+      fields: ['id', 'name', 'state', 'payment_state', 'invoice_date', 'invoice_date_due',
+               'amount_total_signed', 'amount_residual_signed'],
+      limit: 1000,
+    });
+    for (const inv of invoices) invoiceMap[inv.id] = inv;
+  }
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  const rows = orders.map(o => {
+    const invs     = (o.invoice_ids || []).map(id => invoiceMap[id]).filter(Boolean);
+    const posted   = invs.filter(i => i.state === 'posted');
+    const drafts   = invs.filter(i => i.state === 'draft');
+    const invTotal     = posted.reduce((s, i) => s + Math.abs(i.amount_total_signed    || 0), 0);
+    const invPending   = posted.reduce((s, i) => s + Math.abs(i.amount_residual_signed || 0), 0);
+    const invCollected = Math.max(0, invTotal - invPending);
+
+    const nextDue = posted
+      .filter(i => (i.payment_state === 'not_paid' || i.payment_state === 'partial') && i.invoice_date_due)
+      .map(i => i.invoice_date_due)
+      .sort()[0] || null;
+
+    const isOverdue = !!(nextDue && nextDue < todayStr);
+
+    let status;
+    if (isOverdue)                                       status = 'overdue';
+    else if (drafts.length > 0 && posted.length === 0)  status = 'draft';
+    else if (o.invoice_status === 'to invoice')          status = 'to_invoice';
+    else if (invPending === 0 && invTotal > 0)           status = 'paid';
+    else if (invCollected > 0)                           status = 'partial';
+    else                                                 status = 'unpaid';
+
+    return {
+      id: o.id, name: o.name,
+      partner:      o.partner_id?.[1] || '?',
+      user:         o.user_id?.[1]    || '?',
+      soAmount:     Math.round(o.amount_total || 0),
+      invoiceStatus: o.invoice_status,
+      dateOrder:    o.date_order?.slice(0, 10),
+      invTotal:     Math.round(invTotal),
+      invPending:   Math.round(invPending),
+      invCollected: Math.round(invCollected),
+      draftCount:   drafts.length,
+      postedCount:  posted.length,
+      nextDue, isOverdue, status,
+      invoices: invs.map(i => ({
+        id: i.id, name: i.name, state: i.state,
+        paymentState: i.payment_state,
+        date:     i.invoice_date,
+        dueDate:  i.invoice_date_due,
+        total:    Math.round(Math.abs(i.amount_total_signed    || 0)),
+        residual: Math.round(Math.abs(i.amount_residual_signed || 0)),
+      })),
+    };
+  });
+
+  const totalSO      = rows.reduce((s, r) => s + r.soAmount,    0);
+  const totalPending = rows.reduce((s, r) => s + r.invPending,  0);
+  const draftSOCount = rows.filter(r => r.draftCount > 0).length;
+
+  const data = {
+    orders: rows,
+    total:        Math.round(totalSO),
+    totalPending: Math.round(totalPending),
+    count:        rows.length,
+    draftSOCount,
+  };
+  _soInvCache.data = data;
+  _soInvCache.time = Date.now();
+  console.log(`[Finanzas] cxc-SO count=${rows.length} pending=${totalPending.toLocaleString()} drafts=${draftSOCount}`);
+  return data;
+}
+
 module.exports = {
   fetchFinancialData, fetchCXC, fetchCXP,
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
   fetchClientProfitability, fetchYoY, fetchExchangeRate,
   fetchDataQualityAlerts, fetchPayroll,
+  fetchCobranzasMes, fetchCXCporSO,
 };
 
 // ── Project Revenue Forecast ─────────────────────────────────────────────

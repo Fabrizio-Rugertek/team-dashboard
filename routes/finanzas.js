@@ -7,6 +7,7 @@ const {
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
   fetchClientProfitability, fetchYoY, fetchExchangeRate,
   fetchDataQualityAlerts, fetchPayroll, fetchProjectForecast,
+  fetchCobranzasMes, fetchCXCporSO,
 } = require('../src/finanzas');
 
 router.get('/', async (req, res) => {
@@ -24,7 +25,7 @@ router.get('/', async (req, res) => {
     const year = (from ? parseInt(from.slice(0, 4)) : baseYear);
     const activeFilters = { year, from: from || null, to: to || null, period: period || null };
 
-    const [fin, cxc, cxp, pipeline, closingRate, crm, clients, yoy, usdRate, dqAlerts, payroll] = await Promise.all([
+    const [fin, cxc, cxp, pipeline, closingRate, crm, clients, yoy, usdRate, dqAlerts, payroll, cobranzas, cxcSO] = await Promise.all([
       fetchFinancialData(year, { from, to }),
       fetchCXC(),
       fetchCXP(),
@@ -36,6 +37,8 @@ router.get('/', async (req, res) => {
       fetchExchangeRate(),
       fetchDataQualityAlerts(year, { from, to }),
       fetchPayroll(year, { from, to }),
+      fetchCobranzasMes(),
+      fetchCXCporSO(),
     ]);
 
     const projectForecast = await fetchProjectForecast(usdRate);
@@ -53,10 +56,14 @@ router.get('/', async (req, res) => {
       crm,
       clients,
       yoy,
-      cxcItemsJson: JSON.stringify(cxc.items || []),
+      cxcItemsJson:    JSON.stringify(cxc.items       || []),
+      cobranzasJson:   JSON.stringify(cobranzas        || {}),
+      cxcSOJson:       JSON.stringify(cxcSO?.orders    || []),
       usdRate,
       dqAlerts,
       payroll,
+      cobranzas,
+      cxcSO,
       projectForecast,
       lastUpdate: new Date().toLocaleString('es-PY', { dateStyle: 'medium', timeStyle: 'short' }),
     });
