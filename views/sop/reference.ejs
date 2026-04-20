@@ -575,6 +575,30 @@
       <% }) %>
     </div>
   </div>
+  <% if (pageData.analyticRules) { %>
+  <div class="mt-6">
+    <div class="text-base font-bold text-slate-900 mb-1"><%= pageData.analyticRules.title %></div>
+    <div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 mt-2 flex gap-3 items-start">
+      <span class="text-xl flex-shrink-0">📊</span>
+      <p class="text-sm font-bold text-blue-800"><%= pageData.analyticRules.alert %></p>
+    </div>
+    <div class="grid gap-2 mt-4">
+      <% pageData.analyticRules.plans.forEach(p => { %>
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <div class="text-sm font-extrabold text-slate-900"><%= p.plan %></div>
+        <div class="text-xs text-slate-500 mt-0.5"><%= p.desc %></div>
+      </div>
+      <% }) %>
+    </div>
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-3">
+      <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Como funciona Plan 1</div>
+      <p class="text-xs text-slate-600 leading-relaxed"><%= pageData.analyticRules.howPlan1Works %></p>
+    </div>
+    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 mt-2">
+      <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2">Logica de matching</div>
+      <p class="text-xs text-slate-600 leading-relaxed"><%= pageData.analyticRules.matchLogic %></p>
+    </div>
+  </div>
   <% } %>
 
 
