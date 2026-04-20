@@ -7,7 +7,7 @@ const {
   fetchPipeline, fetchClosingRate, fetchCRMPipeline,
   fetchClientProfitability, fetchYoY, fetchExchangeRate,
   fetchDataQualityAlerts, fetchPayroll, fetchProjectForecast,
-  fetchCobranzasMes, fetchCXCporSO,
+  fetchCobranzasMes, fetchCXCporSO, fetchDrilldown,
 } = require('../src/finanzas');
 
 router.get('/', async (req, res) => {
@@ -70,6 +70,19 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('[finanzas]', err.message, err.stack);
     res.status(500).render('error', { message: 'Error cargando finanzas: ' + err.message });
+  }
+});
+
+// ── Drill-down API ─────────────────────────────────────────────────────────
+router.get('/drilldown', async (req, res) => {
+  try {
+    const { type, id, year, month } = req.query;
+    if (!type) return res.status(400).json({ error: 'type required' });
+    const result = await fetchDrilldown({ type, id, year, month });
+    res.json(result);
+  } catch (err) {
+    console.error('[finanzas/drilldown]', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

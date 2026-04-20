@@ -191,20 +191,21 @@ async function fetchFinancialData(year, opts = {}) {
 
   // Helper: classify all analytic IDs in a distribution
   function _classifyDist(dist) {
-    let projName = null, projId = null, svcName = null;
-    if (!dist) return { projName, projId, svcName };
+    let projName = null, projId = null, svcName = null, svcId = null;
+    if (!dist) return { projName, projId, svcName, svcId };
     for (const [idStr] of Object.entries(dist)) {
       const id = parseInt(idStr);
       if (PLAN2_IDS.has(id)) continue;                        // obsolete — skip
       if (PLAN3_SERVICE_IDS.has(id)) {
         svcName = analyticById[id] || `Servicio ${id}`;       // Plan 3 service line
+        svcId   = id;
       } else if (!PLAN3_COST_IDS.has(id)) {
         projName = analyticById[id] || `Proyecto ${id}`;      // Plan 1 project account
         projId   = id;
       }
       // PLAN3_COST_IDS → internal cost centers, not used in revenue lines
     }
-    return { projName, projId, svcName };
+    return { projName, projId, svcName, svcId };
   }
 
   for (const l of allLines) {
@@ -230,7 +231,7 @@ async function fetchFinancialData(year, opts = {}) {
     }
 
     // Classify analytic accounts
-    const { projName, projId, svcName } = _classifyDist(l.analytic_distribution);
+    const { projName, projId, svcName, svcId } = _classifyDist(l.analytic_distribution);
 
     if (isRev) {
       // ── Revenue: group by Plan 1 project ─────────────────────────────────
@@ -241,7 +242,7 @@ async function fetchFinancialData(year, opts = {}) {
 
       // ── Revenue: group by Plan 3 service line ─────────────────────────────
       const sk = svcName || (projName ? 'Sin línea de servicio' : 'Sin clasificar');
-      if (!byService[sk]) byService[sk] = { revByMonth: {}, totalRev: 0 };
+      if (!byService[sk]) byService[sk] = { revByMonth: {}, totalRev: 0, accountId: svcId || null };
       byService[sk].revByMonth[month] = (byService[sk].revByMonth[month] || 0) + amount;
       byService[sk].totalRev += amount;
     } else {
@@ -345,6 +346,7 @@ async function fetchFinancialData(year, opts = {}) {
   const serviceRows = Object.entries(byService)
     .map(([name, d]) => ({
       name,
+      accountId: d.accountId || null,
       totalRevenue: Math.round(d.totalRev),
       untagged: name === 'Sin línea de servicio' || name === 'Sin clasificar',
       months: months.map(m => ({
@@ -1177,3 +1179,149 @@ async function fetchProjectForecast(usdRate) {
 }
 
 module.exports.fetchProjectForecast = fetchProjectForecast;
+
+// ── Drill-down: return invoice list for a given dimension ─────────────────
+// type: 'account' (analytic account id) | 'client' (partner id) | 'month' (YYYY-MM)
+async function fetchDrilldown({ type, id, year, month } = {}) {
+  try {
+    const y    = parseInt(year) || new Date().getFullYear();
+    const from = `${y}-01-01`;
+    const to   = `${y}-12-31`;
+
+    let domain;
+
+    if (type === 'account') {
+      // Pull all posted out_invoices for the year and filter by analytic account in JS
+      // (Odoo's JSON field doesn't support key-existence domain in all versions)
+      const accountId = parseInt(id);
+      const moves = await callKw('account.move', 'search_read', [[
+        ['move_type',    'in', ['out_invoice', 'out_refund']],
+        ['state',        '=',  'posted'],
+        ['invoice_date', '>=', from],
+        ['invoice_date', '<=', to],
+        ['company_id',   '=',  TORUS_COMPANY_ID],
+      ]], {
+        fields: ['id', 'name', 'invoice_date', 'partner_id', 'amount_untaxed', 'amount_total', 'payment_state'],
+        limit: 2000,
+      });
+
+      if (!moves.length) return { items: [], total: 0 };
+      const moveIds = moves.map(m => m.id);
+      const moveById = new Map(moves.map(m => [m.id, m]));
+
+      // Get lines with analytic_distribution
+      const lines = await callKw('account.move.line', 'search_read', [[
+        ['move_id', 'in', moveIds],
+        ['analytic_distribution', '!=', false],
+      ]], {
+        fields: ['move_id', 'analytic_distribution', 'credit'],
+        limit: 10000,
+      });
+
+      // Find move IDs that have this account in their distribution
+      const matchedMoveIds = new Set();
+      const amountByMove = {};
+      for (const l of lines) {
+        const dist = l.analytic_distribution;
+        if (dist && String(accountId) in dist) {
+          const mid = l.move_id?.[0];
+          if (mid) {
+            matchedMoveIds.add(mid);
+            amountByMove[mid] = (amountByMove[mid] || 0) + (l.credit || 0);
+          }
+        }
+      }
+
+      const items = [...matchedMoveIds].map(mid => {
+        const m = moveById.get(mid);
+        if (!m) return null;
+        return {
+          id:           m.id,
+          name:         m.name,
+          date:         m.invoice_date,
+          partner:      m.partner_id?.[1] || '—',
+          amountLine:   Math.round(amountByMove[mid] || 0),
+          amountTotal:  Math.round(m.amount_untaxed || 0),
+          paymentState: m.payment_state,
+        };
+      }).filter(Boolean).sort((a, b) => b.date.localeCompare(a.date));
+
+      const total = items.reduce((s, i) => s + i.amountLine, 0);
+      return { items, total };
+
+    } else if (type === 'client') {
+      const partnerId = parseInt(id);
+      domain = [
+        ['move_type',    'in', ['out_invoice', 'out_refund']],
+        ['state',        '=',  'posted'],
+        ['invoice_date', '>=', from],
+        ['invoice_date', '<=', to],
+        ['company_id',   '=',  TORUS_COMPANY_ID],
+        ['partner_id',   '=',  partnerId],
+      ];
+
+      const moves = await callKw('account.move', 'search_read', [domain], {
+        fields: ['id', 'name', 'invoice_date', 'partner_id', 'amount_untaxed', 'amount_total', 'payment_state'],
+        order: 'invoice_date desc',
+        limit: 200,
+      });
+
+      const items = moves.map(m => ({
+        id:           m.id,
+        name:         m.name,
+        date:         m.invoice_date,
+        partner:      m.partner_id?.[1] || '—',
+        amountLine:   Math.round(m.amount_untaxed || 0),
+        amountTotal:  Math.round(m.amount_untaxed || 0),
+        paymentState: m.payment_state,
+      }));
+
+      const total = items.reduce((s, i) => s + i.amountLine, 0);
+      return { items, total };
+
+    } else if (type === 'month') {
+      // month param is YYYY-MM
+      const ms = month || `${y}-01`;
+      const [my, mm] = ms.split('-').map(Number);
+      const lastDay = new Date(my, mm, 0).getDate();
+      const mFrom = `${my}-${pad(mm)}-01`;
+      const mTo   = `${my}-${pad(mm)}-${pad(lastDay)}`;
+
+      domain = [
+        ['move_type',    'in', ['out_invoice', 'out_refund']],
+        ['state',        '=',  'posted'],
+        ['invoice_date', '>=', mFrom],
+        ['invoice_date', '<=', mTo],
+        ['company_id',   '=',  TORUS_COMPANY_ID],
+      ];
+
+      const moves = await callKw('account.move', 'search_read', [domain], {
+        fields: ['id', 'name', 'invoice_date', 'partner_id', 'amount_untaxed', 'amount_total', 'payment_state'],
+        order: 'invoice_date desc',
+        limit: 500,
+      });
+
+      const items = moves.map(m => ({
+        id:           m.id,
+        name:         m.name,
+        date:         m.invoice_date,
+        partner:      m.partner_id?.[1] || '—',
+        amountLine:   Math.round(m.amount_untaxed || 0),
+        amountTotal:  Math.round(m.amount_untaxed || 0),
+        paymentState: m.payment_state,
+      }));
+
+      const total = items.reduce((s, i) => s + i.amountLine, 0);
+      return { items, total };
+
+    }
+
+    return { items: [], total: 0 };
+
+  } catch (e) {
+    console.error('[Finanzas] fetchDrilldown:', e.message);
+    return { items: [], total: 0, error: e.message };
+  }
+}
+
+module.exports.fetchDrilldown = fetchDrilldown;

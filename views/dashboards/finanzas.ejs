@@ -419,36 +419,44 @@
     <!-- Waterfall rows -->
     <div class="space-y-1 text-sm max-w-2xl">
       <!-- Ingresos -->
-      <div class="flex items-center justify-between py-2.5 border-b border-slate-100">
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 cursor-pointer hover:bg-slate-50 rounded px-2 -mx-2 transition"
+           onclick="switchTab('eerr')" title="Ver detalle por cuenta analítica">
         <span class="font-semibold text-slate-700 flex items-center gap-2">
           <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Ingresos facturados
+          <span class="text-blue-400 text-[10px]">→ EERR</span>
         </span>
         <span class="font-black text-emerald-700"><%- amt(totalIngRev) %></span>
       </div>
       <!-- Costos directos -->
-      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 pl-4">
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 pl-4 cursor-pointer hover:bg-slate-50 rounded px-2 -mx-2 transition"
+           onclick="switchTab('eerr')" title="Ver detalle de costos">
         <span class="text-slate-600 flex items-center gap-2">
           <span class="text-red-400">−</span> Costos directos (atribuidos a proyectos)
+          <span class="text-blue-400 text-[10px]">→ EERR</span>
         </span>
         <span class="font-semibold text-red-600"><%- amt(-totalIngCost) %></span>
       </div>
       <!-- Margen de contribución -->
-      <div class="flex items-center justify-between py-2.5 border-b border-slate-200 bg-slate-50 px-3 rounded-lg">
-        <span class="font-bold text-slate-800">= Margen de contribución</span>
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-200 bg-slate-50 px-3 rounded-lg cursor-pointer hover:bg-slate-100 transition"
+           onclick="switchTab('margenes')" title="Ver margen por mes">
+        <span class="font-bold text-slate-800 flex items-center gap-2">= Margen de contribución <span class="text-blue-400 text-[10px]">→ Márgenes</span></span>
         <span class="font-black <%= totalIngMgn >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
           <%- amt(totalIngMgn) %> <span class="text-xs font-semibold ml-1">(<%= totalIngMgnPct %>%)</span>
         </span>
       </div>
       <!-- Egresos indirectos -->
-      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 pl-4">
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-100 pl-4 cursor-pointer hover:bg-slate-50 rounded px-2 -mx-2 transition"
+           onclick="switchTab('eerr')" title="Ver egresos indirectos">
         <span class="text-slate-600 flex items-center gap-2">
           <span class="text-red-400">−</span> Egresos indirectos (gastos generales, proveedores)
+          <span class="text-blue-400 text-[10px]">→ EERR</span>
         </span>
         <span class="font-semibold text-red-600"><%- amt(-totalEgCost) %></span>
       </div>
       <!-- Resultado EERR -->
-      <div class="flex items-center justify-between py-2.5 border-b border-slate-200 bg-slate-50 px-3 rounded-lg">
-        <span class="font-bold text-slate-800">= Resultado EERR (Odoo)</span>
+      <div class="flex items-center justify-between py-2.5 border-b border-slate-200 bg-slate-50 px-3 rounded-lg cursor-pointer hover:bg-slate-100 transition"
+           onclick="switchTab('clientes')" title="Ver rentabilidad por cliente">
+        <span class="font-bold text-slate-800 flex items-center gap-2">= Resultado EERR (Odoo) <span class="text-blue-400 text-[10px]">→ Clientes</span></span>
         <span class="font-black <%= eerrResult >= 0 ? 'text-emerald-700' : 'text-red-600' %>">
           <%- amt(eerrResult) %> <span class="text-xs font-semibold ml-1">(<%= eerrResultPct %>%)</span>
         </span>
@@ -526,8 +534,11 @@
         </thead>
         <tbody>
           <% ingRows.slice(0, 8).forEach(row => { %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50">
-            <td class="py-2 px-3 font-medium text-slate-700 truncate max-w-[192px]" title="<%= row.name %>"><%= row.name %></td>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition"
+              <% if (row.accountId) { %>onclick="openDrill('account',<%- row.accountId %>,'<%= row.name.replace(/'/g,"\\'") %>')"<% } %>>
+            <td class="py-2 px-3 font-medium text-slate-700 truncate max-w-[192px]" title="<%= row.name %>">
+              <%= row.name %><% if (row.accountId) { %> <span class="text-blue-400 text-[9px]">▶</span><% } %>
+            </td>
             <td class="py-2 px-2 text-right">
               <span class="font-bold <%= row.marginPct >= 50 ? 'text-emerald-600' : row.marginPct >= 25 ? 'text-blue-500' : row.marginPct >= 0 ? 'text-amber-600' : 'text-red-500' %>">
                 <%= row.marginPct %>%
@@ -536,10 +547,10 @@
             <% row.months.forEach(m => {
               const mp = (m.revenue > 0) ? Math.round((m.revenue - m.cost) / m.revenue * 100) : null;
             %>
-            <td class="py-2 px-1.5 text-center">
+            <td class="py-2 px-1.5 text-center" onclick="event.stopPropagation(); openDrill('month',null,'<%= m.label %>','<%= m.month %>')">
               <% if (mp !== null) { %>
-              <span class="inline-block px-1 py-0.5 rounded text-[10px] font-bold
-                <%= mp >= 50 ? 'bg-emerald-100 text-emerald-700' : mp >= 25 ? 'bg-blue-100 text-blue-700' : mp >= 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600' %>">
+              <span class="inline-block px-1 py-0.5 rounded text-[10px] font-bold cursor-pointer
+                <%= mp >= 50 ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : mp >= 25 ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : mp >= 0 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-red-100 text-red-600 hover:bg-red-200' %>">
                 <%= mp %>%
               </span>
               <% } else { %><span class="text-slate-200">—</span><% } %>
@@ -676,8 +687,12 @@
                   : '<span class="ml-1 px-1 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-600">Opex</span>')
               : '';
           %>
-          <tr class="<%= gId %>-row hidden border-b border-slate-50 hover:bg-slate-50 transition">
-            <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs"><%= row.name %><%- costBadge %></td>
+          <tr class="<%= gId %>-row hidden border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition"
+              <% if (row.accountId) { %>onclick="openDrill('account',<%- row.accountId %>,'<%= row.name.replace(/'/g,"\\'") %>')"<% } %>>
+            <td class="pl-9 pr-3 py-2 text-slate-700 sticky left-0 bg-white z-10 text-xs flex items-center gap-1">
+              <%= row.name %><%- costBadge %>
+              <% if (row.accountId) { %><span class="text-blue-400 ml-1 text-[9px]">▶ ver facturas</span><% } %>
+            </td>
             <td class="text-right px-3 py-2 text-emerald-700 text-xs"><%-  amtC(row.totalRevenue) %></td>
             <td class="text-right px-3 py-2 text-red-600 text-xs"><%-  row.totalCost > 0 ? amtC(row.totalCost) : '—' %></td>
             <td class="text-right px-3 py-2 text-xs <%= mClass %>"><%-  amtC(row.margin) %></td>
@@ -818,9 +833,12 @@
           const barW = Math.max(0, Math.min(100, row.marginPct));
           const barColor = row.marginPct >= 50 ? 'bg-emerald-500' : row.marginPct >= 25 ? 'bg-blue-500' : row.marginPct >= 0 ? 'bg-amber-400' : 'bg-red-500';
         %>
-        <div>
+        <div class="<% if (row.accountId) { %>cursor-pointer hover:bg-slate-50 rounded px-1 -mx-1 py-0.5<% } %>"
+             <% if (row.accountId) { %>onclick="openDrill('account',<%- row.accountId %>,'<%= row.name.replace(/'/g,"\\'") %>')"<% } %>>
           <div class="flex items-center justify-between mb-1">
-            <span class="text-xs font-medium text-slate-700 truncate max-w-[200px]" title="<%= row.name %>"><%= row.name %></span>
+            <span class="text-xs font-medium text-slate-700 truncate max-w-[200px]" title="<%= row.name %>">
+              <%= row.name %><% if (row.accountId) { %> <span class="text-blue-400 text-[9px]">▶</span><% } %>
+            </span>
             <div class="flex items-center gap-3 shrink-0 ml-2">
               <span class="text-xs text-slate-400"><%-  amtC(row.totalRevenue) %></span>
               <span class="text-xs font-bold <%= row.marginPct >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%= row.marginPct %>%</span>
@@ -1631,9 +1649,10 @@
         </thead>
         <tbody id="clientTableBody">
           <% clients.clients.forEach(function(c, i) { %>
-          <tr class="client-row border-b border-slate-50 hover:bg-slate-50 transition" data-name="<%= c.name.toLowerCase() %>">
+          <tr class="client-row border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition" data-name="<%= c.name.toLowerCase() %>"
+              onclick="openDrill('client',<%- c.id %>,'<%= c.name.replace(/'/g,"\\'") %>')">
             <td class="px-5 py-2.5 text-slate-400 font-bold"><%= i+1 %></td>
-            <td class="px-4 py-2.5 font-semibold text-slate-800"><%= c.name %></td>
+            <td class="px-4 py-2.5 font-semibold text-slate-800"><%= c.name %> <span class="text-blue-400 text-[9px]">▶</span></td>
             <td class="px-4 py-2.5 text-right font-bold text-emerald-700"><%- amt(c.revenue) %></td>
             <td class="px-4 py-2.5 text-right">
               <div class="flex items-center justify-end gap-2">
@@ -1819,8 +1838,11 @@
         </thead>
         <tbody>
           <% (svcLines.length > 0 ? svcLines : ingRows).forEach(function(row) { %>
-          <tr class="svc-row border-b border-slate-50 hover:bg-slate-50 transition" data-name="<%= row.name.toLowerCase() %>">
-            <td class="px-5 py-2.5 font-semibold text-slate-800"><%= row.name %></td>
+          <tr class="svc-row border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition" data-name="<%= row.name.toLowerCase() %>"
+              <% if (row.accountId) { %>onclick="openDrill('account',<%- row.accountId %>,'<%= row.name.replace(/'/g,"\\'") %>')"<% } %>>
+            <td class="px-5 py-2.5 font-semibold text-slate-800">
+              <%= row.name %><% if (row.accountId) { %> <span class="text-blue-400 text-[9px]">▶</span><% } %>
+            </td>
             <td class="px-4 py-2.5 text-right text-emerald-700 font-bold"><%- amt(row.totalRevenue) %></td>
             <td class="px-4 py-2.5 text-right text-red-600"><%- row.totalCost > 0 ? amt(row.totalCost) : '—' %></td>
             <td class="px-4 py-2.5 text-right font-bold <%= row.margin >= 0 ? 'text-emerald-600' : 'text-red-500' %>"><%- amt(row.margin) %></td>
@@ -1868,8 +1890,11 @@
         </thead>
         <tbody>
           <% projRows.forEach(function(row) { %>
-          <tr class="border-b border-slate-50 hover:bg-slate-50 transition">
-            <td class="px-5 py-2 font-medium text-slate-700 max-w-xs truncate" title="<%= row.name %>"><%= row.name %></td>
+          <tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition"
+              <% if (row.accountId) { %>onclick="openDrill('account',<%- row.accountId %>,'<%= row.name.replace(/'/g,"\\'") %>')"<% } %>>
+            <td class="px-5 py-2 font-medium text-slate-700 max-w-xs truncate" title="<%= row.name %>">
+              <%= row.name %><% if (row.accountId) { %> <span class="text-blue-400 text-[9px]">▶</span><% } %>
+            </td>
             <td class="px-4 py-2 text-right text-emerald-700 font-semibold"><%- amt(row.totalRevenue) %></td>
             <td class="px-4 py-2 text-right text-red-600"><%- row.totalCost > 0 ? amt(row.totalCost) : '—' %></td>
             <td class="px-4 py-2 text-right">
@@ -2240,25 +2265,37 @@
 <!-- ── Scripts ──────────────────────────────────────────────────────────── -->
 <script>
 <%
+  const _curMonthKey  = new Date().toISOString().slice(0, 7);
+  const _draftRevCur  = Math.round(cobranzas && cobranzas.clients
+    ? cobranzas.clients.reduce((s, c) => s + c.invoices.filter(i => i.state === 'draft').reduce((s2, i) => s2 + i.total, 0), 0)
+    : 0);
+  const _payrollByMo  = payroll && payroll.monthlyPayroll
+    ? payroll.monthlyPayroll.reduce((m, p) => { m[p.month] = p.amount; return m; }, {})
+    : {};
   const _finData = JSON.stringify({
-    labels:   fin.months.map(m => m.label),
-    revenue:  fin.months.map(m => m.revenue),
-    cost:     fin.months.map(m => m.cost),
-    margin:   fin.months.map(m => m.marginPct),
+    labels:      fin.months.map(m => m.label),
+    monthKeys:   fin.months.map(m => m.month),
+    revenue:     fin.months.map(m => m.revenue),
+    cost:        fin.months.map(m => m.cost),
+    margin:      fin.months.map(m => m.marginPct),
+    curMonthKey: _curMonthKey,
+    draftRevCur: _draftRevCur,
+    payroll:     fin.months.map(m => _payrollByMo[m.month] || null),
     ingRows: fin.eerrRows.filter(r => r.totalRevenue > 0)
       .sort((a,b) => b.totalRevenue - a.totalRevenue)
-      .map(r => ({ name: r.name, totalRevenue: r.totalRevenue, totalCost: r.totalCost, marginPct: r.marginPct,
+      .map(r => ({ name: r.name, accountId: r.accountId || null, totalRevenue: r.totalRevenue, totalCost: r.totalCost, marginPct: r.marginPct,
                    months: r.months.map(m => ({ revenue: m.revenue, cost: m.cost })) })),
   });
   const _cxcData  = JSON.stringify({ buckets: cxc.buckets, total: cxc.total, items: cxc.items });
   const _cxpData  = JSON.stringify({ buckets: cxp.buckets, total: cxp.total });
   const _clientData = JSON.stringify(clients.clients.slice(0, 20).map(c => ({
+    id: c.id,
     name: c.name.length > 28 ? c.name.slice(0,28)+'…' : c.name,
     revenue: c.revenue, revPct: c.revPct, unpaid: c.unpaid, dso: c.dso,
   })));
   const _svcData = JSON.stringify(
     fin.eerrRows.filter(r => r.totalRevenue > 0 && /^\[/.test(r.name))
-      .map(r => ({ name: r.name.replace(/[\[\]]/g,''), revenue: r.totalRevenue, marginPct: r.marginPct }))
+      .map(r => ({ name: r.name.replace(/[\[\]]/g,''), accountId: r.accountId || null, revenue: r.totalRevenue, marginPct: r.marginPct }))
   );
   const _yoyData = JSON.stringify({
     labels: yoy.prevMonths.map(m => m.label),
@@ -2555,6 +2592,11 @@
         interaction: { mode:'index', intersect:false },
         plugins: { legend:{ position:'top', labels:{ font:{size:11}, padding:10 } }, tooltip:{ callbacks:{ label: c => ` ${c.dataset.label}: ${fmt(c.raw)}` } } },
         scales: { x:{ ticks:{ font:{size:10}, callback: v => fmtM(v) } }, y:{ ticks:{ font:{size:11} }, grid:{ display:false } } },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return;
+          const c = top[elements[0].index];
+          if (c && c.id) openDrill('client', c.id, c.name);
+        },
       },
     });
   }
@@ -2572,6 +2614,11 @@
       options: {
         responsive:true, maintainAspectRatio:false, cutout:'55%',
         plugins: { legend:{ display:false }, tooltip:{ callbacks:{ label: c => ` ${c.label}: ${fmtM(c.raw)}` } } },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return;
+          const s = svcData[elements[0].index];
+          if (s && s.accountId) openDrill('account', s.accountId, s.name);
+        },
       },
     });
     const legendEl = document.getElementById('productDonutLegend');
@@ -2601,6 +2648,11 @@
           y:    { beginAtZero:true, ticks:{ callback: v => fmtM(v), font:{size:10} } },
           yPct: { position:'right', beginAtZero:false, grid:{ drawOnChartArea:false }, ticks:{ callback: v => v+'%', font:{size:10} } },
           x:    { ticks:{ font:{size:10} }, grid:{ display:false } },
+        },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return;
+          const s = svcData[elements[0].index];
+          if (s && s.accountId) openDrill('account', s.accountId, s.name);
         },
       },
     });
@@ -2634,25 +2686,41 @@
   function initMonthlyChart() {
     const ctx = document.getElementById('chartMonthly');
     if (!ctx || !fin.labels.length) return;
+
+    // Build projection & payroll datasets
+    const curIdx = fin.monthKeys ? fin.monthKeys.indexOf(fin.curMonthKey) : -1;
+    const projData = fin.labels.map((_, i) => (i === curIdx && fin.draftRevCur > 0) ? fin.draftRevCur : null);
+    const payrollData = fin.payroll ? fin.payroll.map(v => v || null) : [];
+
     new Chart(ctx, {
       data: {
         labels: fin.labels,
         datasets: [
-          { type:'bar',  label:'Ingresos',  data: fin.revenue, backgroundColor:'rgba(16,185,129,0.75)', borderColor:'rgb(16,185,129)', borderWidth:1, borderRadius:4, order:2 },
-          { type:'bar',  label:'Costos',    data: fin.cost,    backgroundColor:'rgba(239,68,68,0.65)',  borderColor:'rgb(239,68,68)',  borderWidth:1, borderRadius:4, order:2 },
-          { type:'line', label:'Margen %',  data: fin.margin,  borderColor:'rgb(59,130,246)', backgroundColor:'rgba(59,130,246,0.08)', borderWidth:2.5, pointRadius:4, tension:0.3, yAxisID:'yPct', order:1 },
+          { type:'bar',  label:'Ingresos',     data: fin.revenue,   backgroundColor:'rgba(16,185,129,0.75)', borderColor:'rgb(16,185,129)', borderWidth:1, borderRadius:4, order:3 },
+          { type:'bar',  label:'Costos',        data: fin.cost,      backgroundColor:'rgba(239,68,68,0.65)',  borderColor:'rgb(239,68,68)',  borderWidth:1, borderRadius:4, order:3 },
+          { type:'bar',  label:'Proy. Borrador',data: projData,      backgroundColor:'rgba(16,185,129,0.25)', borderColor:'rgb(16,185,129)', borderWidth:1.5, borderDash:[4,4], borderRadius:4, order:2, stack:'proy' },
+          { type:'line', label:'Nómina (est.)', data: payrollData,   borderColor:'rgba(234,88,12,0.7)', backgroundColor:'transparent', borderWidth:1.5, borderDash:[4,3], pointRadius:3, tension:0.3, yAxisID:'y', order:1 },
+          { type:'line', label:'Margen %',      data: fin.margin,    borderColor:'rgb(59,130,246)', backgroundColor:'rgba(59,130,246,0.08)', borderWidth:2.5, pointRadius:4, tension:0.3, yAxisID:'yPct', order:0 },
         ],
       },
       options: {
         responsive:true, maintainAspectRatio:false,
         interaction:{ mode:'index', intersect:false },
         plugins:{
-          legend:{ position:'top', labels:{ font:{size:11}, padding:12 } },
+          legend:{ position:'top', labels:{ font:{size:11}, padding:10, filter: item => item.text !== 'Proy. Borrador' || fin.draftRevCur > 0 } },
           tooltip:{ callbacks:{
-            label: ctx => ctx.dataset.label === 'Margen %'
-              ? ` Margen: ${ctx.raw !== null ? ctx.raw + '%' : '—'}`
-              : ` ${ctx.dataset.label}: ${fmt(ctx.raw)}`,
+            label: c => c.dataset.label === 'Margen %'
+              ? ` Margen: ${c.raw !== null ? c.raw + '%' : '—'}`
+              : c.dataset.label === 'Proy. Borrador' && c.raw
+              ? ` + Borradores: ${fmt(c.raw)}`
+              : c.raw !== null ? ` ${c.dataset.label}: ${fmt(c.raw)}` : null,
           }},
+        },
+        onClick: (_evt, elements, chart) => {
+          if (!elements.length) return;
+          const idx = elements[0].index;
+          const monthKey = fin.monthKeys && fin.monthKeys[idx];
+          if (monthKey) openDrill('month', null, fin.labels[idx], monthKey);
         },
         scales:{
           x:{ grid:{ display:false }, ticks:{ font:{size:11} } },
@@ -2682,6 +2750,12 @@
         plugins: {
           legend: { display:false },
           tooltip: { callbacks: { label: c => ` ${c.label}: ${fmtM(c.raw)} (${Math.round(c.raw / data.reduce((a,b) => a+b,0)*100)}%)` } },
+        },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return;
+          const idx = elements[0].index;
+          const row = fin.ingRows[idx];
+          if (row && row.accountId) openDrill('account', row.accountId, row.name);
         },
       },
     });
@@ -2722,6 +2796,12 @@
         scales:{
           x:{ ticks:{ font:{size:10}, callback: v => v >= 1e6 ? (v/1e6).toFixed(0)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v } },
           y:{ ticks:{ font:{size:11} }, grid:{ display:false } },
+        },
+        onClick: (_evt, elements) => {
+          if (!elements.length) return;
+          const idx = elements[0].index;
+          const row = rows[idx];
+          if (row && row.accountId) openDrill('account', row.accountId, row.name);
         },
       },
     });
@@ -2815,7 +2895,137 @@
   if (_currency === 'usd') switchCurrency('usd');
   else switchCurrency('pyg');
 
+  // ── Universal Drill-down Panel ────────────────────────────────────────────
+  // Elements resolved lazily (they're injected after this script tag)
+  const _drill = {
+    get panel()    { return document.getElementById('drillPanel');    },
+    get title()    { return document.getElementById('drillTitle');    },
+    get subtitle() { return document.getElementById('drillSubtitle'); },
+    get body()     { return document.getElementById('drillBody');     },
+    get total()    { return document.getElementById('drillTotal');    },
+  };
+  let   _drillAbort = null;
+  const _curYear    = <%- year %>;
+
+  window.openDrill = function openDrill(type, id, label, monthKey) {
+    if (!_drill.panel) return;
+    // Update panel header
+    _drill.title.textContent = label || 'Detalle';
+    const typeLabel = type === 'account' ? 'Cuenta analítica' : type === 'client' ? 'Cliente' : 'Mes';
+    _drill.subtitle.textContent = `${typeLabel} · ${_curYear}`;
+    _drill.body.innerHTML = '<div class="flex items-center justify-center py-12"><div class="w-7 h-7 border-4 border-blue-100 border-t-blue-500 rounded-full animate-spin"></div></div>';
+    _drill.total.textContent = '';
+    // Show panel
+    _drill.panel.classList.remove('translate-x-full');
+    document.body.classList.add('overflow-hidden');
+    // Fetch data
+    if (_drillAbort) _drillAbort.abort();
+    _drillAbort = new AbortController();
+    const params = new URLSearchParams({ type, year: _curYear });
+    if (id)       params.set('id',    id);
+    if (monthKey) params.set('month', monthKey);
+    fetch('/finanzas/drilldown?' + params.toString(), { signal: _drillAbort.signal })
+      .then(r => r.json())
+      .then(data => renderDrillItems(data, label))
+      .catch(err => { if (err.name !== 'AbortError') _drillBody.innerHTML = `<p class="text-red-500 text-sm p-4">${err.message}</p>`; });
+  }
+
+  window.closeDrill = function closeDrill() {
+    if (!_drill.panel) return;
+    _drill.panel.classList.add('translate-x-full');
+    document.body.classList.remove('overflow-hidden');
+    if (_drillAbort) { _drillAbort.abort(); _drillAbort = null; }
+  }
+
+  const _PS_LABEL = { paid:'Pagada', in_payment:'En pago', partial:'Parcial', not_paid:'Pendiente', reversed:'Revertida', invoicing_legacy:'—' };
+  const _PS_COLOR = { paid:'bg-emerald-100 text-emerald-700', in_payment:'bg-emerald-100 text-emerald-600', partial:'bg-amber-100 text-amber-700', not_paid:'bg-red-100 text-red-700', reversed:'bg-slate-100 text-slate-500' };
+
+  function renderDrillItems(data, label) {
+    const items = data.items || [];
+    const total = data.total || 0;
+
+    if (total > 0) {
+      _drill.total.innerHTML = `<span class="text-xs text-slate-500">Total:</span> <span class="font-black text-slate-900">${fmt(total)}</span>`;
+    }
+
+    if (!items.length) {
+      _drill.body.innerHTML = '<p class="text-slate-400 text-sm p-4 text-center">Sin facturas para este período.</p>';
+      return;
+    }
+
+    const odooBase = '<%- process.env.ODOO_URL || "https://www.torus.dev" %>';
+
+    _drill.body.innerHTML = `
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead class="sticky top-0 bg-slate-50 border-b border-slate-200 z-10">
+            <tr>
+              <th class="text-left px-3 py-2 font-bold text-slate-600">Factura</th>
+              <th class="text-left px-3 py-2 font-bold text-slate-500">Cliente</th>
+              <th class="text-left px-3 py-2 font-bold text-slate-500">Fecha</th>
+              <th class="text-right px-3 py-2 font-bold text-emerald-700">Monto</th>
+              <th class="text-center px-3 py-2 font-bold text-slate-500">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(inv => {
+              const ps    = inv.paymentState || 'not_paid';
+              const badge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${_PS_COLOR[ps] || 'bg-slate-100 text-slate-500'}">${_PS_LABEL[ps] || ps}</span>`;
+              const link  = `${odooBase}/odoo/accounting/customer-invoices/${inv.id}`;
+              return `<tr class="border-b border-slate-50 hover:bg-slate-50 transition">
+                <td class="px-3 py-2 font-semibold text-blue-600"><a href="${link}" target="_blank" class="hover:underline">${inv.name || inv.id}</a></td>
+                <td class="px-3 py-2 text-slate-700 max-w-[140px] truncate" title="${inv.partner}">${inv.partner}</td>
+                <td class="px-3 py-2 text-slate-500 whitespace-nowrap">${inv.date || '—'}</td>
+                <td class="px-3 py-2 text-right font-bold text-slate-800">${fmt(inv.amountLine)}</td>
+                <td class="px-3 py-2 text-center">${badge}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // Close drill panel on Escape or overlay click
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrill(); });
+
 })();
 </script>
+
+<!-- ── Drill-down slide panel ───────────────────────────────────────────── -->
+<div id="drillOverlay" class="fixed inset-0 bg-black/30 z-[200] hidden" onclick="closeDrill()"></div>
+<div id="drillPanel"
+     class="fixed top-0 right-0 h-full w-full sm:w-[520px] bg-white shadow-2xl z-[201] flex flex-col translate-x-full transition-transform duration-300 ease-out">
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-3 px-5 py-4 border-b border-slate-200 bg-slate-50">
+    <div class="min-w-0">
+      <div id="drillTitle" class="font-extrabold text-slate-900 text-base truncate"></div>
+      <div id="drillSubtitle" class="text-xs text-slate-400 mt-0.5"></div>
+    </div>
+    <button onclick="closeDrill()" class="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-200 text-slate-500 transition">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <!-- Total row -->
+  <div id="drillTotal" class="px-5 py-2.5 border-b border-slate-100 bg-white text-sm min-h-[2.5rem] flex items-center gap-2"></div>
+  <!-- Body (scrollable) -->
+  <div id="drillBody" class="flex-1 overflow-y-auto text-xs"></div>
+  <!-- Footer -->
+  <div class="px-5 py-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+    <p class="text-[10px] text-slate-400">Datos en tiempo real desde Odoo · clic en factura para abrir</p>
+    <button onclick="closeDrill()" class="text-xs font-semibold text-slate-600 hover:text-slate-900 transition px-3 py-1.5 rounded-lg hover:bg-slate-200">Cerrar</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  const _dp = document.getElementById('drillPanel');
+  const _do = document.getElementById('drillOverlay');
+  if (!_dp || !_do) return;
+  new MutationObserver(() => {
+    _do.classList.toggle('hidden', _dp.classList.contains('translate-x-full'));
+  }).observe(_dp, { attributes: true, attributeFilter: ['class'] });
+})();
+</script>
+
 </body>
 </html>
