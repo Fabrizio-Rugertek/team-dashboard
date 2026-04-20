@@ -225,6 +225,7 @@ router.get('/equipo/scrum', async (req, res) => {
 // ── SOP Editor API ────────────────────────────────────────────────────────────
 const { requireRole } = require('../middleware/requireAuth');
 const sopLoader = require('../src/sop-loader');
+const { PROCESSES, REFERENCE_PAGES, ENCYCLOPEDIA } = require('../src/sop-data');
 
 // GET raw SOP data (for editor)
 router.get('/sop/:id/raw', (req, res) => {
@@ -316,6 +317,80 @@ Rules:
     console.error('[SOP AI] error:', e.message);
     res.status(500).json({ error: e.message });
   }
+});
+
+
+// ── SOP Export (machine-readable, for AI context) ─────────────────────────────
+// GET /api/sop/export          → full SOP data as JSON (no auth required — data is not sensitive)
+// GET /api/sop/export?format=ai → stripped-down version optimised for LLM context
+router.get('/sop/export', (req, res) => {
+  const aiMode = req.query.format === 'ai';
+
+  // Build processes export
+  const processesOut = {};
+  for (const [key, proc] of Object.entries(PROCESSES)) {
+    if (aiMode) {
+      // AI mode: keep only what the LLM needs, strip rendering artefacts
+      processesOut[key] = {
+        name: proc.steps ? proc.steps[0]?.label?.replace(/ \d+$/, '') : key,
+        steps: (proc.steps || []).map(s => ({
+          id: s.id,
+          label: s.label,
+          role: proc.lanes?.[s.lane]?.label || '',
+          description: s.description || s.sublabel || '',
+          inputs:   s.inputs   || [],
+          outputs:  s.outputs  || [],
+          tools:    s.tools    || [],
+          mistakes: s.mistakes || [],
+        })),
+        lanes: (proc.lanes || []).map(l => ({ id: l.id, label: l.label })),
+      };
+    } else {
+      processesOut[key] = proc;
+    }
+  }
+
+  // Build reference pages export
+  const refOut = {};
+  for (const [key, page] of Object.entries(REFERENCE_PAGES)) {
+    if (aiMode) {
+      // AI mode: include products, rules, conditions — skip colors/icons
+      refOut[key] = {
+        title: page.title,
+        products: (page.products || []).map(cat => ({
+          category: cat.category,
+          items: cat.items.map(i => ({ code: i.code, name: i.name, when: i.when, billing: i.billing })),
+        })),
+        decisionTree: page.decisionTree || [],
+        conditions:   page.conditions   || {},
+        soRules:      page.soRules ? {
+          alert: page.soRules.alert,
+          rules: page.soRules.rules.map(r => r.label + ': ' + r.text),
+          checklist: page.soRules.checklist,
+        } : undefined,
+        analyticRules: page.analyticRules ? {
+          alert:         page.analyticRules.alert,
+          plans:         page.analyticRules.plans,
+          matchLogic:    page.analyticRules.matchLogic,
+          howPlan1Works: page.analyticRules.howPlan1Works,
+        } : undefined,
+      };
+    } else {
+      refOut[key] = page;
+    }
+  }
+
+  res.json({
+    generated_at: new Date().toISOString(),
+    format: aiMode ? 'ai' : 'full',
+    source: 'dashboard.torus.dev/sop',
+    processes: processesOut,
+    reference_pages: refOut,
+    encyclopedia: aiMode ? ENCYCLOPEDIA.sections.map(s => ({
+      id: s.id, name: s.name, description: s.description,
+      processes: s.processes.map(p => ({ id: p.id, name: p.name, description: p.description })),
+    })) : ENCYCLOPEDIA,
+  });
 });
 
 module.exports = router;

@@ -84,6 +84,12 @@ app.use('/crm',       requireView('crm'),       crmRoutes);
 // /sop — all authenticated users (open to all roles)
 app.use('/sop', requireAuth, sopRoutes);
 
+// /api/sop/export — public endpoint for AI context (no sensitive data)
+app.use('/api/sop/export', (req, res) => {
+  // Delegate to the api router without auth
+  req.url = '/sop/export' + (req.url === '/' ? '' : req.url);
+  apiRoutes(req, res, () => res.status(404).json({ error: 'not found' }));
+});
 // /api — authenticated only
 app.use('/api', requireAuth, apiRoutes);
 
