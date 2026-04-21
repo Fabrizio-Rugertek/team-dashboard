@@ -606,14 +606,26 @@
 
 </div><!-- /main content -->
 
-<!-- Back to SOPs -->
-<div class="max-w-5xl mx-auto px-5 pb-10">
+<!-- Back to SOPs + Editor link -->
+<div class="max-w-5xl mx-auto px-5 pb-10 flex items-center justify-between flex-wrap gap-3">
   <a href="/sop" class="inline-flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path d="M11 7H3M6 4L3 7l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     Volver a todos los SOPs
   </a>
+  <% if (typeof canEdit !== 'undefined' && canEdit) { %>
+  <a href="/sop/editor-ref/<%= pageId %>"
+     class="inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-colors">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M9.5 2.5l2 2L4 12H2v-2L9.5 2.5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Editar contenido
+    <% if (typeof lastModified !== 'undefined' && lastModified) { %>
+    <span class="text-xs text-violet-600 bg-violet-50 border border-violet-200 rounded-md px-1.5 py-0.5 font-semibold">editado</span>
+    <% } %>
+  </a>
+  <% } %>
 </div>
 
 </body>

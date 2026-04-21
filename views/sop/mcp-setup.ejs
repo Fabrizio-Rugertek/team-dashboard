@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Fira+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    .mono { font-family: 'Fira Mono', monospace; }
+    pre {
+      font-family: 'Fira Mono', monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      overflow-x: auto;
+      border-radius: 10px;
+      padding: 16px;
+      background: #1E293B;
+      color: #E2E8F0;
+      white-space: pre;
+    }
+    .copy-btn {
+      position: absolute; top: 10px; right: 10px;
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
+      color: rgba(255,255,255,.7); font-size: 11px; font-weight: 600;
+      padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: all .15s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,.18); color: white; }
+    .copy-btn.copied { background: rgba(16,185,129,.3); color: #6EE7B7; border-color: rgba(16,185,129,.3); }
+    .code-wrap { position: relative; }
+    .tool-card {
+      background: white; border: 1.5px solid #E2E8F0; border-radius: 14px;
+      padding: 16px 18px; border-left: 4px solid;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+
+<!-- ── Nav ──────────────────────────────────────────────────────────────────── -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+  <div class="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3 text-sm">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-6 w-auto">
+      <span class="text-slate-300">/</span>
+      <a href="/sop" class="text-slate-400 font-medium hover:text-slate-600 transition-colors">SOPs</a>
+      <span class="text-slate-300">/</span>
+      <span class="font-bold text-slate-800">Configurar IA</span>
+    </div>
+    <% if (typeof user !== 'undefined' && user) { %>
+    <span class="text-xs font-medium text-slate-500"><%= user.name || user.email %></span>
+    <% } %>
+  </div>
+</nav>
+
+<!-- ── Hero ──────────────────────────────────────────────────────────────────── -->
+<div style="background: linear-gradient(135deg, #0F172A 0%, #1E1B4B 40%, #0F172A 100%);" class="relative overflow-hidden">
+  <div class="relative max-w-5xl mx-auto px-5 py-12">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-black uppercase tracking-widest text-violet-400">Torus SOPs</span>
+      <span class="w-1 h-1 rounded-full bg-violet-500"></span>
+      <span class="text-xs font-bold uppercase tracking-widest text-slate-400">MCP Server</span>
+    </div>
+    <h1 class="text-4xl font-black text-white leading-tight mb-3">Conectar tu IA a los SOPs</h1>
+    <p class="text-slate-300 text-base max-w-2xl leading-relaxed">
+      Claude Desktop, Cursor, Windsurf y cualquier cliente compatible con el protocolo MCP pueden acceder a todos los procedimientos de Torus en tiempo real.
+    </p>
+    <div class="mt-5 flex flex-wrap gap-3">
+      <div class="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5 text-xs font-semibold text-white/80">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        Servidor activo en dashboard.torus.dev/mcp
+      </div>
+      <div class="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5 text-xs font-semibold text-white/80">
+        <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+        4 herramientas disponibles
+      </div>
+      <div class="inline-flex items-center gap-2 bg-white/10 border border-white/15 rounded-full px-4 py-1.5 text-xs font-semibold text-white/80">
+        <span class="w-2 h-2 rounded-full bg-violet-400"></span>
+        Se actualiza al editar los flujos
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-5xl mx-auto px-5 py-10 space-y-12">
+
+  <!-- ── Tools overview ──────────────────────────────────────────────────────── -->
+  <section>
+    <h2 class="text-lg font-extrabold text-slate-900 mb-1">Herramientas disponibles</h2>
+    <p class="text-sm text-slate-500 mb-5">Estas son las funciones que tu IA puede llamar cuando está conectada al servidor MCP de Torus.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="tool-card" style="border-left-color:#8B5CF6">
+        <div class="text-sm font-extrabold text-slate-900 mono">list_processes</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">Lista todos los procesos SOP con una descripción breve. Punto de entrada para explorar qué hay disponible.</div>
+        <div class="mt-2 text-xs font-semibold text-violet-600 mono">Sin parámetros</div>
+      </div>
+      <div class="tool-card" style="border-left-color:#3B82F6">
+        <div class="text-sm font-extrabold text-slate-900 mono">get_process(name)</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">Devuelve el detalle completo de un proceso: pasos, roles, inputs, outputs, herramientas y errores comunes.</div>
+        <div class="mt-2 text-xs font-semibold text-blue-600 mono">name: ventas | facturacion | implementacion | soporte | desarrollo | scrum | tareas</div>
+      </div>
+      <div class="tool-card" style="border-left-color:#10B981">
+        <div class="text-sm font-extrabold text-slate-900 mono">get_catalog</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">Catálogo completo de productos Torus, reglas de presupuesto (SO), cuentas analíticas y árbol de decisión comercial.</div>
+        <div class="mt-2 text-xs font-semibold text-emerald-600 mono">Sin parámetros</div>
+      </div>
+      <div class="tool-card" style="border-left-color:#F59E0B">
+        <div class="text-sm font-extrabold text-slate-900 mono">search_sop(query)</div>
+        <div class="text-xs text-slate-500 mt-1 leading-relaxed">Búsqueda de texto libre en todos los SOPs. Útil para encontrar en qué proceso aparece un rol, herramienta o concepto.</div>
+        <div class="mt-2 text-xs font-semibold text-amber-600 mono">query: texto a buscar (ej: "factura", "Hunter", "SIFEN")</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Claude Desktop ──────────────────────────────────────────────────────── -->
+  <section>
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-xl bg-violet-100 border border-violet-200 flex items-center justify-center text-xl flex-shrink-0">🤖</div>
+      <div>
+        <h2 class="text-lg font-extrabold text-slate-900 leading-tight">Claude Desktop</h2>
+        <p class="text-xs text-slate-400">claude.ai/download — versión de escritorio</p>
+      </div>
+    </div>
+
+    <ol class="space-y-5 list-none">
+      <li class="flex gap-4">
+        <div class="w-7 h-7 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center text-xs font-black text-violet-700 flex-shrink-0">1</div>
+        <div class="flex-1">
+          <div class="text-sm font-bold text-slate-800 mb-2">Abrir configuración de Claude Desktop</div>
+          <p class="text-xs text-slate-500 leading-relaxed">Ir a <strong>Claude → Settings → Developer → Edit Config</strong> (o abrir manualmente el archivo de configuración).</p>
+          <p class="text-xs text-slate-400 mt-1">Windows: <span class="mono">%APPDATA%\Claude\claude_desktop_config.json</span></p>
+          <p class="text-xs text-slate-400">macOS: <span class="mono">~/Library/Application Support/Claude/claude_desktop_config.json</span></p>
+        </div>
+      </li>
+      <li class="flex gap-4">
+        <div class="w-7 h-7 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center text-xs font-black text-violet-700 flex-shrink-0">2</div>
+        <div class="flex-1">
+          <div class="text-sm font-bold text-slate-800 mb-2">Agregar el servidor MCP</div>
+          <p class="text-xs text-slate-500 mb-3">Copiar y pegar esta configuración en el archivo:</p>
+          <div class="code-wrap">
+            <pre id="code-claude">{
+  "mcpServers": {
+    "torus-sop": {
+      "url": "https://dashboard.torus.dev/mcp",
+      "transport": "http"
+    }
+  }
+}</pre>
+            <button class="copy-btn" onclick="copyCode('code-claude', this)">Copiar</button>
+          </div>
+          <p class="text-xs text-slate-400 mt-2">Si ya tenés otros servidores MCP, agregá el bloque <span class="mono">"torus-sop": {...}</span> dentro de <span class="mono">mcpServers</span>.</p>
+        </div>
+      </li>
+      <li class="flex gap-4">
+        <div class="w-7 h-7 rounded-full bg-violet-100 border border-violet-200 flex items-center justify-center text-xs font-black text-violet-700 flex-shrink-0">3</div>
+        <div class="flex-1">
+          <div class="text-sm font-bold text-slate-800 mb-1">Reiniciar Claude Desktop</div>
+          <p class="text-xs text-slate-500 leading-relaxed">Cerrar completamente y volver a abrir. Vas a ver <strong>torus-sop</strong> en la lista de servidores conectados (ícono del martillo 🔨 en el chat).</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ── Cursor ──────────────────────────────────────────────────────────────── -->
+  <section>
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-xl bg-blue-100 border border-blue-200 flex items-center justify-center text-xl flex-shrink-0">⚡</div>
+      <div>
+        <h2 class="text-lg font-extrabold text-slate-900 leading-tight">Cursor</h2>
+        <p class="text-xs text-slate-400">cursor.sh — editor de código con IA</p>
+      </div>
+    </div>
+    <ol class="space-y-5 list-none">
+      <li class="flex gap-4">
+        <div class="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-xs font-black text-blue-700 flex-shrink-0">1</div>
+        <div class="flex-1">
+          <div class="text-sm font-bold text-slate-800 mb-1">Abrir configuración MCP</div>
+          <p class="text-xs text-slate-500">Ir a <strong>Cursor → Settings → MCP</strong> o editar directamente <span class="mono">~/.cursor/mcp.json</span>.</p>
+        </div>
+      </li>
+      <li class="flex gap-4">
+        <div class="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-xs font-black text-blue-700 flex-shrink-0">2</div>
+        <div class="flex-1">
+          <div class="text-sm font-bold text-slate-800 mb-2">Agregar el servidor</div>
+          <div class="code-wrap">
+            <pre id="code-cursor">{
+  "mcpServers": {
+    "torus-sop": {
+      "url": "https://dashboard.torus.dev/mcp",
+      "transport": "http"
+    }
+  }
+}</pre>
+            <button class="copy-btn" onclick="copyCode('code-cursor', this)">Copiar</button>
+          </div>
+        </div>
+      </li>
+      <li class="flex gap-4">
+        <div class="w-7 h-7 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-xs font-black text-blue-700 flex-shrink-0">3</div>
+        <div class="flex-1">
+          <div class="text-sm font-bold text-slate-800 mb-1">Recargar Cursor</div>
+          <p class="text-xs text-slate-500">Reiniciar o usar <span class="mono">Developer: Reload Window</span>. El servidor aparecerá en el panel MCP de Cursor.</p>
+        </div>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ── Windsurf / otros ────────────────────────────────────────────────────── -->
+  <section>
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-xl flex-shrink-0">🌊</div>
+      <div>
+        <h2 class="text-lg font-extrabold text-slate-900 leading-tight">Windsurf y otros clientes MCP</h2>
+        <p class="text-xs text-slate-400">Cualquier cliente compatible con Streamable HTTP Transport</p>
+      </div>
+    </div>
+    <p class="text-sm text-slate-500 leading-relaxed mb-4">
+      Para cualquier cliente MCP compatible, usar la siguiente URL. La mayoría acepta servidores HTTP sin necesidad de instalar nada:
+    </p>
+    <div class="bg-slate-900 rounded-xl p-4 flex items-center gap-4">
+      <code class="text-emerald-400 font-mono text-sm flex-1 break-all" id="mcpUrl"><%= mcpUrl %></code>
+      <button onclick="copyText('<%= mcpUrl %>', this)" class="text-xs font-semibold text-white/60 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
+        Copiar URL
+      </button>
+    </div>
+  </section>
+
+  <!-- ── Test manual ─────────────────────────────────────────────────────────── -->
+  <section>
+    <h2 class="text-lg font-extrabold text-slate-900 mb-1">Verificar conexión</h2>
+    <p class="text-sm text-slate-500 mb-4">Podés probar el servidor directamente desde el navegador o con curl:</p>
+
+    <div class="space-y-3">
+      <div>
+        <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Desde el navegador</div>
+        <a href="/mcp" target="_blank"
+           class="inline-flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.333A6.667 6.667 0 118 14.667 6.667 6.667 0 018 1.333z" stroke="#64748B" stroke-width="1.5"/><path d="M1.333 8h13.334M8 1.333c-1.667 2-2.667 4-2.667 6.667 0 2.667 1 4.667 2.667 6.667M8 1.333c1.667 2 2.667 4 2.667 6.667 0 2.667-1 4.667-2.667 6.667" stroke="#64748B" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Abrir dashboard.torus.dev/mcp
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 8L8 2M8 2H4M8 2v4" stroke="#94A3B8" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </a>
+      </div>
+
+      <div>
+        <div class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Con curl (JSON-RPC)</div>
+        <div class="code-wrap">
+          <pre id="code-curl">curl -X POST https://dashboard.torus.dev/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'</pre>
+          <button class="copy-btn" onclick="copyCode('code-curl', this)">Copiar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Prompts sugeridos ────────────────────────────────────────────────────── -->
+  <section>
+    <h2 class="text-lg font-extrabold text-slate-900 mb-1">Prompts para arrancar</h2>
+    <p class="text-sm text-slate-500 mb-4">Una vez conectado, podés usar estos prompts directamente en tu IA:</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <% const prompts = [
+        { icon: '💼', label: 'Proceso de ventas', q: '¿Cuáles son los pasos del proceso de ventas de Torus? Mostrá cada paso con su rol responsable.' },
+        { icon: '📦', label: 'Catálogo de productos', q: '¿Qué productos ofrece Torus? Dame el catálogo completo con cuándo usar cada uno.' },
+        { icon: '📋', label: 'Hacer un presupuesto', q: 'Necesito hacer un presupuesto para un cliente que quiere implementar Odoo con módulos de ventas, contabilidad y RRHH.' },
+        { icon: '🔍', label: 'Buscar un concepto', q: 'Buscá "Hunter" en los SOPs y decime en qué proceso aparece y qué hace ese rol.' },
+        { icon: '⚙️', label: 'Reglas SO', q: '¿Cuáles son las reglas de formato para crear un presupuesto (Sales Order) en Odoo?' },
+        { icon: '📊', label: 'Cuentas analíticas', q: '¿Cómo se asignan las cuentas analíticas en las facturas de Torus? ¿Cuántas debe tener cada línea?' },
+      ]; %>
+      <% prompts.forEach(p => { %>
+      <div class="bg-white border border-slate-200 rounded-xl p-4 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer"
+           onclick="navigator.clipboard.writeText('<%= p.q.replace(/'/g, "\\'") %>').then(() => this.querySelector('.copy-indicator').classList.remove('hidden'))">
+        <div class="flex items-start gap-3">
+          <span class="text-lg flex-shrink-0"><%= p.icon %></span>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-bold text-slate-500 mb-1"><%= p.label %></div>
+            <div class="text-sm text-slate-700 leading-relaxed"><%= p.q %></div>
+          </div>
+          <svg class="w-3.5 h-3.5 text-slate-300 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 16 16"><rect x="2" y="4" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5 4V3a1 1 0 011-1h6a1 1 0 011 1v8a1 1 0 01-1 1h-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+        <div class="copy-indicator hidden mt-2 text-xs font-semibold text-emerald-600">✓ Copiado al portapapeles</div>
+      </div>
+      <% }) %>
+    </div>
+  </section>
+
+</div>
+
+<!-- ── Back ────────────────────────────────────────────────────────────────────── -->
+<div class="max-w-5xl mx-auto px-5 pb-10">
+  <a href="/sop" class="inline-flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-slate-700 transition-colors">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path d="M11 7H3M6 4L3 7l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Volver a todos los SOPs
+  </a>
+</div>
+
+<footer class="text-center text-xs text-slate-400 py-5 border-t border-slate-200">
+  Torus Dashboard Platform · <%= new Date().getFullYear() %> · MCP Server v1.0
+</footer>
+
+<script>
+function copyCode(id, btn) {
+  const pre = document.getElementById(id);
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    btn.textContent = '✓ Copiado';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copiar'; btn.classList.remove('copied'); }, 2500);
+  });
+}
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => { btn.textContent = orig; }, 2500);
+  });
+}
+</script>
+</body>
+</html>

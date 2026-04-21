@@ -14,7 +14,7 @@
 const express = require('express');
 const router  = express.Router();
 const sopLoader = require('../src/sop-loader');
-const { REFERENCE_PAGES } = require('../src/sop-data');
+// REFERENCE_PAGES now loaded dynamically via sopLoader.loadRef()
 
 // ── MCP Protocol helpers ───────────────────────────────────────────────────────
 const SERVER_INFO = {
@@ -98,7 +98,7 @@ function toolGetProcess(name) {
 }
 
 function toolGetCatalog() {
-  const ct = REFERENCE_PAGES['catalogo-torus'];
+  const ct = sopLoader.loadRef('catalogo-torus');
   if (!ct) return { error: 'Catalogo no encontrado' };
   return {
     products: (ct.products || []).map(cat => ({
@@ -153,7 +153,7 @@ function toolSearchSop(query) {
   }
 
   // Also search reference pages
-  const ct = REFERENCE_PAGES['catalogo-torus'];
+  const ct = sopLoader.loadRef('catalogo-torus');
   if (ct) {
     for (const cat of (ct.products || [])) {
       for (const item of (cat.items || [])) {

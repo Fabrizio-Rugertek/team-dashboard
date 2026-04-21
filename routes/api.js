@@ -353,7 +353,9 @@ router.get('/sop/export', (req, res) => {
 
   // Build reference pages export
   const refOut = {};
-  for (const [key, page] of Object.entries(REFERENCE_PAGES)) {
+  for (const key of sopLoader.listRefs()) {
+    const page = sopLoader.loadRef(key);
+    if (!page) continue;
     if (aiMode) {
       // AI mode: include products, rules, conditions — skip colors/icons
       refOut[key] = {
@@ -392,6 +394,47 @@ router.get('/sop/export', (req, res) => {
       processes: s.processes.map(p => ({ id: p.id, name: p.name, description: p.description })),
     })) : ENCYCLOPEDIA,
   });
+});
+
+// ── Reference page raw API ──────────────────────────────────────────────────
+router.get('/sop-ref/:pageId/raw', (req, res) => {
+  const { pageId } = req.params;
+  const data = sopLoader.loadRef(pageId);
+  if (!data) return res.status(404).json({ error: 'Page not found: ' + pageId });
+  res.json({
+    pageId,
+    data,
+    modifiedAt: sopLoader.getModifiedAt('ref', pageId),
+  });
+});
+
+router.put('/sop-ref/:pageId/raw', express.json({ limit: '2mb' }), (req, res) => {
+  const { pageId } = req.params;
+  if (!sopLoader.listRefs().includes(pageId)) {
+    return res.status(404).json({ error: 'Unknown page: ' + pageId });
+  }
+  try {
+    sopLoader.saveRef(pageId, req.body);
+    res.json({ ok: true, pageId, savedAt: new Date().toISOString() });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.delete('/sop-ref/:pageId/raw', (req, res) => {
+  const { pageId } = req.params;
+  const REF_DIR = require('path').join(__dirname, '../data/refs');
+  const filePath = require('path').join(REF_DIR, pageId + '.json');
+  try {
+    if (require('fs').existsSync(filePath)) {
+      require('fs').unlinkSync(filePath);
+    }
+    // Return the default data after deletion
+    const data = sopLoader.loadRef(pageId);
+    res.json({ ok: true, pageId, data, resetToDefault: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

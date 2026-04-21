@@ -42,18 +42,28 @@ const REF_META = {
 
 // ── Hub ───────────────────────────────────────────────────────────────────────
 router.get('/', (req, res) => {
+  const modifiedAt = {};
+  for (const id of sopLoader.listEditable()) {
+    const t = sopLoader.getModifiedAt('proc', id);
+    if (t) modifiedAt[id] = t;
+  }
+  for (const id of sopLoader.listRefs()) {
+    const t = sopLoader.getModifiedAt('ref', id);
+    if (t) modifiedAt[id] = t;
+  }
   res.render('sop/hub', {
     title:         'SOPs — Torus Dashboard',
     user:          req.user || null,
     encyclopedia:  ENCYCLOPEDIA,
     flowProcesses: FLOW_PROCESSES,
+    modifiedAt,
   });
 });
 
 // ── Reference pages ───────────────────────────────────────────────────────────
 router.get('/ref/:pageId', (req, res) => {
   const { pageId } = req.params;
-  const pageData   = REFERENCE_PAGES?.[pageId];
+  const pageData   = sopLoader.loadRef(pageId);
 
   if (!pageData) {
     return res.status(404).render('platform/404');
@@ -63,14 +73,17 @@ router.get('/ref/:pageId', (req, res) => {
   const section = ENCYCLOPEDIA.sections.find(s =>
     s.processes.some(p => p.id === pageId)
   );
+  const canEdit = req.user && ['director','admin'].includes(req.user.role);
 
   res.render('sop/reference', {
-    title:       `${pageData.title} — Torus SOPs`,
-    user:        req.user || null,
+    title:        `${pageData.title} — Torus SOPs`,
+    user:         req.user || null,
     pageId,
     pageData,
-    pageColor:   pageData.color || meta.color,
-    sectionName: section ? section.name : '',
+    pageColor:    pageData.color || meta.color,
+    sectionName:  section ? section.name : '',
+    canEdit,
+    lastModified: sopLoader.getModifiedAt('ref', pageId),
   });
 });
 
@@ -100,6 +113,34 @@ router.get('/editor/:processId', requireRole('director'), (req, res) => {
     processColor: meta.color,
     rawJSON:      JSON.stringify(raw),
     odooUrl:      process.env.ODOO_URL || 'https://www.torus.dev',
+  });
+});
+
+// ── Reference page editor (director+ only) ───────────────────────────────────
+router.get('/editor-ref/:pageId', requireRole('director'), (req, res) => {
+  const { pageId } = req.params;
+  if (!sopLoader.listRefs().includes(pageId)) {
+    return res.status(404).render('platform/404');
+  }
+  const raw  = sopLoader.loadRef(pageId);
+  const meta = REF_META[pageId] || { name: pageId, color: '#64748B' };
+  res.render('sop/editor-ref', {
+    title:        `Editor — ${meta.name}`,
+    user:         req.user || null,
+    pageId,
+    pageName:     meta.name,
+    pageColor:    meta.color,
+    rawJSON:      JSON.stringify(raw, null, 2),
+    lastModified: sopLoader.getModifiedAt('ref', pageId),
+  });
+});
+
+// ── MCP / AI setup guide ──────────────────────────────────────────────────────
+router.get('/mcp-setup', (req, res) => {
+  res.render('sop/mcp-setup', {
+    title: 'Configurar IA — Torus SOPs',
+    user:  req.user || null,
+    mcpUrl: 'https://dashboard.torus.dev/mcp',
   });
 });
 

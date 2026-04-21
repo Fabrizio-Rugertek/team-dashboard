@@ -137,4 +137,48 @@ function listEditable() {
   return Object.keys(PROCESSES);
 }
 
-module.exports = { loadRaw, loadProcess, saveRaw, listEditable, ENCYCLOPEDIA, REFERENCE_PAGES };
+
+const REF_DIR = path.join(__dirname, '../data/refs');
+
+/**
+ * Load reference page data with file override support.
+ * data/refs/{pageId}.json overrides the static REFERENCE_PAGES.
+ */
+function loadRef(pageId) {
+  const filePath = path.join(REF_DIR, pageId + '.json');
+  if (fs.existsSync(filePath)) {
+    try { return JSON.parse(fs.readFileSync(filePath, 'utf8')); }
+    catch (e) { console.error('[SOP Loader] Bad JSON for ref', pageId, e.message); }
+  }
+  return REFERENCE_PAGES[pageId] || null;
+}
+
+/**
+ * Save reference page data to JSON override file.
+ */
+function saveRef(pageId, data) {
+  fs.mkdirSync(REF_DIR, { recursive: true });
+  const filePath = path.join(REF_DIR, pageId + '.json');
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+}
+
+/**
+ * List all known reference page IDs.
+ */
+function listRefs() {
+  return Object.keys(REFERENCE_PAGES);
+}
+
+/**
+ * Get last modified time for a process or reference file.
+ * type = 'proc' | 'ref'
+ * Returns ISO string if JSON file exists, null otherwise.
+ */
+function getModifiedAt(type, id) {
+  const dir = type === 'ref' ? REF_DIR : DATA_DIR;
+  try {
+    return fs.statSync(path.join(dir, id + '.json')).mtime.toISOString();
+  } catch { return null; }
+}
+
+module.exports = { loadRaw, loadProcess, saveRaw, listEditable, loadRef, saveRef, listRefs, getModifiedAt, ENCYCLOPEDIA, REFERENCE_PAGES };

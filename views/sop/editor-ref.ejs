@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %></title>
+  <link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- CodeMirror for JSON editing -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; box-sizing: border-box; }
+    body { background: #F1F5F9; }
+    .CodeMirror {
+      height: calc(100vh - 220px);
+      min-height: 400px;
+      font-size: 13px;
+      font-family: 'Fira Mono', 'Consolas', monospace;
+      border-radius: 0 0 12px 12px;
+    }
+    .cm-wrap { border-radius: 12px; overflow: hidden; border: 1.5px solid #E2E8F0; }
+    .cm-wrap.cm-focused { border-color: #6366F1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+    .error-banner { display:none; }
+    .error-banner.show { display:flex; }
+    #saveBtn:disabled { opacity: .5; cursor: default; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+<!-- ── Nav ──────────────────────────────────────────────────────────────────── -->
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+  <div class="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3 text-sm">
+      <img src="/img/torus-icon-green.png" alt="Torus" class="h-6 w-auto">
+      <span class="text-slate-300">/</span>
+      <a href="/sop" class="text-slate-400 font-medium hover:text-slate-600 transition-colors">SOPs</a>
+      <span class="text-slate-300">/</span>
+      <a href="/sop/ref/<%= pageId %>" class="text-slate-400 font-medium hover:text-slate-600 transition-colors"><%= pageName %></a>
+      <span class="text-slate-300">/</span>
+      <span class="font-bold text-slate-800">Editor JSON</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="/sop/ref/<%= pageId %>"
+         class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        Ver página
+      </a>
+      <% if (typeof user !== 'undefined' && user) { %>
+      <span class="text-xs font-medium text-slate-500 hidden sm:block"><%= user.name || user.email %></span>
+      <% } %>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Header ─────────────────────────────────────────────────────────────────── -->
+<div class="max-w-5xl mx-auto px-5 pt-6 pb-4">
+  <div class="flex items-center justify-between flex-wrap gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+           style="background: <%= pageColor %>18; border: 1.5px solid <%= pageColor %>33; color: <%= pageColor %>">
+        📄
+      </div>
+      <div>
+        <h1 class="text-xl font-extrabold text-slate-900 leading-tight">
+          Editar: <%= pageName %>
+        </h1>
+        <p class="text-xs text-slate-400 mt-0.5">
+          Página de referencia ·
+          <% if (lastModified) { %>
+            Última edición: <span id="lastModTime"><%= new Date(lastModified).toLocaleString('es-PY') %></span>
+          <% } else { %>
+            Sin cambios locales (usando datos por defecto)
+          <% } %>
+        </p>
+      </div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="flex items-center gap-2">
+      <button id="resetBtn"
+              class="text-sm px-4 py-2 rounded-xl border border-slate-200 font-semibold text-slate-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors">
+        Resetear a default
+      </button>
+      <button id="formatBtn"
+              class="text-sm px-4 py-2 rounded-xl border border-slate-200 font-semibold text-slate-600 hover:bg-slate-50 transition-colors">
+        Formatear
+      </button>
+      <button id="saveBtn"
+              class="text-sm px-5 py-2 rounded-xl font-bold text-white transition-all"
+              style="background: <%= pageColor %>">
+        Guardar cambios
+      </button>
+    </div>
+  </div>
+
+  <!-- Error / success banner -->
+  <div id="errorBanner" class="error-banner mt-4 bg-red-50 border border-red-200 rounded-xl p-3 items-center gap-2 text-sm text-red-700 font-semibold">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+    <span id="errorMsg"></span>
+  </div>
+  <div id="successBanner" class="hidden mt-4 bg-green-50 border border-green-200 rounded-xl p-3 flex items-center gap-2 text-sm text-green-700 font-semibold">
+    <svg class="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+    Guardado exitosamente
+  </div>
+</div>
+
+<!-- ── Editor ─────────────────────────────────────────────────────────────────── -->
+<div class="max-w-5xl mx-auto px-5 pb-8">
+  <!-- Toolbar bar above editor -->
+  <div class="bg-slate-800 rounded-t-xl px-4 py-2.5 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="w-3 h-3 rounded-full bg-red-400/80"></span>
+      <span class="w-3 h-3 rounded-full bg-amber-400/80"></span>
+      <span class="w-3 h-3 rounded-full bg-green-400/80"></span>
+    </div>
+    <span class="text-xs text-slate-400 font-mono font-semibold">data/refs/<%= pageId %>.json</span>
+    <span id="jsonStatus" class="text-xs font-semibold text-emerald-400">JSON válido ✓</span>
+  </div>
+  <div class="cm-wrap" id="cmWrap">
+    <textarea id="jsonEditor"><%= rawJSON %></textarea>
+  </div>
+</div>
+
+<!-- ── Help box ───────────────────────────────────────────────────────────────── -->
+<div class="max-w-5xl mx-auto px-5 pb-10">
+  <div class="bg-white border border-slate-200 rounded-2xl p-5">
+    <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Información</div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-slate-600">
+      <div>
+        <div class="font-bold text-slate-800 mb-1">¿Qué edita este archivo?</div>
+        Los datos de la página de referencia <strong><%= pageName %></strong>: productos, reglas SO, cuentas analíticas, árbol de decisión y todo su contenido.
+      </div>
+      <div>
+        <div class="font-bold text-slate-800 mb-1">¿Se actualiza el MCP?</div>
+        Sí. El servidor MCP usa estos mismos datos. Al guardar, la IA (Claude Desktop, Cursor, etc.) verá el contenido actualizado inmediatamente.
+      </div>
+      <div>
+        <div class="font-bold text-slate-800 mb-1">Resetear a default</div>
+        Borra el archivo JSON local y vuelve a los datos originales de <code>sop-data.js</code>. No toca el código fuente.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PAGE_ID    = '<%= pageId %>';
+const PAGE_COLOR = '<%= pageColor %>';
+
+// ── Init CodeMirror ────────────────────────────────────────────────────────────
+const editor = CodeMirror.fromTextArea(document.getElementById('jsonEditor'), {
+  mode:            { name: 'javascript', json: true },
+  theme:           'dracula',
+  lineNumbers:     true,
+  matchBrackets:   true,
+  autoCloseBrackets: true,
+  indentUnit:      2,
+  tabSize:         2,
+  lineWrapping:    false,
+});
+editor.setSize(null, null); // let CSS handle it
+
+// ── JSON validation ────────────────────────────────────────────────────────────
+const statusEl = document.getElementById('jsonStatus');
+const errBanner = document.getElementById('errorBanner');
+const errMsg    = document.getElementById('errorMsg');
+const saveBtn   = document.getElementById('saveBtn');
+
+function validateJSON() {
+  try {
+    JSON.parse(editor.getValue());
+    statusEl.textContent = 'JSON válido ✓';
+    statusEl.className = 'text-xs font-semibold text-emerald-400';
+    errBanner.classList.remove('show');
+    saveBtn.disabled = false;
+    return true;
+  } catch (e) {
+    statusEl.textContent = 'Error de sintaxis ✗';
+    statusEl.className = 'text-xs font-semibold text-red-400';
+    saveBtn.disabled = true;
+    return false;
+  }
+}
+
+editor.on('change', validateJSON);
+validateJSON();
+
+// ── Format JSON ───────────────────────────────────────────────────────────────
+document.getElementById('formatBtn').addEventListener('click', () => {
+  try {
+    const parsed = JSON.parse(editor.getValue());
+    editor.setValue(JSON.stringify(parsed, null, 2));
+  } catch (e) {
+    showError('JSON inválido: ' + e.message);
+  }
+});
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+saveBtn.addEventListener('click', async () => {
+  if (!validateJSON()) { showError('Corregí el JSON antes de guardar.'); return; }
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Guardando…';
+  try {
+    const parsed = JSON.parse(editor.getValue());
+    const res = await fetch(`/api/sop-ref/${PAGE_ID}/raw`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(parsed),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || res.statusText);
+    showSuccess();
+    document.getElementById('lastModTime').textContent = new Date().toLocaleString('es-PY');
+  } catch (e) {
+    showError('Error al guardar: ' + e.message);
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Guardar cambios';
+  }
+});
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+document.getElementById('resetBtn').addEventListener('click', async () => {
+  if (!confirm('¿Resetear a los datos por defecto? Esto borrará los cambios locales del archivo JSON.')) return;
+  try {
+    // Load default from static source (no file override)
+    // We DELETE the override by sending a DELETE, but we don't have that endpoint.
+    // Instead: load the raw, which fetches the current (possibly overridden) value.
+    // Reset = load from the live server (which has the file) vs. we need to delete the file.
+    // Simple approach: send empty {} to signal reset? No — better: we add a reset endpoint.
+    // For now: reload the page data and let the user know this requires a manual file delete.
+    // Actually: let's just reload the default from /api/sop-ref/:id/raw (DELETE method)
+    const res = await fetch(`/api/sop-ref/${PAGE_ID}/raw`, { method: 'DELETE' });
+    if (!res.ok) { throw new Error((await res.json()).error || 'Error'); }
+    const json = await res.json();
+    editor.setValue(JSON.stringify(json.data, null, 2));
+    showSuccess('Reseteado a valores por defecto');
+  } catch (e) {
+    showError('Error al resetear: ' + e.message);
+  }
+});
+
+function showError(msg) {
+  errMsg.textContent = msg;
+  errBanner.classList.add('show');
+  document.getElementById('successBanner').classList.add('hidden');
+  setTimeout(() => errBanner.classList.remove('show'), 6000);
+}
+function showSuccess(msg) {
+  const el = document.getElementById('successBanner');
+  el.querySelector('span') ? el.querySelector('span').textContent = msg || 'Guardado exitosamente' : null;
+  el.classList.remove('hidden');
+  errBanner.classList.remove('show');
+  setTimeout(() => el.classList.add('hidden'), 4000);
+}
+</script>
+</body>
+</html>

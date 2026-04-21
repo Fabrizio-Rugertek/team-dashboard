@@ -326,6 +326,12 @@ const flowList      = flowProcesses || [];
         <%= proc.name.split(' ').slice(0,2).join(' ') %>
       </a>
       <% }) }) %>
+      <div class="w-px h-4 bg-slate-200 mx-1"></div>
+      <a href="/sop/mcp-setup" class="quick-pill"
+         style="--pill-color:#7C3AED; --pill-bg:#F5F3FF">
+        <span class="quick-pill-dot" style="background:#7C3AED"></span>
+        Configurar IA
+      </a>
     </div>
   </div>
 </div>
@@ -575,6 +581,18 @@ const flowList      = flowProcesses || [];
             <% } %>
           </div>
 
+          <!-- Last modified badge (if this proc has been edited via the visual editor) -->
+          <% if (typeof modifiedAt !== 'undefined' && modifiedAt && modifiedAt[proc.id]) {
+               const d = new Date(modifiedAt[proc.id]);
+               const today = new Date();
+               const diffDays = Math.floor((today - d) / 86400000);
+               const label = diffDays === 0 ? 'Editado hoy' : diffDays === 1 ? 'Editado ayer' : `Editado hace ${diffDays}d`;
+          %>
+          <div class="text-xs text-violet-600 font-semibold bg-violet-50 border border-violet-200 rounded-lg px-2 py-0.5 inline-flex items-center gap-1 mb-2 w-fit">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1 5C1 2.79 2.79 1 5 1s4 1.79 4 4-1.79 4-4 4S1 7.21 1 5z" stroke="currentColor" stroke-width="1.2"/><path d="M5 3v2l1.5 1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <%= label %>
+          </div>
+          <% } %>
           <!-- Name -->
           <h3 class="text-base font-extrabold text-slate-900 leading-snug mb-2"><%= proc.name %></h3>
 
@@ -622,7 +640,7 @@ const flowList      = flowProcesses || [];
 <div class="max-w-7xl mx-auto px-5 pb-10">
   <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl p-6 text-white">
     <h3 class="text-sm font-extrabold uppercase tracking-widest text-slate-400 mb-5">Cómo usar esta enciclopedia</h3>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
       <div class="flex gap-3">
         <div class="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-lg flex-shrink-0">🗺️</div>
         <div>
@@ -651,6 +669,13 @@ const flowList      = flowProcesses || [];
           <div class="text-xs text-slate-400 mt-1 leading-relaxed">Organigrama, roles, metodología SCRUM y catálogo de productos en formato visual.</div>
         </div>
       </div>
+      <a href="/sop/mcp-setup" class="flex gap-3 group">
+        <div class="w-9 h-9 rounded-xl bg-violet-500/20 border border-violet-500/30 flex items-center justify-center text-lg flex-shrink-0">🤖</div>
+        <div>
+          <div class="text-sm font-bold text-white group-hover:text-violet-300 transition-colors">Conectar tu IA →</div>
+          <div class="text-xs text-slate-400 mt-1 leading-relaxed">Claude Desktop, Cursor y Windsurf pueden consultar estos SOPs en tiempo real vía MCP.</div>
+        </div>
+      </a>
     </div>
   </div>
 </div>
