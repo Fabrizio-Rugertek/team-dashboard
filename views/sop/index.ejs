@@ -617,16 +617,16 @@
     <div class="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
       <button id="view-visual-btn" onclick="switchSopView('visual')"
               class="px-4 py-2 rounded-lg text-sm font-bold transition-all bg-white shadow text-slate-900">
-        &#x1F5FA; Flujo Visual
+        Flujo Visual
       </button>
       <button id="view-written-btn" onclick="switchSopView('written')"
               class="px-4 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-700">
-        &#x1F4C4; Procedimiento Escrito
+        Procedimiento Escrito
       </button>
     </div>
     <% if (typeof user !== 'undefined' && user && (user.role === 'director' || user.role === 'admin')) { %>
     <a href="/sop/editor/<%= processId %>" class="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 hover:bg-violet-100 border border-violet-200 transition-colors">
-      &#x270F; Editar proceso
+      Editar proceso
     </a>
     <% } %>
   </div>
@@ -679,7 +679,7 @@
     <!-- Section header -->
     <div class="kb-section-header" id="idx-kb-section-<%= section.id %>"
          onclick="toggleKbSection('<%= section.id %>')">
-      <span><%= section.icon || '📁' %></span>
+      <span class="w-2 h-2 rounded-full flex-shrink-0" style="background:<%= section.color %>"></span>
       <span class="flex-1 truncate"><%= section.name %></span>
       <span class="kb-chevron">▾</span>
     </div>
@@ -708,10 +708,10 @@
 <!-- Mobile: visual fallback notice -->
 <div id="mobile-visual-fallback" class="hidden px-5 pb-4">
   <div class="bg-slate-100 rounded-xl p-4 text-sm text-slate-600 flex flex-col gap-2">
-    <span>&#x1F5A5; Vista visual disponible en escritorio. Usa la Vista Escrita abajo.</span>
+    <span>Vista visual disponible en escritorio. Usa la Vista Escrita abajo.</span>
     <button onclick="switchSopView('written')"
             class="self-start px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-slate-400 transition-colors">
-      &#x1F4C4; Ir a Vista Escrita
+      Ir a Vista Escrita
     </button>
   </div>
 </div>
@@ -1452,8 +1452,8 @@ function showCompletionToast() {
     toast.id = 'completionToast';
     toast.className = 'fixed bottom-8 left-1/2 z-[80] bg-emerald-600 text-white text-sm font-bold px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 pop-in';
     toast.innerHTML = `
-      <span class="text-xl">🎉</span>
-      <span>¡Proceso completado! Todos los pasos marcados.</span>
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9l4.5 4.5 7.5-9" stroke="#6EE7B7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Proceso completado. Todos los pasos marcados.</span>
       <button onclick="this.parentElement.remove()" class="ml-2 opacity-70 hover:opacity-100 text-white font-bold text-base leading-none">×</button>`;
     document.body.appendChild(toast);
   }
