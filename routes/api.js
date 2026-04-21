@@ -326,27 +326,28 @@ Rules:
 router.get('/sop/export', (req, res) => {
   const aiMode = req.query.format === 'ai';
 
-  // Build processes export
+  // Build processes export — use sopLoader so edits from the visual editor are reflected
   const processesOut = {};
-  for (const [key, proc] of Object.entries(PROCESSES)) {
+  for (const key of sopLoader.listEditable()) {
+    const raw = sopLoader.loadRaw(key);
+    if (!raw) continue;
     if (aiMode) {
-      // AI mode: keep only what the LLM needs, strip rendering artefacts
+      const laneLabels = (raw.lanes || []).map(l => l.label);
       processesOut[key] = {
-        name: proc.steps ? proc.steps[0]?.label?.replace(/ \d+$/, '') : key,
-        steps: (proc.steps || []).map(s => ({
-          id: s.id,
-          label: s.label,
-          role: proc.lanes?.[s.lane]?.label || '',
+        steps: (raw.steps || []).map(s => ({
+          id:          s.id,
+          label:       s.label,
+          role:        laneLabels[s.lane] || '',
           description: s.description || s.sublabel || '',
-          inputs:   s.inputs   || [],
-          outputs:  s.outputs  || [],
-          tools:    s.tools    || [],
-          mistakes: s.mistakes || [],
+          inputs:      s.inputs   || [],
+          outputs:     s.outputs  || [],
+          tools:       s.tools    || [],
+          mistakes:    s.mistakes || [],
         })),
-        lanes: (proc.lanes || []).map(l => ({ id: l.id, label: l.label })),
+        lanes: laneLabels,
       };
     } else {
-      processesOut[key] = proc;
+      processesOut[key] = raw;
     }
   }
 

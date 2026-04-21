@@ -84,6 +84,9 @@ app.use('/crm',       requireView('crm'),       crmRoutes);
 // /sop — all authenticated users (open to all roles)
 app.use('/sop', requireAuth, sopRoutes);
 
+// /mcp — public MCP server for employee AI clients (Claude Desktop, Cursor, etc.)
+app.use('/mcp', require('../routes/mcp'));
+
 // /api/sop/export — public endpoint for AI context (no sensitive data)
 app.use('/api/sop/export', (req, res) => {
   // Delegate to the api router without auth
