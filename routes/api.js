@@ -383,6 +383,7 @@ router.get('/sop/export', (req, res) => {
           stages:    page.projectStandards.stages,
           assignees: page.projectStandards.assignees,
           templates: page.projectStandards.templates,
+          tags:      page.projectStandards.tags,
         } : undefined,
       };
     } else {
