@@ -377,6 +377,13 @@ router.get('/sop/export', (req, res) => {
           matchLogic:    page.analyticRules.matchLogic,
           howPlan1Works: page.analyticRules.howPlan1Works,
         } : undefined,
+        projectStandards: page.projectStandards ? {
+          alert:     page.projectStandards.alert,
+          naming:    page.projectStandards.naming,
+          stages:    page.projectStandards.stages,
+          assignees: page.projectStandards.assignees,
+          templates: page.projectStandards.templates,
+        } : undefined,
       };
     } else {
       refOut[key] = page;
