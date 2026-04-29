@@ -320,28 +320,30 @@
       "id": "i8",
       "col": 8,
       "lane": 0,
-      "label": "Go-Live",
-      "sublabel": "Cut-over a producción",
+      "label": "Cut-over y Go-Live",
+      "sublabel": "Activación a producción",
       "time": "1-3 días",
       "stage": "Fase 5b",
-      "description": "Activación del sistema en producción. El PM coordina el cut-over con el equipo y el cliente para minimizar interrupción operativa.",
+      "description": "Activación del sistema en producción. El PM coordina el cut-over (preparación) y el go-live (activación) con el equipo y el cliente para minimizar interrupción operativa.",
       "substeps": [
+        "Cut-over checklist: validar configuración final + integraciones + permisos",
+        "Validación de datos finales pre-Go-Live (saldos, inventarios, contactos)",
+        "Respaldo pre-Go-Live (snapshot de la DB y configuración)",
         "Confirmar que staging está congelado y en el estado final",
         "Ejecutar migración de datos a producción",
         "Activar usuarios en producción y comunicar al equipo del cliente",
         "PM disponible durante las primeras 48 horas para soporte inmediato",
-        "Firma de acta de Go-Live",
-        "Activar período de estabilización (30 días soporte activo)"
+        "Firma de acta de Go-Live"
       ],
       "inputs": [
         "Staging congelado y aprobado",
         "Datos migrados a producción",
+        "Cut-over checklist completo",
         "Equipo disponible"
       ],
       "outputs": [
         "Odoo en producción activo",
-        "Acta de Go-Live firmada",
-        "Período de estabilización iniciado"
+        "Acta de Go-Live firmada"
       ],
       "tools": [
         "Odoo (producción)",
@@ -354,9 +356,55 @@
       "mistakes": [
         "Go-live viernes",
         "No tener plan de rollback",
-        "PM no disponible las primeras 48 horas"
+        "PM no disponible las primeras 48 horas",
+        "Saltar el cut-over checklist por presión de tiempo"
+      ]
+    },
+    {
+      "id": "i9",
+      "col": 9,
+      "lane": 0,
+      "shape": "end",
+      "label": "Estabilización",
+      "sublabel": "30 días post Go-Live",
+      "time": "30 días",
+      "stage": "Fase 6",
+      "description": "Período de garantía y soporte intensivo durante los primeros 30 días en producción. El equipo de Torus mantiene presencia activa, atiende incidencias y ajustes menores antes de pasar al ciclo de Soporte regular ([SUPP]).",
+      "substeps": [
+        "Soporte post Go-Live - Semana 1: monitoreo diario + atención inmediata (8h/semana est.)",
+        "Soporte post Go-Live - Semana 2: monitoreo activo (6h/semana est.)",
+        "Soporte post Go-Live - Semana 3: monitoreo según consumo (4h/semana est.)",
+        "Soporte post Go-Live - Semana 4: cierre de fase + ajustes menores (4h/semana est.)",
+        "Documentar incidencias y ajustes para mejorar el template o crear nuevos tickets de mejora",
+        "Reunión de cierre con el cliente: entrega formal y propuesta de [SUPP] continuo",
+        "Firma de Acta de Cierre de Estabilización → activa el contrato de soporte mensual"
       ],
-      "shape": "end"
+      "inputs": [
+        "Acta de Go-Live firmada",
+        "Sistema en producción operando",
+        "Canal de comunicación con SPoC del cliente"
+      ],
+      "outputs": [
+        "Acta de Cierre de Estabilización firmada",
+        "Sistema estabilizado en producción",
+        "Contrato [SUPP] iniciado (si aplica)",
+        "Tickets de mejora documentados para futuro"
+      ],
+      "tools": [
+        "Odoo (producción)",
+        "Odoo Proyectos (tickets)",
+        "Slack / WhatsApp"
+      ],
+      "tips": [
+        "Las horas semanales son estimadas: bajan cada semana porque el cliente se autonomiza",
+        "Identificar tickets recurrentes → posibles mejoras al template o capacitación adicional",
+        "No alargar la estabilización más de 30 días — si aún hay problemas, reabrir alcance del proyecto"
+      ],
+      "mistakes": [
+        "Cerrar antes de 30 días por presión interna o del cliente",
+        "No documentar incidencias recurrentes (se pierde aprendizaje para próximos proyectos)",
+        "Pasar a [SUPP] sin acta de cierre — queda sin trazabilidad contractual"
+      ]
     }
   ],
   "edges": [
@@ -399,6 +447,11 @@
       "from": "i7",
       "to": "i8",
       "type": "normal"
+    },
+    {
+      "from": "i8",
+      "to": "i9",
+      "type": "handoff"
     }
   ]
 }

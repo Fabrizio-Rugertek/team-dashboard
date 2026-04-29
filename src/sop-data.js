@@ -1320,7 +1320,7 @@ const REFERENCE_PAGES = {
       title: 'Reglas de Presupuestos (SO)',
       alert: 'Cada linea con producto en el SO crea un proyecto en Odoo. Maximo una linea por codigo de producto.',
       rules: [
-        { icon: '⛔', label: 'Sin [MOD] legacy',             text: 'Usar solo: [CORE], [LOC], [SALES], [SCM], [HR], [PROJ], [CDEV], [SUPP], [HOURS].' },
+        { icon: '⛔', label: 'Codigos validos',               text: 'Usar solo codigos del catalogo: [DISC], [CORE], [LOC], [SALES], [SCM], [HR], [PROJ], [WEB], [CDEV], [SUPP], [HOURS], [HOURLY], [INFRA], [LIC], [LIC-AMIBA]. NO usar [MOD] legacy ni inventar codigos nuevos.' },
         { icon: '📝', label: 'Una linea por producto',      text: 'Consolidar horas en una sola linea por codigo. [SALES] cubre CRM + Ventas: 1 linea con el total.' },
         { icon: '🚫', label: 'Sin precios en descripcion',  text: 'La nota/descripcion del SO nunca lleva precios ni estimaciones de horas. Esos datos van en las lineas de venta.' },
         { icon: '💳', label: 'Financiamiento en terminos',  text: 'Cuotas y anticipo van en el campo Terminos de Pago del SO, no en el texto de la descripcion.' },
@@ -1342,7 +1342,7 @@ const REFERENCE_PAGES = {
       title: 'Cuentas Analiticas en Facturas',
       alert: 'Toda linea de producto en facturas de cliente debe tener exactamente 2 cuentas analiticas: Plan 1 (proyecto) + plan de producto.',
       plans: [
-        { plan: 'Plan 1 - Proyecto',           desc: 'Una cuenta por proyecto cliente. Se crea automaticamente con el proyecto. Nombre: SXXXXX - TIPO - CLIENTE.' },
+        { plan: 'Plan 1 - Proyecto',           desc: 'Una cuenta por proyecto cliente. Se crea automaticamente con el proyecto. Nombre estandar: SXXXXX - [TIPO] - CLIENTE (con corchetes en el codigo de producto).' },
         { plan: 'Plan 12 - Implementacion',    desc: 'CORE (187), LOC (189), CDEV (188), SALES (192), SCM (193), HR (190), PROJ (191).' },
         { plan: 'Plan 13 - Soporte',           desc: 'SUPP (195).' },
         { plan: 'Plan 14 - Team-as-a-Service', desc: 'HOURS (198), HOURLY (199).' },
@@ -1351,6 +1351,70 @@ const REFERENCE_PAGES = {
       ],
       matchLogic: 'Prioridad: (1) sale_line_ids de la factura vinculada a proyecto con account_id. (2) busqueda por partner + codigo de producto entre proyectos activos. (3) resolucion manual si hay ambiguedad.',
       howPlan1Works: 'El proyecto debe tener sale_line_id apuntando a la linea de OV correcta para que la analitica se propague automaticamente. Sin ese vinculo hay que asignar Plan 1 a mano.',
+    },
+    projectStandards: {
+      title: 'Estandares de Proyectos en Odoo',
+      alert: 'Politica unica para todos los proyectos cliente. NO crear excepciones por cliente o por consultor.',
+      naming: {
+        title: 'Naming de Proyectos',
+        format: 'SXXXXX - [TIPO] - CLIENTE',
+        examples: [
+          'S00089 - [CORE] - DYD Arquitectura y Construccion SRL',
+          'S00047 - [SCM F1] - PALKE S.A. (MotorHaus)',
+          'S00075 - [HOURS] - DDS SOCIEDAD DE RESPONSABILIDAD LIMITADA',
+        ],
+        rules: [
+          'Codigo del producto SIEMPRE entre corchetes [CORE], [SALES], etc.',
+          'Nombre completo del cliente, sin abreviar (razon social como esta en Odoo)',
+          'Si hay sub-fases (F1, F2) van dentro del corchete: [SCM F1]',
+          'Renombrar proyecto en AMBOS idiomas (en_US + es_PY) — el campo name es translatable',
+        ],
+      },
+      stages: {
+        title: 'Stages Estandar (compartidos)',
+        alert: 'TODOS los proyectos cliente comparten LAS MISMAS instancias de stages. NO se crean stages nuevos por proyecto.',
+        list: [
+          { seq: 1, name: '1. Lista de Tareas', fold: false, desc: 'Tareas pendientes de ser tomadas — backlog visible del proyecto' },
+          { seq: 2, name: '2. En Cola',         fold: false, desc: 'Asignadas pero aun no comenzadas (proxima a ejecutar)' },
+          { seq: 3, name: '3. En Progreso',     fold: false, desc: 'Trabajo activo. Consultor logueando horas diariamente' },
+          { seq: 4, name: '4. En Pausa',        fold: false, desc: 'Detenida por bloqueo, dependencia o entregable pendiente del cliente' },
+          { seq: 5, name: '5. En Revisión',     fold: false, desc: 'En validacion funcional / QA / aprobacion del cliente' },
+          { seq: 6, name: '6. Hecho',           fold: true,  desc: 'Cerrada y validada. Stage terminal' },
+        ],
+        rules: [
+          'NO crear stages "Hecho", "Done", "Cerrado", "En curso", "En proceso" o variantes — usar exactamente los 6 del estandar',
+          'NO crear stages especiales por proyecto — si hace falta un workflow distinto, usar tags/etiquetas',
+          'Stages personales (Bandeja de entrada, Hoy, Esta semana, etc.) son privados de cada usuario y NO se aplican a proyectos cliente',
+          'Al crear tareas via API: setear stage_id explicito (8 = "1. Lista de Tareas") para evitar que caigan en "En Pausa" por default',
+        ],
+      },
+      assignees: {
+        title: 'Responsables de Tareas',
+        alert: 'Las tareas creadas desde template NO llevan responsable por defecto. Se asigna tarea por tarea cuando el PM las distribuye.',
+        rules: [
+          'NO bulk-assignar todas las tareas a una persona post-creacion del proyecto',
+          'NO usar el creator del proyecto (RuBot, PM, Diego, etc.) como default assignee',
+          'PM distribuye al equipo segun area: contabilidad → contable, tecnico → dev, etc.',
+        ],
+      },
+      templates: {
+        title: 'Project Templates Disponibles',
+        alert: 'Solo duplicar templates oficiales. NO crear proyectos cliente desde cero.',
+        list: [
+          { code: '[CORE]',  tasks: 102, hours: 399, notes: 'Implementacion administrativa base. Siempre se vende.' },
+          { code: '[DISC]',  tasks: 32,  hours: 93,  notes: 'Solo analisis. Termina en propuesta comercial.' },
+          { code: '[CDEV]',  tasks: 33,  hours: 99,  notes: 'Pipeline DEV → TEST → UAT → PROD para customizaciones.' },
+          { code: '[SALES]', tasks: 58,  hours: 178, notes: 'CRM + Ventas + POS.' },
+          { code: '[SCM]',   tasks: 57,  hours: 176, notes: 'Inventario + Compras + Logistica.' },
+          { code: '[HR]',    tasks: 52,  hours: 156, notes: 'Empleados + Ausencias + Nomina.' },
+          { code: '[PROJ]',  tasks: 49,  hours: 151, notes: 'Proyectos + Hojas de Tiempo + Facturacion de servicios.' },
+          { code: '[WEB]',   tasks: 51,  hours: 157, notes: 'Sitio Web + eCommerce + Blog.' },
+          { code: '[SUPP]',  tasks: 20,  hours: 0,   notes: 'Recurrente. Hrs por contrato, no totales.' },
+          { code: '[HOURS]', tasks: 0,   hours: 0,   notes: 'Bolsa prepaga. Template SIN tareas — el cliente decide que hacer con las horas.' },
+          { code: '[HOURLY]',tasks: 0,   hours: 0,   notes: 'Servicio por hora. Template SIN tareas — facturacion mensual por consumo.' },
+        ],
+        notes: '[LOC], [INFRA], [LIC], [LIC-AMIBA] son productos vendibles que NO requieren proyecto Odoo (solo facturacion). [LOC] esta embebido como seccion dentro de [CORE].',
+      },
     },
   },
 };
@@ -1374,7 +1438,7 @@ const ENCYCLOPEDIA = {
       icon: '⚙️',
       description: 'Implementación Odoo, soporte post-venta, desarrollo técnico y gestión de tareas',
       processes: [
-        { id: 'implementacion', name: 'Implementación Odoo',     description: '8 pasos: análisis, configuración, módulos, capacitación, UAT y go-live.', steps: 8, status: 'complete' },
+        { id: 'implementacion', name: 'Implementación Odoo',     description: '9 pasos: análisis, configuración, módulos, capacitación, UAT, migración, go-live y estabilización.', steps: 9, status: 'complete' },
         { id: 'soporte',        name: 'Soporte y Mantenimiento', description: '6 pasos: desde la solicitud hasta la revisión mensual proactiva.', steps: 6, status: 'complete' },
         { id: 'desarrollo',     name: 'Desarrollo a Medida',     description: '5 pasos: especificación, desarrollo, staging, validación y producción.', steps: 5, status: 'complete' },
         { id: 'scrum',          name: 'Scrum Sprint Cycle',      description: '6 ceremonias: refinamiento, planning, daily, ejecución, review y retrospectiva.', steps: 6, status: 'complete' },

@@ -60,7 +60,9 @@
       "tips": [
         "Nombre de tarea: \"Configurar módulo de inventario para Motor Haus\" — claro y accionable",
         "Si la tarea va a tomar más de 8h, dividirla en subtareas o en varias tareas",
-        "Las tareas técnicas (DEV) siempre necesitan las 5 subtareas del pipeline"
+        "Las tareas técnicas (DEV) siempre necesitan las 5 subtareas del pipeline",
+        "Stages estándar (compartidos en TODOS los proyectos): 1. Lista de Tareas / 2. En Cola / 3. En Progreso / 4. En Pausa / 5. En Revisión / 6. Hecho. NO crear stages nuevos por proyecto.",
+        "NO asignar responsable por defecto al crear desde template — se asigna tarea por tarea cuando el PM la distribuye"
       ],
       "mistakes": [
         "Tareas sin horas estimadas — imposible medir avance",
@@ -105,7 +107,7 @@
         "Criterios de aceptación concretos = menos ciclos de revisión"
       ],
       "mistakes": [
-        "Pasar tarea a \"En Proceso\" sin criterios de aceptación",
+        "Pasar tarea a \"3. En Progreso\" sin criterios de aceptación",
         "Especificación técnica verbal sin documentar — siempre se pierde información",
         "Aceptar \"lo mismo que antes\" como especificación"
       ]
@@ -120,7 +122,7 @@
       "stage": "Ejecución",
       "description": "El consultor o desarrollador ejecuta la tarea. Registra horas diariamente en Odoo. Actualiza el estado y las notas de progreso. Si surge un bloqueo que no puede resolver en 48h, aplica el protocolo de alerta.",
       "substeps": [
-        "Mover la tarea a etapa \"En Proceso\" en Odoo",
+        "Mover la tarea a etapa \"3. En Progreso\" en Odoo (set estándar compartido entre todos los proyectos)",
         "Trabajar siguiendo la especificación — si hay dudas, preguntar ANTES de implementar",
         "Registrar horas en Odoo al final de cada día (no al final de la semana)",
         "Actualizar la descripción con notas de progreso si es una tarea larga",
@@ -144,7 +146,7 @@
       "tips": [
         "Regla de oro: horas del día = registradas hoy, nunca mañana",
         "Si vas a exceder las horas estimadas en más del 20%, avisar al PM antes de continuar",
-        "Una tarea \"En Proceso\" no debe quedarse ahí más de X días sin actualización (X = estimación)"
+        "Una tarea \"3. En Progreso\" no debe quedarse ahí más de X días sin actualización (X = estimación)"
       ],
       "mistakes": [
         "Registrar horas en lote al final de la semana — pierde trazabilidad",
@@ -251,7 +253,7 @@
         "Verificar que las horas efectivas están registradas correctamente",
         "Comparar horas efectivas vs horas planificadas — anotar diferencia si >20%",
         "Agregar nota de resolución: qué se hizo, cómo quedó, links o archivos relevantes",
-        "Mover la tarea a la etapa final (Done / Cerrado) en Odoo",
+        "Mover la tarea a la etapa final \"6. Hecho\" en Odoo",
         "Si es bug: documentar causa raíz para evitar recurrencia",
         "Si las horas excedieron mucho el estimado: actualizar template de estimación para el futuro"
       ],
