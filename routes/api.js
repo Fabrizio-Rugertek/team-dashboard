@@ -378,12 +378,16 @@ router.get('/sop/export', (req, res) => {
           howPlan1Works: page.analyticRules.howPlan1Works,
         } : undefined,
         projectStandards: page.projectStandards ? {
-          alert:     page.projectStandards.alert,
-          naming:    page.projectStandards.naming,
-          stages:    page.projectStandards.stages,
-          assignees: page.projectStandards.assignees,
-          templates: page.projectStandards.templates,
-          tags:      page.projectStandards.tags,
+          alert:            page.projectStandards.alert,
+          naming:           page.projectStandards.naming,
+          stages:           page.projectStandards.stages,
+          assignees:        page.projectStandards.assignees,
+          templates:        page.projectStandards.templates,
+          tags:             page.projectStandards.tags,
+          projectStages:    page.projectStandards.projectStages,
+          autoNaming:       page.projectStandards.autoNaming,
+          serviceTypeField: page.projectStandards.serviceTypeField,
+          enforcement:      page.projectStandards.enforcement,
         } : undefined,
       };
     } else {
