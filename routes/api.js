@@ -360,6 +360,8 @@ router.get('/sop/export', (req, res) => {
       // AI mode: include products, rules, conditions — skip colors/icons
       refOut[key] = {
         title: page.title,
+        phases:       page.phases     || undefined,
+        slaSupport:   page.slaSupport || undefined,
         products: (page.products || []).map(cat => ({
           category: cat.category,
           items: cat.items.map(i => ({ code: i.code, name: i.name, when: i.when, billing: i.billing })),
