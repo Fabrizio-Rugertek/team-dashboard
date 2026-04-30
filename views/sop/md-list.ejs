@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= title %></title>
+<link rel="icon" type="image/png" href="/img/torus-icon-green.png">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>* { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+<nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm"><div class="max-w-7xl mx-auto px-5 py-3 flex items-center justify-between"><div class="flex items-center gap-3"><img src="/img/torus-icon-green.png" alt="Torus" class="h-7 w-auto"><span class="text-slate-300">/</span><a href="/" class="text-slate-400 text-sm font-medium hover:text-slate-600">Dashboard</a><span class="text-slate-300">/</span><a href="/sop" class="text-slate-400 text-sm font-medium hover:text-slate-600">SOPs</a><span class="text-slate-300">/</span><span class="text-sm font-bold text-slate-800">Markdown</span></div><% if (typeof user !== "undefined" && user) { %><div class="flex items-center gap-3"><span class="text-xs font-medium text-slate-600 hidden sm:block"><%= user.name || user.email %></span><form action="/auth/logout" method="POST" class="inline"><button class="text-xs text-red-400 hover:text-red-600 font-semibold px-2 py-1 rounded hover:bg-red-50">Salir</button></form></div><% } %></div></nav>
+
+<main class="max-w-5xl mx-auto px-6 py-10">
+  <div class="mb-6">
+    <a href="/sop/md" class="text-sm text-slate-500 hover:text-slate-700">← Volver a SOPs Detallados</a>
+    <h1 class="mt-2 text-3xl font-extrabold text-slate-900 capitalize">SOPs <%= company %></h1>
+    <p class="mt-1 text-slate-600 text-sm"><%= sops.length %> documentos</p>
+  </div>
+
+  <div class="bg-white border rounded-xl divide-y">
+    <% sops.forEach(s => { %>
+      <a href="/sop/md/<%= company %>/<%= s.slug %>" class="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition">
+        <div>
+          <div class="font-semibold text-slate-900"><%= s.title %></div>
+          <div class="text-xs text-slate-500 mt-0.5"><code><%= s.filename %></code></div>
+        </div>
+        <div class="text-right text-xs text-slate-400">
+          <div><%= new Date(s.modifiedAt).toLocaleDateString('es-PY') %></div>
+          <div><%= Math.round(s.sizeBytes/1024) %> KB</div>
+        </div>
+      </a>
+    <% }) %>
+  </div>
+</main>
+</body>
+</html>

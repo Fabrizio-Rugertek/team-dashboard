@@ -13,7 +13,17 @@ const express  = require('express');
 const router   = express.Router();
 const { requireRole } = require('../middleware/requireAuth');
 const sopLoader = require('../src/sop-loader');
+const mdSopLoader = require('../src/md-sop-loader');
+const { marked } = require('marked');
 const { ENCYCLOPEDIA, REFERENCE_PAGES } = sopLoader;
+
+// ── Marked config for safe HTML rendering ────────────────────────────────────
+marked.setOptions({
+  gfm: true,
+  breaks: false,
+  headerIds: true,
+  mangle: false,
+});
 
 // Keep PROCESSES for the flow-process list (keys only); loader handles actual data
 const { PROCESSES } = require('../src/sop-data');
@@ -143,6 +153,97 @@ router.get('/mcp-setup', (req, res) => {
     mcpUrl: 'https://dashboard.torus.dev/mcp',
   });
 });
+
+// ── Markdown SOPs (fabri-context driven) ─────────────────────────────────────
+//
+// /sop/md/                              → hub: companies con SOPs markdown
+// /sop/md/:company                      → lista SOPs de una company
+// /sop/md/:company/:slug                → viewer (renderiza markdown)
+// /sop/md/:company/:slug/edit           → editor (director+ only)
+// POST /sop/md/:company/:slug/save      → save + git commit + push + reindex MCP
+
+// Hub markdown
+router.get('/md', (req, res) => {
+  const companies = mdSopLoader.listCompanies();
+  const summary = companies.map(c => ({
+    company: c,
+    sops: mdSopLoader.listSops(c),
+  }));
+  res.render('sop/md-hub', {
+    title: 'SOPs Detallados — Markdown',
+    user:  req.user || null,
+    summary,
+  });
+});
+
+// Lista por company
+router.get('/md/:company', (req, res) => {
+  const { company } = req.params;
+  if (!mdSopLoader.listCompanies().includes(company)) {
+    return res.status(404).render('platform/404');
+  }
+  const sops = mdSopLoader.listSops(company);
+  res.render('sop/md-list', {
+    title: `SOPs ${company} — Markdown`,
+    user:  req.user || null,
+    company,
+    sops,
+  });
+});
+
+// Viewer markdown
+router.get('/md/:company/:slug', (req, res) => {
+  const { company, slug } = req.params;
+  const sop = mdSopLoader.loadSop(company, slug);
+  if (!sop) return res.status(404).render('platform/404');
+  const html = marked.parse(sop.content);
+  const canEdit = req.user && ['director', 'admin'].includes(req.user.role);
+  res.render('sop/md-viewer', {
+    title: `SOP ${slug} — ${company}`,
+    user:  req.user || null,
+    company,
+    slug,
+    html,
+    rawContent: sop.content,
+    modifiedAt: sop.modifiedAt,
+    canEdit,
+  });
+});
+
+// Editor (director+ only)
+router.get('/md/:company/:slug/edit', requireRole('director'), (req, res) => {
+  const { company, slug } = req.params;
+  const sop = mdSopLoader.loadSop(company, slug);
+  if (!sop) return res.status(404).render('platform/404');
+  res.render('sop/md-editor', {
+    title: `Editar — ${slug}`,
+    user:  req.user || null,
+    company,
+    slug,
+    content: sop.content,
+    modifiedAt: sop.modifiedAt,
+  });
+});
+
+// Save
+router.post('/md/:company/:slug/save', requireRole('director'), express.json({ limit: '2mb' }), async (req, res) => {
+  const { company, slug } = req.params;
+  const { content } = req.body || {};
+  if (typeof content !== 'string' || !content.trim()) {
+    return res.status(400).json({ error: 'content required (string)' });
+  }
+  try {
+    const result = await mdSopLoader.saveSop(company, slug, content, {
+      authorName:  req.user?.name || req.user?.displayName || 'dashboard',
+      authorEmail: req.user?.email || 'dashboard@rugertek.com',
+    });
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[sop md save]', e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 
 // ── Flow pages ────────────────────────────────────────────────────────────────
 router.get('/:processId', (req, res) => {
